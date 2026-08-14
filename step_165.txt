@@ -1,0 +1,259 @@
+Created At: 2026-08-07T07:30:16Z
+Completed At: 2026-08-07T07:30:16Z
+File Path: `file:///c:/Users/yuvik/Downloads/Factory_Grid_Platform/src/pages/LandingPage.tsx`
+Total Lines: 1820
+Total Bytes: 86069
+Showing lines 1300 to 1550
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1300:                   padding: 12,
+1301:                   textAlign: 'center',
+1302:                 }}
+1303:               >
+1304:                 <div
+1305:                   style={{
+1306:                     width: 38,
+1307:                     height: 38,
+1308:                     borderRadius: 10,
+1309:                     background: eco.bg,
+1310:                     border: `1px solid ${eco.border}`,
+1311:                     display: 'flex',
+1312:                     alignItems: 'center',
+1313:                     justifyContent: 'center',
+1314:                     color: eco.color,
+1315:                   }}
+1316:                 >
+1317:                   <Icon size={20} />
+1318:                 </div>
+1319: 
+1320:                 <div>
+1321:                   <div style={{ fontSize: 13.5, fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+1322:                     {eco.title}
+1323:                   </div>
+1324:                   <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.45)', marginTop: 2, fontWeight: 500 }}>
+1325:                     {eco.subtitle}
+1326:                   </div>
+1327:                 </div>
+1328:               </motion.div>
+1329: 
+1330:               {/* LIGHTWEIGHT FLOATING CAPABILITY LABELS (NO CARDS) */}
+1331:               {eco.capabilities.map((cap, capIdx) => {
+1332:                 const offset = eco.tagOffsets[capIdx];
+1333:                 return (
+1334:                   <motion.div
+1335:                     key={cap}
+1336:                     initial={{ opacity: 0.75, scale: 0.95 }}
+1337:                     animate={{
+1338:                       opacity: isHovered ? 1 : isAnyHovered ? 0.35 : 0.85,
+1339:                       scale: isHovered ? 1.05 : 1,
+1340:                       y: isHovered ? [0, -3, 0] : 0,
+1341:                     }}
+1342:                     transition={{
+1343:                       duration: isHovered ? 1.8 : 0.25,
+1344:                       repeat: isHovered ? Infinity : 0,
+1345:                       repeatType: 'reverse',
+1346:                       delay: capIdx * 0.05,
+1347:                     }}
+1348:                     style={{
+1349:                       position: 'absolute',
+1350:                       left: offset.dx,
+1351:                       top: offset.dy,
+1352:                       whiteSpace: 'nowrap',
+1353:                       pointerEvents: 'none',
+1354:                     }}
+1355:                   >
+1356:                     <div
+1357:                       style={{
+1358:                         display: 'inline-flex',
+1359:                         alignItems: 'center',
+1360:                         gap: 7,
+1361:                         padding: '6px 14px',
+1362:                         borderRadius: 999,
+1363:                         background: isHovered ? 'rgba(15, 32, 48, 0.95)' : 'rgba(15, 32, 48, 0.75)',
+1364:                         backdropFilter: 'blur(12px)',
+1365:                         border: `1px solid ${isHovered ? eco.color : 'rgba(255,255,255,0.12)'}`,
+1366:                         color: isHovered ? '#FFFFFF' : 'rgba(255,255,255,0.85)',
+1367:                         fontSize: 11.5,
+1368:                         fontWeight: 600,
+1369:                         boxShadow: isHovered
+1370:                           ? `0 4px 20px ${eco.glow}`
+1371:                           : '0 2px 10px rgba(0,0,0,0.3)',
+1372:                         transition: 'all 0.2s ease',
+1373:                       }}
+1374:                     >
+1375:                       <div
+1376:                         style={{
+1377:                           width: 5,
+1378:                           height: 5,
+1379:                           borderRadius: '50%',
+1380:                           background: eco.color,
+1381:                           boxShadow: `0 0 6px ${eco.color}`,
+1382:                         }}
+1383:                       />
+1384:                       <span>{cap}</span>
+1385:                     </div>
+1386:                   </motion.div>
+1387:                 );
+1388:               })}
+1389:             </div>
+1390:           );
+1391:         })}
+1392:       </div>
+1393:     </div>
+1394:   );
+1395: }
+1396: 
+1397: /* ─────────────────────────────────────────────────────────
+1398:    MAIN LANDING PAGE
+1399: ───────────────────────────────────────────────────────── */
+1400: export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
+1401:   return (
+1402:     <div style={{ minHeight: '100vh', background: '#07111D', color: '#fff', overflowX: 'hidden', position: 'relative' }}>
+1403: 
+1404:       {/* Rich Animated Background */}
+1405:       <BackgroundCanvas />
+1406: 
+1407:       {/* Soft colour orbs layered over canvas */}
+1408:       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+1409:         <div className="fg-ambient-orb-1" />
+1410:         <div className="fg-ambient-orb-2" />
+1411:         {/* Extra teal orb — lower centre */}
+1412:         <div style={{
+1413:           position: 'absolute',
+1414:           width: 600, height: 600,
+1415:           bottom: '-150px', left: '30%',
+1416:           borderRadius: '50%',
+1417:           background: 'radial-gradient(circle, rgba(24,213,165,0.07) 0%, transparent 65%)',
+1418:           filter: 'blur(90px)',
+1419:           animation: 'orbFloat2 30s ease-in-out infinite alternate',
+1420:         }} />
+1421:       </div>
+1422: 
+1423:       {/* ─── NAVBAR ─────────────────────────────────────────────── */}
+1424:       <header style={{
+1425:         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+1426:         height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+1427:         padding: '0 48px',
+1428:         background: 'rgba(7,17,29,0.88)',
+1429:         backdropFilter: 'blur(24px)',
+1430:         borderBottom: '1px solid rgba(255,255,255,0.07)',
+1431:       }}>
+1432:         <div style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
+1433:           <button
+1434:             onClick={() => onNavigate('landing')}
+1435:             style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+1436:           >
+1437:             <div className="nav-logo-mark" style={{ background: '#FFFFFF', border: '1px solid rgba(255,255,255,0.2)', padding: 4 }}>
+1438:               <LogoMark size={24} color="#0F172A" />
+1439:             </div>
+1440:             <span style={{ fontSize: 17, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>FactoryGrid</span>
+1441:           </button>
+1442:           <nav style={{ display: 'flex', gap: 24 }}>
+1443:             {['Platform', 'Manufacturers', 'Compliance', 'Pricing'].map(item => (
+1444:               <a key={item} href="#" onClick={e => { e.preventDefault(); }}
+1445:                 style={{ fontSize: 14, fontWeight: 500, color: '#94A3B8', textDecoration: 'none', transition: 'color 0.2s' }}
+1446:                 onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+1447:                 onMouseLeave={e => (e.currentTarget.style.color = '#94A3B8')}
+1448:               >
+1449:                 {item}
+1450:               </a>
+1451:             ))}
+1452:           </nav>
+1453:         </div>
+1454:         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+1455:           <button className="fg-btn-ghost" style={{ padding: '10px 16px', fontSize: 13 }} onClick={() => onNavigate('login')}>Sign In</button>
+1456:           <button className="fg-btn-secondary" style={{ padding: '10px 16px', fontSize: 13 }} onClick={() => onNavigate('mfg-register')}>Register Plant</button>
+1457:           <button className="fg-btn-primary" style={{ padding: '10px 18px', fontSize: 13 }} onClick={() => onNavigate('buyer-register')}>
+1458:             Apply as Buyer <ArrowRight size={14} />
+1459:           </button>
+1460:         </div>
+1461:       </header>
+1462: 
+1463:       {/* ─── SECTION 1: HERO ─────────────────────────────────────── */}
+1464:       <section style={{ padding: '168px 0 110px', position: 'relative', zIndex: 1 }}>
+1465:         <div className="fg-container">
+1466:           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
+1467:             {/* Left */}
+1468:             <div>
+1469:               <div className="fg-pill" style={{ marginBottom: 24 }}>
+1470:                 <ShieldCheck size={12} /> B2B Pharmaceutical Procurement Platform
+1471:               </div>
+1472:               <h1 className="fg-hero-title" style={{ marginBottom: 22 }}>
+1473:                 Connecting Pharmaceutical Buyers<br />
+1474:                 <span className="fg-gradient-text">With Verified Manufacturers</span>
+1475:               </h1>
+1476:               <p className="fg-desc" style={{ marginBottom: 36, maxWidth: 480 }}>
+1477:                 FactoryGrid is a smart B2B pharmaceutical procurement platform that helps buyers discover verified manufacturers, manage RFQs, compare quotations and track complete order fulfillment from one place.
+1478:               </p>
+1479:               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+1480:                 <button className="fg-btn-primary" onClick={() => onNavigate('buyer-register')}>
+1481:                   Apply as Buyer <ArrowRight size={16} />
+1482:                 </button>
+1483:                 <button className="fg-btn-ghost" onClick={() => onNavigate('mfg-register')}>
+1484:                   Register Your Plant
+1485:                 </button>
+1486:                 <button className="fg-btn-ghost" onClick={() => onNavigate('login')}>
+1487:                   Sign In →
+1488:                 </button>
+1489:               </div>
+1490:               {/* Trust signals */}
+1491:               <div style={{ display: 'flex', gap: 20, marginTop: 36, paddingTop: 28, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+1492:                 {[
+1493:                   { v: '450+',  l: 'Verified Plants' },
+1494:                   { v: '14d',   l: 'Avg Cycle Time' },
+1495:                   { v: '99.8%', l: 'Quality Pass Rate' },
+1496:                 ].map(s => (
+1497:                   <div key={s.v} style={{ textAlign: 'center' }}>
+1498:                     <div style={{ fontSize: 22, fontWeight: 800, color: '#18D5A5', letterSpacing: '-0.03em' }}>{s.v}</div>
+1499:                     <div style={{ fontSize: 11, color: '#64748B', fontWeight: 500, marginTop: 2 }}>{s.l}</div>
+1500:                   </div>
+1501:                 ))}
+1502:               </div>
+1503:             </div>
+1504: 
+1505:             {/* Right: Isometric Stage */}
+1506:             <HeroIsometricIllustration />
+1507:           </div>
+1508:         </div>
+1509:       </section>
+1510: 
+1511:       {/* ─── SECTION 2: WHAT IS FACTORYGRID ─────────────────────── */}
+1512:       <section style={{ padding: '110px 0', position: 'relative', zIndex: 1, borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.012)' }}>
+1513:         <div className="fg-container">
+1514:           <div className="fg-section-header center">
+1515:             <div className="fg-pill" style={{ marginBottom: 16 }}><RefreshCw size={11} /> What is FactoryGrid?</div>
+1516:             <h2 className="fg-section-title" style={{ marginBottom: 12 }}>
+1517:               One platform, entire procurement journey
+1518:             </h2>
+1519:             <p className="fg-desc" style={{ maxWidth: 520, margin: '0 auto' }}>
+1520:               From intent to delivery — every step is digitized, tracked, and verified inside FactoryGrid.
+1521:             </p>
+1522:           </div>
+1523:           <ProcurementFlow />
+1524:         </div>
+1525:       </section>
+1526: 
+1527:       {/* ─── SECTION 2.5: ENTERPRISE ECOSYSTEM ARCHITECTURE ──────── */}
+1528:       <section style={{ padding: '110px 0', position: 'relative', zIndex: 1, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+1529:         <div className="fg-container">
+1530:           <div className="fg-section-header center">
+1531:             <div className="fg-pill" style={{ marginBottom: 16 }}>
+1532:               <Network size={11} /> Enterprise System Architecture
+1533:             </div>
+1534:             <h2 className="fg-section-title" style={{ marginBottom: 12 }}>
+1535:               Connected Sourcing Ecosystem
+1536:             </h2>
+1537:             <p className="fg-desc" style={{ maxWidth: 560, margin: '0 auto' }}>
+1538:               FactoryGrid acts as the central intelligent procurement core, seamlessly connecting buyers, verified manufacturers, and platform governance.
+1539:             </p>
+1540:           </div>
+1541:           <EnterpriseEcosystemSection />
+1542:         </div>
+1543:       </section>
+1544: 
+1545:       {/* ─── SECTION 3: WHY FACTORYGRID ─────────────────────────── */}
+1546:       <section style={{ padding: '110px 0', position: 'relative', zIndex: 1 }}>
+1547:         <div className="fg-container">
+1548:           <div className="fg-section-header center">
+1549:             <div className="fg-pill" style={{ marginBottom: 16 }}><Zap size={11} /> Why FactoryGrid</div>
+1550:             <h2 className="fg-section-title">Built for pharmaceutical procurement</h2>
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

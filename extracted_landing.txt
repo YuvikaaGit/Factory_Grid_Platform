@@ -1,0 +1,24 @@
+Created At: 2026-08-07T07:30:32Z
+Completed At: 2026-08-07T07:30:32Z
+File Path: `file:///c:/Users/yuvik/Downloads/Factory_Grid_Platform/src/pages/LandingPage.tsx`
+Total Lines: 1827
+Total Bytes: 86442
+Showing lines 1400 to 1415
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1400: ───────────────────────────────────────────────────────── */
+1401: export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
+1402:   const [isAccessModalOpen, setIsAccessModalOpen] = useState(false);
+1403:   const [modalType, setModalType] = useState<'BUYER' | 'MANUFACTURER'>('BUYER');
+1404: 
+1405:   const handleOpenModal = (type: 'BUYER' | 'MANUFACTURER' = 'BUYER') => {
+1406:     setModalType(type);
+1407:     setIsAccessModalOpen(true);
+1408:   };
+1409:     <div style={{ minHeight: '100vh', background: '#07111D', color: '#fff', overflowX: 'hidden', position: 'relative' }}>
+1410: 
+1411:       {/* Rich Animated Background */}
+1412:       <BackgroundCanvas />
+1413: 
+1414:       {/* Soft colour orbs layered over canvas */}
+1415:       <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
