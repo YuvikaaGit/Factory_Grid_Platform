@@ -900,7 +900,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('fg_orders', JSON.stringify(orders));
     } catch (e) { }
   }, [orders]);
-  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
+
+  const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_invoices');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return mockInvoices;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_invoices', JSON.stringify(invoices));
+    } catch (e) { }
+  }, [invoices]);
   const [complianceCases, setComplianceCases] = useState<ComplianceCase[]>(mockComplianceCases);
   const [notifications, setNotifications] = useState<NotificationItem[]>(mockNotifications);
   const [buyerOnboardings, setBuyerOnboardings] = useState<BuyerOnboarding[]>(mockBuyerOnboardings);
@@ -1177,30 +1195,78 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('Invoices & AR', `Updated Invoice ${invoiceId} status to ${status}`);
   };
 
-  const recordInvoicePayment = (invoiceId: string, amount: number, method = 'RTGS', ref = 'RTGS-' + Date.now()) => {
+  const recordInvoicePayment = (
+    invoiceId: string,
+    amount: number,
+    method = 'RTGS',
+    ref = 'RTGS-' + Date.now(),
+    currency = 'GBP'
+  ) => {
     setInvoices(prev => prev.map(inv => {
-      if (inv.id !== invoiceId) return inv;
-      const newPaid = inv.paidAmount + amount;
-      const newBal = inv.totalAmount - newPaid;
-      const newStatus = newBal <= 0 ? 'PAID' : 'PARTIAL_PAYMENT';
+      if (inv.id !== invoiceId && inv.invoiceNumber !== invoiceId) return inv;
+
+      const curr = currency || inv.currency || 'GBP';
+      const validAmount = Math.max(0, amount);
+      const newPaid = Math.round((inv.paidAmount + validAmount) * 100) / 100;
+      const newBal = Math.max(0, Math.round((inv.totalAmount - newPaid) * 100) / 100);
+
+      let newStatus: InvoiceStatus = inv.status;
+      if (newBal === 0) {
+        newStatus = 'PAID';
+      } else if (newPaid > 0) {
+        newStatus = 'PARTIAL_PAYMENT';
+      } else {
+        newStatus = 'UNPAID';
+      }
+
+      const timeStr = new Date().toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
+
+      const newRecord: PaymentRecord = {
+        id: 'pay_' + Date.now(),
+        invoiceId: inv.id,
+        amount: validAmount,
+        currency: curr,
+        paymentMethod: method,
+        paymentDate: new Date().toISOString().split('T')[0],
+        reference: ref,
+        status: 'COMPLETED',
+        remarks: 'Payment recorded in treasury ledger',
+        timeline: [
+          { title: `${curr} ${validAmount.toLocaleString()} received in account`, timestamp: timeStr, status: 'COMPLETED', details: `Ref/UTR: ${ref}` },
+          { title: 'Send confirmation email to client', timestamp: timeStr, status: 'COMPLETED' },
+          { title: 'Transfer initiated', timestamp: timeStr, status: 'COMPLETED' },
+          { title: 'Reached partner bank', timestamp: timeStr, status: 'COMPLETED' },
+          { title: 'Converted & Settled', timestamp: newBal === 0 ? 'Settled 100%' : 'Settlement in progress', status: newBal === 0 ? 'COMPLETED' : 'IN_PROGRESS' }
+        ]
+      };
+
+      const updatedPayments = [...(inv.payments || []), newRecord];
 
       const newTx: PaymentTransaction = {
         id: 'tx_' + Date.now(),
         transactionRef: ref,
-        invoiceId,
+        invoiceId: inv.id,
         invoiceNumber: inv.invoiceNumber,
         customerName: inv.customerName,
         date: new Date().toISOString().split('T')[0],
-        amount,
+        amount: validAmount,
         paymentMethod: method as any,
         status: 'COMPLETED',
         remarks: 'Payment recorded in Accounts'
       };
       setPaymentTransactions(txPrev => [newTx, ...txPrev]);
 
-      return { ...inv, paidAmount: newPaid, balanceAmount: newBal, status: newStatus };
+      return {
+        ...inv,
+        paidAmount: newPaid,
+        balanceAmount: newBal,
+        status: newStatus,
+        currency: curr,
+        payments: updatedPayments
+      };
     }));
-    addAuditLog('Invoices & AR', `Recorded payment of ₹${amount.toLocaleString()} for Invoice ${invoiceId}`);
+
+    addAuditLog('Invoices & AR', `Recorded payment of ${currency || 'GBP'} ${amount.toLocaleString()} for Invoice ${invoiceId}`);
   };
 
   const submitBuyerOnboarding = (data: Omit<BuyerOnboarding, 'id' | 'status' | 'submittedDate'>) => {
