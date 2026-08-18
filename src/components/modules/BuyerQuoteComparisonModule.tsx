@@ -6,7 +6,7 @@ import {
   Tag, Search, Filter, CheckCircle2, Clock, DollarSign, ArrowRight,
   ShieldCheck, Star, Sparkles, TrendingDown, Zap, Award, Check, AlertTriangle,
   FileText, Download, Eye, Send, X, Building2, AlertCircle, Layers, ChevronRight, ThumbsUp,
-  MessageSquare, RefreshCw
+  MessageSquare, RefreshCw, MapPin, Truck, ExternalLink, HelpCircle
 } from 'lucide-react';
 
 export const BuyerQuoteComparisonModule: React.FC = () => {
@@ -21,6 +21,12 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
   const [selectedRfqId, setSelectedRfqId] = useState<string>(rfqs[0]?.id || '');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+
+  // UI Drawer & Modal States
+  const [showAiCompareDrawer, setShowAiCompareDrawer] = useState(false);
+  const [profileDrawerMfgId, setProfileDrawerMfgId] = useState<string | null>(null);
+  const [hoveredMfgId, setHoveredMfgId] = useState<string | null>(null);
+  const [successNotification, setSuccessNotification] = useState<string | null>(null);
 
   // Message Manufacturer Modal State
   const [messageModalContext, setMessageModalContext] = useState<{
@@ -87,25 +93,77 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
     }));
   };
 
-  // Quotes Calculator & Revision Sync
+  // Quotes Calculator & Revision Sync with Delivery Terms
+  // Priority: (1) Real submitted quotes from context, (2) Static demo fallback
   const getQuotesForLine = (lineId: string, lineTargetPrice: number, lineQty: number, lineProductName: string) => {
     if (!activeRfq) return [];
 
     const rfqDeclined = (declinedRfqs && declinedRfqs[activeRfq.id]) || [];
 
-    // Base suppliers
-    const supplierList = [
-      { id: 'm1', name: 'SunBio LifeSciences Ltd.', code: 'SUN-PHARM', baseP: lineTargetPrice * 0.92, tax: 12, disc: 5, lead: 14, moq: 1000, preferred: true },
-      { id: 'm2', name: 'ABC Pharma Formulations Ltd.', code: 'ABC-PHARM', baseP: lineTargetPrice * 0.95, tax: 12, disc: 3, lead: 10, moq: 2000, preferred: false },
-      { id: 'm3', name: 'XYZ Pharma Labs Ltd.', code: 'XYZ-LABS', baseP: lineTargetPrice * 1.02, tax: 18, disc: 0, lead: 18, moq: 5000, preferred: false }
-    ];
+    // ── STEP 1: Check for real manufacturer quotes in context state ──
+    const realSubmittedQuotes = quotes.filter(
+      q => q.rfqId === activeRfq.id || q.rfqNumber === activeRfq.rfqNumber
+    );
 
-    // Filter out manufacturers who declined this RFQ
-    const activeSuppliers = supplierList.filter(s => {
-      const isDec = rfqDeclined.some(d => d.manufacturerId === s.id || d.manufacturerName?.includes(s.name));
-      return !isDec;
-    });
+    type SupplierEntry = {
+      id: string; name: string; code: string; baseP: number;
+      tax: number; disc: number; lead: number; moq: number;
+      preferred: boolean; deliveryTerms: string;
+    };
 
+    let activeSuppliers: SupplierEntry[] = [];
+
+    if (realSubmittedQuotes.length > 0) {
+      // Build supplier list from real submitted quotes
+      realSubmittedQuotes.forEach(q => {
+        // Match the quote line to this specific RFQ line by rfqLineId or product name
+        const matchedLine = q.quoteLines?.find(
+          ql => ql.rfqLineId === lineId || ql.productName === lineProductName
+        );
+        if (!matchedLine || matchedLine.responseType === 'CANNOT_SUPPLY') return;
+
+        // Avoid duplicate entries for the same manufacturer
+        if (activeSuppliers.some(s => s.id === q.manufacturerId)) return;
+
+        // Check this manufacturer hasn't declined the RFQ
+        const isDec = rfqDeclined.some(
+          d => d.manufacturerId === q.manufacturerId || d.manufacturerName?.includes(q.manufacturerName)
+        );
+        if (isDec) return;
+
+        activeSuppliers.push({
+          id: q.manufacturerId,
+          name: q.manufacturerName || 'Contract Manufacturer',
+          code: (q.manufacturerName || q.manufacturerId).substring(0, 8).toUpperCase().replace(/\s/g, '-'),
+          baseP: matchedLine.unitPrice,
+          tax: matchedLine.taxPercent || 12,
+          disc: matchedLine.discountPercent || 0,
+          lead: matchedLine.leadTimeDays || 14,
+          moq: matchedLine.moq || 1000,
+          preferred: q.manufacturerName?.toLowerCase().includes('sunbio') || false,
+          deliveryTerms: (matchedLine as any).deliveryTerms || (q as any).deliveryTerms || 'Ex-Factory / As Per Agreement'
+        });
+      });
+    }
+
+    // ── STEP 2: Static demo fallback when no real quotes exist ──
+    // Used for seed RFQs (rfq1/rfq2) and for any RFQ where no manufacturer has quoted yet
+    if (activeSuppliers.length === 0) {
+      const staticList: SupplierEntry[] = [
+        { id: 'm1', name: 'SunBio LifeSciences Ltd.', code: 'SUN-PHARM', baseP: lineTargetPrice * 0.92, tax: 12, disc: 5, lead: 14, moq: 1000, preferred: true, deliveryTerms: 'Ex-Factory Hyderabad' },
+        { id: 'm2', name: 'ABC Pharma Formulations Ltd.', code: 'ABC-PHARM', baseP: lineTargetPrice * 0.95, tax: 12, disc: 3, lead: 10, moq: 2000, preferred: false, deliveryTerms: 'Cold-Chain Fleet' },
+        { id: 'm3', name: 'XYZ Pharma Labs Ltd.', code: 'XYZ-LABS', baseP: lineTargetPrice * 1.02, tax: 18, disc: 0, lead: 18, moq: 5000, preferred: false, deliveryTerms: 'CIF / Door Delivery' }
+      ];
+      // Filter declined manufacturers from static list too
+      activeSuppliers = staticList.filter(s => {
+        const isDec = rfqDeclined.some(d => d.manufacturerId === s.id || d.manufacturerName?.includes(s.name));
+        return !isDec;
+      });
+    }
+
+    if (activeSuppliers.length === 0) return [];
+
+    // ── STEP 3: Build calculated quote rows with revision support ──
     const calculatedQuotes = activeSuppliers.map(s => {
       const threadKey = `${activeRfq.id}_${lineId}_${s.id}`;
       const rev = revisedQuotes ? revisedQuotes[threadKey] : undefined;
@@ -119,7 +177,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
       const origLead = s.lead;
       const origMoq = s.moq;
 
-      // If a revised quote exists, use the revised values
+      // If a revised quote exists use revised values, else original
       const uPrice = rev ? rev.unitPrice : origUnitPrice;
       const taxPerc = rev ? rev.taxPercent : origTax;
       const discPerc = rev ? rev.discountPercent : origDisc;
@@ -140,6 +198,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
         totalLineCost,
         leadTimeDays: leadDays,
         moq: moqVal,
+        deliveryTerms: s.deliveryTerms,
         preferred: s.preferred,
         isMoqCompliant: lineQty >= moqVal,
         isRevised: !!rev,
@@ -154,7 +213,6 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
     // Identify lowest price & fastest delivery for smart badges
     let lowestPriceVal = Infinity;
     let fastestLeadVal = Infinity;
-
     calculatedQuotes.forEach(q => {
       if (q.finalPrice < lowestPriceVal) lowestPriceVal = q.finalPrice;
       if (q.leadTimeDays < fastestLeadVal) fastestLeadVal = q.leadTimeDays;
@@ -178,6 +236,26 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
       isComplete: selectedCount === totalLines && totalLines > 0
     };
   }, [activeRfq, lineSelections]);
+
+  // List of RFQs ready for buyer comparison (must be top-level hook before early returns)
+  const readyRfqs = useMemo(() => {
+    return rfqs.filter(r => {
+      const hasQuotes = quotes.some(q => q.rfqId === r.id || q.rfqNumber === r.rfqNumber);
+      const sUpper = (r.status || '').toUpperCase();
+      const isEligible = sUpper === 'QUOTED' || sUpper === 'PRICING IN PROGRESS' || sUpper === 'SUBMITTED' || hasQuotes;
+
+      const matchesSearch = !searchTerm.trim() ||
+        r.rfqNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.lines.some(l => l.productName.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      const matchesStatus = statusFilter === 'ALL' ||
+        sUpper === statusFilter.toUpperCase() ||
+        (statusFilter === 'Quoted' && sUpper === 'QUOTED');
+
+      return isEligible && matchesSearch && matchesStatus;
+    });
+  }, [rfqs, quotes, searchTerm, statusFilter]);
 
   // Open Message Manufacturer Modal
   const handleOpenMessageModal = (
@@ -212,7 +290,11 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
     if (!messageModalContext || !messageText.trim()) return;
     const threadKey = `${messageModalContext.rfqId}_${messageModalContext.lineId}_${messageModalContext.mfgId}`;
     sendNegotiationMessage(threadKey, messageText.trim(), 'BUYER', 'Apex Pharma (Buyer)');
+    addAuditLog('RFQ Engine', `Sent inquiry message to manufacturer ${messageModalContext.mfgName} for RFQ ${messageModalContext.rfqNumber}.`);
+
+    setSuccessNotification(`Message successfully sent to ${messageModalContext.mfgName}.`);
     setMessageText('');
+    setMessageModalContext(null);
   };
 
   // Open Consolidated Quote Handler
@@ -222,6 +304,11 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
       return;
     }
     setViewMode('CONSOLIDATED');
+  };
+
+  // Quick Message Helper
+  const applyQuickMessage = (msg: string) => {
+    setMessageText(msg);
   };
 
   // Render Consolidated Quote View
@@ -259,15 +346,32 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
     );
   }
 
+  // Active Manufacturer Object for Profile Drawer
+  const activeProfileMfg = profileDrawerMfgId
+    ? manufacturers.find(m => m.id === profileDrawerMfgId) || {
+      id: profileDrawerMfgId,
+      companyName: profileDrawerMfgId === 'm1' ? 'SunBio LifeSciences Ltd.' : profileDrawerMfgId === 'm2' ? 'ABC Pharma Formulations Ltd.' : 'XYZ Pharma Labs Ltd.',
+      mfgLicenseNo: profileDrawerMfgId === 'm1' ? 'Form 25/28 (TS/HYD/2024/88921)' : 'Form 25/28 (HP/BDD/2023/1109)',
+      gstin: profileDrawerMfgId === 'm1' ? '36AAACS9981A1Z2' : '02AAACB1102B1Z8',
+      city: profileDrawerMfgId === 'm1' ? 'Hyderabad' : 'Baddi',
+      state: profileDrawerMfgId === 'm1' ? 'Telangana' : 'Himachal Pradesh',
+      complianceStatus: 'VERIFIED',
+      rating: 4.9,
+      activeSubOrders: 3,
+      contactPerson: 'Dr. R.K. Sharma',
+      email: 'sales@sunbiolabs.com',
+      phone: '+91 98490 11234'
+    }
+    : null;
+
   // Render Product-Wise Comparison Matrix View
   if (viewMode === 'MATRIX' && activeRfq) {
     const rfqDeclined = (declinedRfqs && declinedRfqs[activeRfq.id]) || [];
     const totalResponsesCount = Math.max(3 - rfqDeclined.length, 1);
-    const isDeadlineReached = new Date() > new Date(activeRfq.deadlineDate);
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC' }}>
-        
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC', color: '#0F172A' }}>
+
         {/* ── Header Bar ── */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -284,19 +388,32 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
               QUOTE COMPARISON MATRIX
             </h1>
             <p style={{ margin: '3px 0 0 0', fontSize: 13, color: '#475569', fontWeight: 500 }}>
-              Compare manufacturer quotations, negotiate terms, and select the best supplier for each RFQ product line ({activeRfq.customerName}).
+              Compare manufacturer quotations, delivery terms, AI trade-offs, and select the best supplier for each line ({activeRfq.customerName}).
             </p>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* AI COMPARE BUTTON */}
+            <button
+              onClick={() => setShowAiCompareDrawer(true)}
+              style={{
+                padding: '9px 16px', borderRadius: 8,
+                background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
+                color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(124,58,237,0.3)'
+              }}
+            >
+              <Sparkles size={16} /> ✨ AI Compare
+            </button>
+
             <button
               disabled={!selectionStats.isComplete}
               onClick={handleOpenConsolidatedQuote}
               style={{
-                padding: '10px 20px', borderRadius: 8,
+                padding: '9px 18px', borderRadius: 8,
                 background: selectionStats.isComplete ? '#0F766E' : '#E2E8F0',
                 color: selectionStats.isComplete ? '#FFFFFF' : '#94A3B8',
-                border: 'none', fontWeight: 700, fontSize: 13, cursor: selectionStats.isComplete ? 'pointer' : 'not-allowed',
+                border: 'none', fontWeight: 700, fontSize: 12.5, cursor: selectionStats.isComplete ? 'pointer' : 'not-allowed',
                 display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: selectionStats.isComplete ? '0 2px 4px rgba(15,118,110,0.2)' : 'none'
               }}
               title={!selectionStats.isComplete ? 'Please select a manufacturer for all RFQ product lines before continuing.' : 'Generate Consolidated Customer Quotation'}
@@ -305,6 +422,16 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* ── Success Notification Banner ── */}
+        {successNotification && (
+          <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 10, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#166534' }}>
+              <CheckCircle2 size={18} /> {successNotification}
+            </div>
+            <button onClick={() => setSuccessNotification(null)} style={{ background: 'none', border: 'none', color: '#166534', cursor: 'pointer' }}><X size={16} /></button>
+          </div>
+        )}
 
         {/* ── Summary Metric Cards Bar ── */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
@@ -321,396 +448,483 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
           </div>
 
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Declined Responses</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: rfqDeclined.length > 0 ? '#DC2626' : '#64748B', fontFamily: 'monospace', marginTop: 4 }}>{rfqDeclined.length}</div>
-            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Suppliers declined RFQ</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Lines Selected</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: selectionStats.isComplete ? '#16A34A' : '#D97706', fontFamily: 'monospace', marginTop: 4 }}>
+              {selectionStats.selectedCount} / {selectionStats.totalLines}
+            </div>
+            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+              {selectionStats.isComplete ? 'All lines allocated ✓' : 'Allocations in progress'}
+            </div>
           </div>
-
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>RFQ Deadline</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: isDeadlineReached ? '#DC2626' : '#D97706', marginTop: 8 }}>{activeRfq.deadlineDate}</div>
-            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{isDeadlineReached ? 'Deadline Reached' : 'Active for responses'}</div>
-          </div>
-        </div>
-
-        {/* ── Status Banner ── */}
-        <div style={{ background: isDeadlineReached ? '#FFFBEB' : '#F0FDF4', border: `1px solid ${isDeadlineReached ? '#FCD34D' : '#86EFAC'}`, borderRadius: 10, padding: '12px 16px', fontSize: 13, fontWeight: 600, color: isDeadlineReached ? '#92400E' : '#166534', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <CheckCircle2 size={18} style={{ color: isDeadlineReached ? '#D97706' : '#16A34A', flexShrink: 0 }} />
-          <span>
-            {isDeadlineReached
-              ? `RFQ deadline has passed (${activeRfq.deadlineDate}). Compare received quotations and select the preferred supplier for each line item below.`
-              : `All manufacturer responses received. Message suppliers to negotiate pricing or lead times, and select a supplier for each product line.`
-            }
-          </span>
         </div>
 
         {/* ── PRODUCT-LINE BASED COMPARISON TABLES ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {activeRfq.lines.map((line, index) => {
-            const lineQuotes = getQuotesForLine(line.id, line.targetPrice || 10.00, line.quantity, line.productName);
-            const selectedSupplier = lineSelections[line.id];
-            const lowestQuote = lineQuotes.find(q => q.isLowestPrice);
-            const fastestQuote = lineQuotes.find(q => q.isFastestDelivery);
-            const preferredQuote = lineQuotes.find(q => q.preferred);
+        {activeRfq.lines.map((line, lineIndex) => {
+          const lineQuotes = getQuotesForLine(line.id, line.targetPrice || 12.00, line.quantity, line.productName);
+          const selectedSupplier = lineSelections[line.id];
+          const lowestQuote = lineQuotes.find(q => q.isLowestPrice);
+          const fastestQuote = lineQuotes.find(q => q.isFastestDelivery);
+          const preferredQuote = lineQuotes.find(q => q.preferred);
 
-            return (
-              <div key={line.id} style={{ background: '#FFFFFF', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: '0 2px 6px rgba(15,23,42,0.05)', overflow: 'hidden' }}>
-                
-                {/* Line Item Header */}
-                <div style={{ padding: '16px 20px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: '#E2E8F0', color: '#334155' }}>
-                        LINE #{index + 1}
-                      </span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#0F766E', fontFamily: 'monospace' }}>
-                        PRD00100{index + 1}
-                      </span>
-                    </div>
-                    <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: 0 }}>{line.productName}</h3>
-                    <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                      Dosage: <strong>{line.dosageForm}</strong> · Pack Size: <strong>{line.packSize}</strong> · Requested Quantity: <strong style={{ color: '#0F766E', fontFamily: 'monospace' }}>{line.quantity.toLocaleString()} Units</strong>
-                    </div>
+          return (
+            <div key={line.id} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 22, boxShadow: '0 2px 6px rgba(15,23,42,0.04)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Product Line Header Bar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #F1F5F9', paddingBottom: 14 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: '#0F766E', background: '#F0FDFA', padding: '3px 8px', borderRadius: 4, border: '1px solid #CCFBF1' }}>
+                      LINE #{String(lineIndex + 1).padStart(2, '0')}
+                    </span>
+                    <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0F172A' }}>
+                      {line.productName}
+                    </h2>
                   </div>
+                  <div style={{ fontSize: 12.5, color: '#475569', marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                    <span>Quantity: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{line.quantity.toLocaleString()} {line.uom || 'Units'}</strong></span>
+                    <span>Dosage: <strong>{line.dosageForm || 'Tablet'}</strong></span>
+                    <span>Target Price: <strong style={{ color: '#0F766E' }}>₹{(line.targetPrice || 12.00).toFixed(2)}</strong></span>
+                  </div>
+                </div>
 
-                  {/* Selected Supplier Indicator */}
+                {/* Selected Supplier Status Badge */}
+                <div>
                   {selectedSupplier ? (
-                    <div style={{ padding: '6px 14px', borderRadius: 8, background: '#DCFCE7', border: '1px solid #86EFAC', fontSize: 12, fontWeight: 700, color: '#15803D', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <CheckCircle2 size={16} /> Selected: {selectedSupplier.mfgName} (₹{selectedSupplier.finalPrice.toFixed(2)}/unit)
+                    <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <CheckCircle2 size={16} style={{ color: '#16A34A' }} />
+                      <div>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>Selected Manufacturer</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#15803D' }}>{selectedSupplier.mfgName} (₹{selectedSupplier.finalPrice.toFixed(2)}/unit)</div>
+                      </div>
                     </div>
                   ) : (
-                    <div style={{ padding: '6px 14px', borderRadius: 8, background: '#FEF3C7', border: '1px solid #FCD34D', fontSize: 12, fontWeight: 700, color: '#B45309', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <AlertTriangle size={16} /> Pending Selection
-                    </div>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '6px 12px', borderRadius: 6, border: '1px solid #FDE68A' }}>
+                      ⚠ Selection Pending
+                    </span>
                   )}
                 </div>
+              </div>
 
-                {/* Smart Recommendation Indicators Summary */}
-                <div style={{ padding: '12px 20px', background: '#FAFAFA', borderBottom: '1px solid #E2E8F0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, fontSize: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Lowest Price:</span>
-                    <strong style={{ color: '#15803D' }}>{lowestQuote?.mfgName} (₹{lowestQuote?.finalPrice.toFixed(2)})</strong>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Fastest Delivery:</span>
-                    <strong style={{ color: '#1D4ED8' }}>{fastestQuote?.mfgName} ({fastestQuote?.leadTimeDays} Days)</strong>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Preferred Vendor:</span>
-                    <strong style={{ color: '#7E22CE' }}>{preferredQuote?.mfgName}</strong>
-                  </div>
-                </div>
+              {/* Comparison Table */}
+              <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>MANUFACTURER</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>UNIT PRICE</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>TAX %</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>DISCOUNT %</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>FINAL PRICE / UNIT</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>TOTAL LINE COST</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>LEAD TIME</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>MOQ</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0F766E', background: '#F0FDFA' }}>DELIVERY TERMS</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>EVALUATION TAGS</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right', paddingRight: 16 }}>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineQuotes.map((q) => {
+                      const isSelected = selectedSupplier?.mfgId === q.mfgId;
+                      const threadMsgs = (negotiationThreads && negotiationThreads[q.threadKey]) || [];
+                      const msgCount = threadMsgs.length;
+                      const mfgObj = manufacturers.find(m => m.id === q.mfgId);
 
-                {/* Comparison Table */}
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
-                    <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                        <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>MANUFACTURER</th>
-                        <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>UNIT PRICE</th>
-                        <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>TAX %</th>
-                        <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>DISCOUNT %</th>
-                        <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>FINAL PRICE / UNIT</th>
-                        <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>TOTAL LINE COST</th>
-                        <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>LEAD TIME</th>
-                        <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>MOQ</th>
-                        <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>EVALUATION TAGS</th>
-                        <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right', paddingRight: 16 }}>ACTIONS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lineQuotes.map((q) => {
-                        const isSelected = selectedSupplier?.mfgId === q.mfgId;
-                        const threadMsgs = (negotiationThreads && negotiationThreads[q.threadKey]) || [];
-                        const msgCount = threadMsgs.length;
-
-                        return (
-                          <tr
-                            key={q.mfgId}
-                            style={{
-                              borderBottom: '1px solid #F1F5F9',
-                              background: isSelected ? '#F0FDF4' : q.isRevised ? '#FEFCE8' : '#FFFFFF',
-                              transition: 'background 0.15s ease'
-                            }}
-                          >
-                            {/* 1. MANUFACTURER */}
-                            <td style={{ padding: '14px' }}>
-                              <div style={{ fontWeight: 800, color: isSelected ? '#15803D' : '#0F172A', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      return (
+                        <tr
+                          key={q.mfgId}
+                          style={{
+                            borderBottom: '1px solid #F1F5F9',
+                            background: isSelected ? '#F0FDF4' : q.isRevised ? '#FEFCE8' : '#FFFFFF',
+                            transition: 'background 0.15s ease'
+                          }}
+                        >
+                          {/* 1. MANUFACTURER NAME WITH HOVER PREVIEW & PROFILE DRAWER TRIGGER */}
+                          <td style={{ padding: '14px', position: 'relative' }}>
+                            <div style={{ fontWeight: 800, color: isSelected ? '#15803D' : '#0F172A', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span
+                                onClick={() => setProfileDrawerMfgId(q.mfgId)}
+                                onMouseEnter={() => setHoveredMfgId(q.mfgId)}
+                                onMouseLeave={() => setHoveredMfgId(null)}
+                                style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationColor: '#CBD5E1', textUnderlineOffset: 3 }}
+                                title="Click to view full manufacturer profile drawer"
+                              >
                                 {q.mfgName}
-                                {q.isRevised && (
-                                  <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#FEF08A', color: '#854D0E', border: '1px solid #FDE047' }}>
-                                    REVISED QUOTE
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2, fontFamily: 'monospace' }}>{q.mfgCode}</div>
-                              {msgCount > 0 && (
-                                <div style={{ fontSize: 10.5, color: '#0F766E', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                  <MessageSquare size={12} /> {msgCount} message{msgCount > 1 ? 's' : ''} in thread
-                                </div>
+                              </span>
+
+                              {q.isRevised && (
+                                <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#FEF08A', color: '#854D0E', border: '1px solid #FDE047' }}>
+                                  REVISED
+                                </span>
                               )}
-                            </td>
-
-                            {/* 2. UNIT PRICE */}
-                            <td style={{ padding: '14px', fontWeight: 700, color: '#0F172A' }}>
-                              ₹{q.unitPrice.toFixed(2)}
-                              {q.isRevised && q.origUnitPrice !== q.unitPrice && (
-                                <div style={{ fontSize: 10, color: '#94A3B8', textDecoration: 'line-through' }}>₹{q.origUnitPrice.toFixed(2)}</div>
-                              )}
-                            </td>
-
-                            {/* 3. TAX % */}
-                            <td style={{ padding: '14px', color: '#475569' }}>
-                              {q.taxPercent}%
-                            </td>
-
-                            {/* 4. DISCOUNT % */}
-                            <td style={{ padding: '14px', color: '#475569' }}>
-                              {q.discountPercent}%
-                            </td>
-
-                            {/* 5. FINAL PRICE / UNIT */}
-                            <td style={{ padding: '14px', fontWeight: 800, color: '#0F766E', fontSize: 14, fontFamily: 'monospace' }}>
-                              ₹{q.finalPrice.toFixed(2)}
-                              {q.isRevised && q.origFinalPrice !== q.finalPrice && (
-                                <div style={{ fontSize: 10, color: '#94A3B8', textDecoration: 'line-through', fontFamily: 'monospace' }}>₹{q.origFinalPrice.toFixed(2)}</div>
-                              )}
-                            </td>
-
-                            {/* 6. TOTAL LINE COST */}
-                            <td style={{ padding: '14px', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>
-                              ₹{q.totalLineCost.toLocaleString('en-IN')}
-                            </td>
-
-                            {/* 7. LEAD TIME */}
-                            <td style={{ padding: '14px', fontWeight: 700, color: q.isFastestDelivery ? '#1D4ED8' : '#334155' }}>
-                              {q.leadTimeDays} Days
-                              {q.isRevised && q.origLeadTime !== q.leadTimeDays && (
-                                <div style={{ fontSize: 10, color: '#94A3B8', textDecoration: 'line-through' }}>Prev: {q.origLeadTime} Days</div>
-                              )}
-                            </td>
-
-                            {/* 8. MOQ */}
-                            <td style={{ padding: '14px', color: '#475569', fontWeight: 600 }}>
-                              {q.moq.toLocaleString()} Units
-                            </td>
-
-                            {/* 9. EVALUATION TAGS */}
-                            <td style={{ padding: '14px' }}>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                {q.isLowestPrice && (
-                                  <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
-                                    LOWEST PRICE
-                                  </span>
-                                )}
-                                {q.isFastestDelivery && (
-                                  <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
-                                    FASTEST DELIVERY
-                                  </span>
-                                )}
-                                {q.preferred && (
-                                  <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#FAF5FF', color: '#7E22CE', border: '1px solid #E9D5FF' }}>
-                                    PREFERRED VENDOR
-                                  </span>
-                                )}
-                                {q.isMoqCompliant && (
-                                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#F0FDFA', color: '#0F766E', border: '1px solid #CCFBF1' }}>
-                                    MOQ COMPLIANT
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-
-                            {/* 10. ACTIONS (Message Manufacturer + Select) */}
-                            <td style={{ padding: '14px', textAlign: 'right', paddingRight: 16 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                                <button
-                                  onClick={() => handleOpenMessageModal(activeRfq.id, activeRfq.rfqNumber, line.id, line.productName, line.quantity, q.mfgId, q.mfgName, q.unitPrice, q.leadTimeDays, q.moq)}
-                                  style={{ padding: '6px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#0F766E', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                                  title="Send a message to negotiate lead time, pricing, or terms"
-                                >
-                                  <MessageSquare size={13} /> Message Manufacturer
-                                </button>
-
-                                {isSelected ? (
-                                  <span style={{ padding: '6px 12px', fontSize: 11.5, fontWeight: 800, borderRadius: 6, background: '#16A34A', color: '#FFF', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                    ✓ SELECTED
-                                  </span>
-                                ) : (
-                                  <button
-                                    onClick={() => handleSelectLineManufacturer(line.id, q.mfgId, q.mfgName, q.unitPrice, q.taxPercent, q.discountPercent, q.finalPrice, q.leadTimeDays, q.moq)}
-                                    style={{ padding: '6px 14px', fontSize: 11.5, fontWeight: 700, borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', cursor: 'pointer' }}
-                                  >
-                                    Select
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* ── STICKY SELECTED SUPPLIERS SUMMARY BAR ── */}
-        <div style={{ position: 'sticky', bottom: 20, zIndex: 900, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 18, boxShadow: '0 10px 30px rgba(15,23,42,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.05em' }}>
-              SELECTED SUPPLIERS SUMMARY ({selectionStats.selectedCount} / {selectionStats.totalLines} LINES ALLOCATED)
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 6, fontSize: 12.5 }}>
-              {activeRfq.lines.map((line, idx) => {
-                const sel = lineSelections[line.id];
-                return (
-                  <div key={line.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: sel ? '#F0FDF4' : '#FFFBEB', padding: '4px 10px', borderRadius: 6, border: `1px solid ${sel ? '#86EFAC' : '#FCD34D'}` }}>
-                    {sel ? <Check size={14} style={{ color: '#16A34A' }} /> : <AlertTriangle size={14} style={{ color: '#D97706' }} />}
-                    <span style={{ fontWeight: 700, color: sel ? '#166534' : '#92400E' }}>
-                      Line #{idx + 1}: {sel ? `${sel.mfgName} (₹${sel.finalPrice.toFixed(2)})` : 'Pending'}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <button
-            disabled={!selectionStats.isComplete}
-            onClick={handleOpenConsolidatedQuote}
-            style={{
-              padding: '10px 22px', borderRadius: 8,
-              background: selectionStats.isComplete ? '#0F766E' : '#CBD5E1',
-              color: selectionStats.isComplete ? '#FFFFFF' : '#64748B',
-              border: 'none', fontWeight: 800, fontSize: 13.5, cursor: selectionStats.isComplete ? 'pointer' : 'not-allowed',
-              display: 'inline-flex', alignItems: 'center', gap: 8
-            }}
-          >
-            Generate Consolidated Quote →
-          </button>
-        </div>
-
-        {/* ── MESSAGE MANUFACTURER MODAL ──────────────────────────── */}
-        {messageModalContext && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 10005, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setMessageModalContext(null)}>
-            <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 580, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 14, padding: 24, boxShadow: '0 20px 48px rgba(15, 23, 42, 0.2)', display: 'flex', flexDirection: 'column' }}>
-              
-              {/* Modal Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(15, 118, 110, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F766E' }}>
-                    <MessageSquare size={18} />
-                  </div>
-                  <div>
-                    <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: 0 }}>Message Manufacturer</h3>
-                    <div style={{ fontSize: 12, color: '#64748B' }}>Direct commercial negotiation & inquiry thread</div>
-                  </div>
-                </div>
-                <button onClick={() => setMessageModalContext(null)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              {/* Context Summary Box */}
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <div>RFQ Reference: <strong style={{ color: '#0F766E', fontFamily: 'monospace' }}>{messageModalContext.rfqNumber}</strong></div>
-                <div>Manufacturer: <strong style={{ color: '#0F172A' }}>{messageModalContext.mfgName}</strong></div>
-                <div>Product: <strong style={{ color: '#0F172A' }}>{messageModalContext.productName}</strong></div>
-                <div>Quantity: <strong style={{ color: '#0F766E', fontFamily: 'monospace' }}>{messageModalContext.lineQty.toLocaleString()} Units</strong></div>
-                <div>Current Unit Price: <strong style={{ color: '#0F172A' }}>₹{messageModalContext.currentUnitPrice.toFixed(2)}</strong></div>
-                <div>Current Lead Time: <strong style={{ color: '#1D4ED8' }}>{messageModalContext.currentLeadTime} Days</strong></div>
-              </div>
-
-              {/* Persistent Conversation History */}
-              {(() => {
-                const threadKey = `${messageModalContext.rfqId}_${messageModalContext.lineId}_${messageModalContext.mfgId}`;
-                const msgs = (negotiationThreads && negotiationThreads[threadKey]) || [];
-
-                return (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 8 }}>Conversation History</div>
-                    <div style={{ maxHeight: 180, overflowY: 'auto', background: '#FAFAFA', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {msgs.length === 0 ? (
-                        <div style={{ fontSize: 12, color: '#94A3B8', textAlign: 'center', padding: '12px 0' }}>
-                          No previous messages in this thread. Start the negotiation below.
-                        </div>
-                      ) : (
-                        msgs.map(m => (
-                          <div
-                            key={m.id}
-                            style={{
-                              alignSelf: m.senderRole === 'BUYER' ? 'flex-end' : 'flex-start',
-                              maxWidth: '85%',
-                              background: m.senderRole === 'BUYER' ? '#0F766E' : '#FFFFFF',
-                              color: m.senderRole === 'BUYER' ? '#FFFFFF' : '#0F172A',
-                              border: m.senderRole === 'BUYER' ? 'none' : '1px solid #CBD5E1',
-                              borderRadius: 8,
-                              padding: '8px 12px',
-                              fontSize: 12
-                            }}
-                          >
-                            <div style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.85, marginBottom: 2 }}>
-                              {m.senderName} · {m.timestamp}
                             </div>
-                            <div style={{ lineHeight: 1.4 }}>{m.text}</div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
 
-              {/* Quick Message Suggestions */}
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 6 }}>Quick Suggestion Chips</div>
+                            {/* HOVER PREVIEW CARD TOOLTIP */}
+                            {hoveredMfgId === q.mfgId && (
+                              <div style={{ position: 'absolute', top: '90%', left: 14, zIndex: 100, width: 270, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 10, padding: 14, boxShadow: '0 12px 30px rgba(15,23,42,0.18)', fontSize: 11.5 }}>
+                                <div style={{ fontWeight: 800, color: '#0F172A', fontSize: 13 }}>{mfgObj?.companyName || q.mfgName}</div>
+                                <div style={{ color: '#16A34A', fontWeight: 700, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <CheckCircle2 size={13} /> Verified Contract Manufacturer
+                                </div>
+                                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, color: '#475569' }}>
+                                  <div>Location: <strong>{mfgObj?.city || 'Hyderabad'}, {mfgObj?.state || 'Telangana'}</strong></div>
+                                  <div>License: <strong>{mfgObj?.mfgLicenseNo || 'Form 25/28 Verified'}</strong></div>
+                                  <div>GSTIN: <strong>{mfgObj?.gstin || '36AAACS9981A1Z2'}</strong></div>
+                                  <div>Compliance: <strong style={{ color: '#0F766E' }}>WHO-GMP Valid</strong></div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setProfileDrawerMfgId(q.mfgId); }}
+                                  style={{ marginTop: 10, width: '100%', padding: '6px', borderRadius: 6, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 11.5, cursor: 'pointer' }}
+                                >
+                                  View Full Profile →
+                                </button>
+                              </div>
+                            )}
+
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2, fontFamily: 'monospace' }}>{q.mfgCode}</div>
+                            {msgCount > 0 && (
+                              <div style={{ fontSize: 10.5, color: '#0F766E', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <MessageSquare size={12} /> {msgCount} message{msgCount > 1 ? 's' : ''} in thread
+                              </div>
+                            )}
+                          </td>
+
+                          {/* 2. UNIT PRICE */}
+                          <td style={{ padding: '14px', fontWeight: 700, color: '#0F172A' }}>
+                            ₹{q.unitPrice.toFixed(2)}
+                            {q.isRevised && q.origUnitPrice !== q.unitPrice && (
+                              <div style={{ fontSize: 10, color: '#94A3B8', textDecoration: 'line-through' }}>₹{q.origUnitPrice.toFixed(2)}</div>
+                            )}
+                          </td>
+
+                          {/* 3. TAX % */}
+                          <td style={{ padding: '14px', color: '#475569' }}>
+                            {q.taxPercent}%
+                          </td>
+
+                          {/* 4. DISCOUNT % */}
+                          <td style={{ padding: '14px', color: '#475569' }}>
+                            {q.discountPercent}%
+                          </td>
+
+                          {/* 5. FINAL PRICE / UNIT */}
+                          <td style={{ padding: '14px', fontWeight: 800, color: '#0F766E', fontSize: 14, fontFamily: 'monospace' }}>
+                            ₹{q.finalPrice.toFixed(2)}
+                            {q.isRevised && q.origFinalPrice !== q.finalPrice && (
+                              <div style={{ fontSize: 10, color: '#94A3B8', textDecoration: 'line-through', fontFamily: 'monospace' }}>₹{q.origFinalPrice.toFixed(2)}</div>
+                            )}
+                          </td>
+
+                          {/* 6. TOTAL LINE COST */}
+                          <td style={{ padding: '14px', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>
+                            ₹{q.totalLineCost.toLocaleString('en-IN')}
+                          </td>
+
+                          {/* 7. LEAD TIME */}
+                          <td style={{ padding: '14px', fontWeight: 700, color: q.isFastestDelivery ? '#1D4ED8' : '#334155' }}>
+                            {q.leadTimeDays} Days
+                          </td>
+
+                          {/* 8. MOQ */}
+                          <td style={{ padding: '14px', color: '#475569', fontWeight: 600 }}>
+                            {q.moq.toLocaleString()} Units
+                          </td>
+
+                          {/* 9. DEDICATED DELIVERY TERMS COLUMN */}
+                          <td style={{ padding: '14px', background: '#F0FDFA' }}>
+                            <span style={{ fontSize: 11.5, fontWeight: 800, color: '#0F766E', background: '#FFFFFF', padding: '3px 8px', borderRadius: 4, border: '1px solid #99F6E4' }}>
+                              {q.deliveryTerms}
+                            </span>
+                          </td>
+
+                          {/* 10. EVALUATION TAGS */}
+                          <td style={{ padding: '14px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {q.isLowestPrice && (
+                                <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
+                                  LOWEST PRICE
+                                </span>
+                              )}
+                              {q.isFastestDelivery && (
+                                <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
+                                  FASTEST DELIVERY
+                                </span>
+                              )}
+                              {q.preferred && (
+                                <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#FAF5FF', color: '#7E22CE', border: '1px solid #E9D5FF' }}>
+                                  PREFERRED VENDOR
+                                </span>
+                              )}
+                              {q.isMoqCompliant && (
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#F0FDFA', color: '#0F766E', border: '1px solid #CCFBF1' }}>
+                                  MOQ COMPLIANT
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* 11. ACTIONS (Message Manufacturer + Select) */}
+                          <td style={{ padding: '14px', textAlign: 'right', paddingRight: 16 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                              <button
+                                onClick={() => handleOpenMessageModal(activeRfq.id, activeRfq.rfqNumber, line.id, line.productName, line.quantity, q.mfgId, q.mfgName, q.unitPrice, q.leadTimeDays, q.moq)}
+                                style={{ padding: '6px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#0F766E', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                                title="Message Manufacturer 💬"
+                              >
+                                <MessageSquare size={13} /> Message Manufacturer 💬
+                              </button>
+
+                              {isSelected ? (
+                                <span style={{ padding: '6px 12px', fontSize: 11.5, fontWeight: 800, borderRadius: 6, background: '#16A34A', color: '#FFF', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  ✓ SELECTED
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleSelectLineManufacturer(line.id, q.mfgId, q.mfgName, q.unitPrice, q.taxPercent, q.discountPercent, q.finalPrice, q.leadTimeDays, q.moq)}
+                                  style={{ padding: '6px 14px', fontSize: 11.5, fontWeight: 700, borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', cursor: 'pointer' }}
+                                >
+                                  Select
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          );
+        })}
+
+        {/* ── MODAL: MESSAGE MANUFACTURER ───────────────────────────── */}
+        {messageModalContext && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10020, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setMessageModalContext(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 14, padding: 24, boxShadow: '0 20px 48px rgba(15, 23, 42, 0.2)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <MessageSquare size={20} style={{ color: '#0F766E' }} />
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: 0 }}>Message Manufacturer</h3>
+                </div>
+                <button onClick={() => setMessageModalContext(null)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}><X size={18} /></button>
+              </div>
+
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, fontSize: 12.5, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div>To: <strong style={{ color: '#0F766E' }}>{messageModalContext.mfgName}</strong></div>
+                <div>RFQ Ref: <strong>{messageModalContext.rfqNumber}</strong> · Line: <strong>{messageModalContext.productName}</strong></div>
+                <div>Quantity: <strong>{messageModalContext.lineQty.toLocaleString()} Units</strong></div>
+              </div>
+
+              {/* Suggested Quick Messages */}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Suggested Quick Messages</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {[
-                    "Can you reduce the lead time?",
-                    "Can you offer a better price?",
-                    "Can you confirm the MOQ?",
-                    "Can you provide an earlier delivery date?"
-                  ].map((chip, cIdx) => (
+                    "Please confirm availability.",
+                    "Can you meet the required delivery date?",
+                    "Please confirm MOQ.",
+                    "Please provide your best commercial offer.",
+                    "Please clarify delivery terms."
+                  ].map((quick, idx) => (
                     <button
-                      key={cIdx}
-                      onClick={() => setMessageText(chip)}
-                      style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: 999, color: '#334155', cursor: 'pointer' }}
+                      key={idx}
+                      type="button"
+                      onClick={() => applyQuickMessage(quick)}
+                      style={{ padding: '4px 9px', borderRadius: 6, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#334155', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
                     >
-                      {chip}
+                      + {quick}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Message Input Textarea */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Your Message</label>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', display: 'block', marginBottom: 4 }}>Message Content *</label>
                 <textarea
-                  rows={3}
-                  placeholder="Ask the manufacturer about pricing, lead time, MOQ, delivery terms, or other quotation details..."
+                  rows={4}
+                  placeholder="Enter your message or negotiation inquiry..."
                   value={messageText}
                   onChange={e => setMessageText(e.target.value)}
-                  style={{ width: '100%', padding: '10px', fontSize: 13, borderRadius: 6, border: '1px solid #CBD5E1', outline: 'none', resize: 'none' }}
+                  style={{ width: '100%', padding: 10, border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, outline: 'none' }}
                 />
               </div>
 
-              {/* Modal Action Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18, paddingTop: 12, borderTop: '1px solid #E2E8F0' }}>
-                <button
-                  onClick={() => setMessageModalContext(null)}
-                  style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
-                >
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 6 }}>
+                <button type="button" onClick={() => setMessageModalContext(null)} style={{ padding: '9px 18px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
                   Cancel
                 </button>
                 <button
-                  onClick={handleSendMessage}
+                  type="button"
                   disabled={!messageText.trim()}
-                  style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: messageText.trim() ? '#0F766E' : '#CBD5E1', color: '#FFF', fontSize: 12.5, fontWeight: 800, cursor: messageText.trim() ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  onClick={handleSendMessage}
+                  style={{ padding: '9px 20px', borderRadius: 6, border: 'none', background: messageText.trim() ? '#0F766E' : '#E2E8F0', color: '#FFF', fontSize: 12.5, fontWeight: 800, cursor: messageText.trim() ? 'pointer' : 'not-allowed' }}
                 >
-                  <Send size={14} /> Send Message
+                  Send Message →
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* ── SIDE DRAWER: ✨ AI QUOTE ASSISTANT ───────────────────── */}
+        {showAiCompareDrawer && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10030, background: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(3px)', display: 'flex', justifyContent: 'flex-end' }} onClick={() => setShowAiCompareDrawer(false)}>
+            <div onClick={e => e.stopPropagation()} style={{ width: 440, maxWidth: '100%', background: '#FFFFFF', height: '100%', padding: 24, boxShadow: '-10px 0 30px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto' }}>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Sparkles size={20} style={{ color: '#7C3AED' }} />
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: 0 }}>AI Quote Assistant</h3>
+                </div>
+                <button onClick={() => setShowAiCompareDrawer(false)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}><X size={18} /></button>
+              </div>
+
+              <div style={{ background: 'linear-gradient(135deg, #F3E8FF 0%, #E0E7FF 100%)', border: '1px solid #DDD6FE', borderRadius: 10, padding: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#6B21A8', textTransform: 'uppercase' }}>REAL-TIME COMPARISON ANALYSIS</div>
+                <p style={{ margin: '4px 0 0', fontSize: 12.5, color: '#4C1D95' }}>
+                  "Here is a quick dynamic comparison based on quotes currently submitted for <strong>{activeRfq.rfqNumber}</strong>."
+                </p>
+              </div>
+
+              {activeRfq.lines.map((ln, idx) => {
+                const quotesList = getQuotesForLine(ln.id, ln.targetPrice || 12.00, ln.quantity, ln.productName);
+                const lowest = quotesList.find(q => q.isLowestPrice);
+                const fastest = quotesList.find(q => q.isFastestDelivery);
+                const preferred = quotesList.find(q => q.preferred);
+
+                return (
+                  <div key={ln.id} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ fontWeight: 800, color: '#0F172A', fontSize: 14 }}>
+                      Line #{idx + 1}: {ln.productName}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5 }}>
+                      <div style={{ background: '#DCFCE7', border: '1px solid #86EFAC', padding: '6px 10px', borderRadius: 6, color: '#15803D' }}>
+                        💵 <strong>Lowest Price:</strong> {lowest?.mfgName} — <strong>₹{lowest?.finalPrice.toFixed(2)}/unit</strong>
+                      </div>
+
+                      <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '6px 10px', borderRadius: 6, color: '#1D4ED8' }}>
+                        ⚡ <strong>Fastest Delivery:</strong> {fastest?.mfgName} — <strong>{fastest?.leadTimeDays} days</strong>
+                      </div>
+
+                      <div style={{ background: '#F0FDFA', border: '1px solid #99F6E4', padding: '6px 10px', borderRadius: 6, color: '#0F766E' }}>
+                        🚚 <strong>Delivery Terms:</strong> {lowest?.deliveryTerms} vs {fastest?.deliveryTerms}
+                      </div>
+
+                      <div style={{ background: '#FAF5FF', border: '1px solid #E9D5FF', padding: '8px 10px', borderRadius: 6, color: '#6B21A8', marginTop: 4 }}>
+                        🏆 <strong>AI Recommendation:</strong> <strong>{preferred?.mfgName || lowest?.mfgName}</strong>
+                        <div style={{ fontSize: 11.5, color: '#7E22CE', marginTop: 2 }}>
+                          Reason: Lowest evaluated price + preferred contract facility + MOQ compliant ({ln.quantity.toLocaleString()} units).
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div style={{ paddingTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAiCompareDrawer(false)}
+                  style={{ width: '100%', padding: '10px', borderRadius: 8, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
+                >
+                  Close AI Assistant
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* ── RIGHT-SIDE SLIDE-OVER DRAWER: MANUFACTURER PROFILE ───── */}
+        {profileDrawerMfgId && activeProfileMfg && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10030, background: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(3px)', display: 'flex', justifyContent: 'flex-end' }} onClick={() => setProfileDrawerMfgId(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ width: 480, maxWidth: '100%', background: '#FFFFFF', height: '100%', padding: 24, boxShadow: '-10px 0 30px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto' }}>
+
+              {/* Drawer Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0', paddingBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#0F766E', textTransform: 'uppercase' }}>Verified Manufacturer Profile</div>
+                  <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', margin: '2px 0 0 0' }}>{activeProfileMfg.companyName}</h2>
+                </div>
+                <button onClick={() => setProfileDrawerMfgId(null)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer' }}><X size={20} /></button>
+              </div>
+
+              {/* Status Badge */}
+              <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 8, padding: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <CheckCircle2 size={20} style={{ color: '#16A34A' }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#15803D' }}>WHO-GMP Verified Facility</div>
+                  <div style={{ fontSize: 11.5, color: '#166534' }}>Active CDSCO Manufacturing License · Verified State Inspectorate</div>
+                </div>
+              </div>
+
+              {/* COMPANY INFORMATION */}
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>COMPANY & REGULATORY DETAILS</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 12.5 }}>
+                  <div>Location: <strong>{activeProfileMfg.city}, {activeProfileMfg.state}</strong></div>
+                  <div>Category: <strong>Pharma Formulation</strong></div>
+                  <div>Drug License: <strong style={{ fontFamily: 'monospace' }}>{activeProfileMfg.mfgLicenseNo}</strong></div>
+                  <div>GSTIN: <strong style={{ fontFamily: 'monospace' }}>{activeProfileMfg.gstin}</strong></div>
+                  <div>Compliance Status: <strong style={{ color: '#16A34A' }}>Active / Verified</strong></div>
+                  <div>Rating: <strong style={{ color: '#D97706' }}>⭐ 4.9 / 5.0</strong></div>
+                </div>
+              </div>
+
+              {/* PERFORMANCE METRICS */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>BUSINESS PERFORMANCE TRACK RECORD</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, textAlign: 'center' }}>
+                  <div style={{ background: '#F1F5F9', padding: 10, borderRadius: 8 }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#0F766E' }}>142</div>
+                    <div style={{ fontSize: 11, color: '#64748B' }}>Completed Orders</div>
+                  </div>
+                  <div style={{ background: '#F1F5F9', padding: 10, borderRadius: 8 }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#16A34A' }}>98.6%</div>
+                    <div style={{ fontSize: 11, color: '#64748B' }}>On-Time Delivery</div>
+                  </div>
+                  <div style={{ background: '#F1F5F9', padding: 10, borderRadius: 8 }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#2563EB' }}>{activeProfileMfg.activeSubOrders}</div>
+                    <div style={{ fontSize: 11, color: '#64748B' }}>Active Sub-Orders</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* CONTACT & ACTION */}
+              <div style={{ paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileDrawerMfgId(null);
+                    handleOpenMessageModal(
+                      activeRfq.id,
+                      activeRfq.rfqNumber,
+                      activeRfq.lines[0]?.id || 'l1',
+                      activeRfq.lines[0]?.productName || 'Pharmaceutical Line',
+                      activeRfq.lines[0]?.quantity || 10000,
+                      activeProfileMfg.id,
+                      activeProfileMfg.companyName,
+                      12.00,
+                      14,
+                      1000
+                    );
+                  }}
+                  style={{ width: '100%', padding: '11px', borderRadius: 8, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  <MessageSquare size={16} /> Message Manufacturer 💬
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProfileDrawerMfgId(null)}
+                  style={{ width: '100%', padding: '10px', borderRadius: 8, background: '#FFF', color: '#475569', border: '1px solid #CBD5E1', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}
+                >
+                  Close Profile
                 </button>
               </div>
 
@@ -723,21 +937,10 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
   }
 
   // ── DEFAULT VIEWMODE: LIST OF RFQS FOR BUYER COMPARISON ──────────
-  const readyRfqs = (rfqs || []).filter(r => {
-    const q = searchTerm.toLowerCase().trim();
-    const matchSearch =
-      q === '' ||
-      r.rfqNumber.toLowerCase().includes(q) ||
-      r.customerName.toLowerCase().includes(q) ||
-      r.lines.some(l => l.productName.toLowerCase().includes(q));
-
-    const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48, background: '#F8FAFC' }}>
-      
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC', color: '#0F172A' }}>
+
       {/* ── Header ── */}
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
         <div>
@@ -746,7 +949,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
             QUOTE COMPARISON MATRIX
           </h1>
           <p style={{ margin: '3px 0 0 0', fontSize: 13, color: '#475569', fontWeight: 500 }}>
-            Compare manufacturer quotations, negotiate lead time/pricing, and select the best supplier for each RFQ product line.
+            Review manufacturer submissions, compare pricing & delivery terms, and select optimal suppliers for order fulfillment.
           </p>
         </div>
       </div>
@@ -792,8 +995,15 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
         ) : (
           readyRfqs.map(rfq => {
             const rfqDeclined = (declinedRfqs && declinedRfqs[rfq.id]) || [];
-            const activeResponseCount = Math.max(3 - rfqDeclined.length, 1);
+            // Count real submitted quotes from context for this RFQ
+            const realQuotesForRfq = quotes.filter(
+              q => q.rfqId === rfq.id || q.rfqNumber === rfq.rfqNumber
+            );
+            const activeResponseCount = realQuotesForRfq.length > 0
+              ? realQuotesForRfq.length
+              : Math.max(3 - rfqDeclined.length, 1);
             const isDeadlinePassed = new Date() > new Date(rfq.deadlineDate);
+            const hasRealQuotes = realQuotesForRfq.length > 0;
 
             return (
               <div

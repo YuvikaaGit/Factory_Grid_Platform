@@ -483,7 +483,7 @@ export const RFQModule: React.FC = () => {
     setSupplierQuoteRfq(null);
   };
 
-  // ── RENDER SPECIFIC MANUFACTURER PROFILE DRAWER (Requirement #1 — RELEVANT MANUFACTURING CAPABILITIES) ──
+  // ── RENDER SPECIFIC MANUFACTURER PROFILE & REVIEW DRAWER ──
   const renderSpecificManufacturerProfileDrawer = () => {
     if (!clickedProfileMfgId) return null;
     const mfg = manufacturers.find(m => m.id === clickedProfileMfgId) || manufacturers[0];
@@ -494,10 +494,22 @@ export const RFQModule: React.FC = () => {
       return { mapping: m, product: prd };
     }).filter(i => i.product !== undefined) as { mapping: ManufacturerProductMapping; product: Product }[];
 
-    const mockHistoricalOrders = [
-      { poNumber: 'PO-2026-001', productName: 'Paracetamol 500mg Tablets', quantity: 5000, date: '2026-06-10', status: 'Delivered' },
-      { poNumber: 'PO-2026-002', productName: 'Amoxicillin 250mg Tablets', quantity: 3000, date: '2026-07-25', status: 'Delivered' }
-    ];
+    // RFQ context line matching
+    const activeRfqLines = rfqLines.filter(l => l.productId && l.quantity);
+    const activeRfqProductIds = new Set(activeRfqLines.map(l => l.productId));
+    const matchedRfqItems = mfgProducts.filter(item => activeRfqProductIds.has(item.product.id));
+
+    const ratingVal = mfg.rating || 4.8;
+    const ratingDetails = mfg.ratingDetails || {
+      overallRating: ratingVal,
+      totalReviews: 24,
+      categoryRatings: { delivery: 4.8, quality: 4.9, communication: 4.7, compliance: 5.0 },
+      performance: { onTimeDeliveryRate: 98.4, qualityPassRate: 99.5, rfqResponseRate: 96.0, completedOrdersCount: 42 }
+    };
+
+    const certificationsList = (mfg.certifications && mfg.certifications.length > 0)
+      ? mfg.certifications.map(c => c.name)
+      : ['WHO-GMP Certified', 'CDSCO Form 28 License', 'ISO 9001:2015 Registered', 'c-GMP Compliant Unit'];
 
     return (
       <div
@@ -505,53 +517,102 @@ export const RFQModule: React.FC = () => {
         onClick={() => setClickedProfileMfgId(null)}
       >
         <div
-          style={{ width: '100%', maxWidth: 740, height: '100%', background: '#FFFFFF', borderLeft: '1px solid #CBD5E1', display: 'flex', flexDirection: 'column', boxShadow: '-16px 0 40px rgba(15, 23, 42, 0.2)' }}
+          style={{ width: '100%', maxWidth: 780, height: '100%', background: '#FFFFFF', borderLeft: '1px solid #CBD5E1', display: 'flex', flexDirection: 'column', boxShadow: '-16px 0 40px rgba(15, 23, 42, 0.2)' }}
           onClick={e => e.stopPropagation()}
         >
-          {/* Drawer Header */}
-          <div style={{ padding: '20px 24px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <FactoryAvatar initials={(mfg.companyName || mfg.name).slice(0, 2).toUpperCase()} size={46} />
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0F172A' }}>{mfg.companyName || mfg.name}</h3>
-                  <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: 'rgba(15, 118, 110, 0.1)', color: '#0F766E', border: '1px solid rgba(15, 118, 110, 0.25)' }}>
-                    Verified Manufacturer ✓
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
-                  📍 {mfg.city}, {mfg.state} · Code: {mfg.code || 'MFG000401'}
-                </div>
-              </div>
+          {/* Drawer Header & RFQ Context Banner */}
+          <div style={{ padding: '20px 24px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* 7. RFQ CONTEXT INDICATOR BANNER */}
+            <div style={{ background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 6, padding: '6px 12px', fontSize: 11.5, fontWeight: 700, color: '#0F766E', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>📋 RFQ CONTEXT REVIEW: Evaluating for current RFQ draft ({activeRfqLines.length} Requested Product Lines)</span>
+              <span style={{ fontFamily: 'monospace', fontWeight: 800 }}>{autoRfqNumber}</span>
             </div>
 
-            <button onClick={() => setClickedProfileMfgId(null)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
-              <X size={20} />
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <FactoryAvatar initials={(mfg.companyName || mfg.name).slice(0, 2).toUpperCase()} size={46} />
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0F172A' }}>{mfg.companyName || mfg.name}</h3>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: 'rgba(15, 118, 110, 0.1)', color: '#0F766E', border: '1px solid rgba(15, 118, 110, 0.25)' }}>
+                      Verified Manufacturer ✓
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
+                    📍 {mfg.city}, {mfg.state} · Code: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{mfg.code || 'MFG000401'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <button onClick={() => setClickedProfileMfgId(null)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
+                <X size={20} />
+              </button>
+            </div>
           </div>
 
           {/* Drawer Body Content */}
-          <div style={{ padding: 24, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ padding: 24, flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 22 }}>
             
-            {/* Company Overview */}
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', marginBottom: 8, letterSpacing: '0.05em' }}>
-                Company Information & Capabilities
+            {/* 1. MANUFACTURER OVERVIEW */}
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.05em' }}>
+                1. Manufacturer Overview & Contact Info
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, fontSize: 12.5 }}>
-                <div><span style={{ color: '#64748B' }}>Manufacturer Code:</span> <strong style={{ color: '#0F172A', display: 'block' }}>{mfg.code || 'MFG000401'}</strong></div>
-                <div><span style={{ color: '#64748B' }}>Location:</span> <strong style={{ color: '#0F172A', display: 'block' }}>{mfg.city}, {mfg.state}</strong></div>
-                <div><span style={{ color: '#64748B' }}>Experience:</span> <strong style={{ color: '#0F172A', display: 'block' }}>18+ Years</strong></div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, fontSize: 12.5 }}>
+                <div><span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Company Name</span> <strong style={{ color: '#0F172A' }}>{mfg.companyName || mfg.name}</strong></div>
+                <div><span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Manufacturer Type</span> <strong style={{ color: '#0F172A' }}>CDMO / Third Party Unit</strong></div>
+                <div><span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Verification Status</span> <strong style={{ color: '#059669' }}>Verified & Approved ✓</strong></div>
+                <div><span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Contact Person</span> <span style={{ color: '#0F172A', fontWeight: 600 }}>{mfg.contactPerson || 'Operations Desk'}</span></div>
+                <div><span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Email Address</span> <span style={{ color: '#0F766E', fontWeight: 600 }}>{mfg.email || 'contact@manufacturer.com'}</span></div>
+                <div><span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Phone Contact</span> <span style={{ color: '#0F172A', fontWeight: 600 }}>{mfg.phone || '+91 98765 43210'}</span></div>
               </div>
             </div>
 
-            {/* Certifications & Compliance */}
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', marginBottom: 8, letterSpacing: '0.05em' }}>
-                Certifications & Compliance
+            {/* 2. MANUFACTURER RATING & PERFORMANCE TRACK RECORD */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 10, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.05em' }}>
+                  2. Manufacturer Rating & Performance Track Record
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 800, color: '#D97706', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  ⭐ {ratingVal.toFixed(1)} / 5.0 ({ratingDetails.totalReviews} Verified Reviews)
+                </span>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14 }}>
-                {['WHO-GMP Certified', 'CDSCO Form 28 License', 'ISO 9001:2015'].map(c => (
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, background: '#F8FAFC', padding: 14, borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }}>
+                <div>
+                  <span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, display: 'block' }}>Quality Pass Rate</span>
+                  <strong style={{ fontSize: 15, color: '#16A34A', fontFamily: 'monospace' }}>{ratingDetails.performance.qualityPassRate}%</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, display: 'block' }}>On-Time Delivery</span>
+                  <strong style={{ fontSize: 15, color: '#0F766E', fontFamily: 'monospace' }}>{ratingDetails.performance.onTimeDeliveryRate}%</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, display: 'block' }}>Avg Response Time</span>
+                  <strong style={{ fontSize: 15, color: '#1D4ED8', fontFamily: 'monospace' }}>{ratingDetails.performance.rfqResponseRate > 90 ? '4 Hours' : '6 Hours'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, display: 'block' }}>Completed Orders</span>
+                  <strong style={{ fontSize: 15, color: '#0F172A', fontFamily: 'monospace' }}>{ratingDetails.performance.completedOrdersCount} Orders</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. COMPLIANCE & CERTIFICATIONS */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 10, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.05em' }}>
+                3. Compliance & Regulatory Certifications
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12.5, background: '#F8FAFC', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                <div><span style={{ color: '#64748B' }}>GSTIN Status:</span> <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{mfg.gstin || '36AAACG1234F1Z5'} (Active)</strong></div>
+                <div><span style={{ color: '#64748B' }}>Drug Mfg License #:</span> <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{mfg.mfgLicenseNo || 'Form 28 / T-2184'}</strong></div>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {certificationsList.map(c => (
                   <div key={c} style={{ padding: '6px 12px', background: 'rgba(15, 118, 110, 0.08)', border: '1px solid rgba(15, 118, 110, 0.25)', borderRadius: 6, fontSize: 12, fontWeight: 700, color: '#0F766E', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <ShieldCheck size={14} /> {c}
                   </div>
@@ -559,121 +620,84 @@ export const RFQModule: React.FC = () => {
               </div>
             </div>
 
-            {/* Past Purchase / Order History */}
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', marginBottom: 8, letterSpacing: '0.05em' }}>
-                Past Purchase / Order History
+            {/* 4. MANUFACTURING CAPABILITIES */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 10, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.05em' }}>
+                4. Manufacturing Capabilities & Plant Infrastructure
               </div>
-              <div style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 10, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-                  <thead>
-                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                      <th style={{ padding: '8px 12px', color: '#475569', fontWeight: 700 }}>PO Number</th>
-                      <th style={{ padding: '8px 12px', color: '#475569', fontWeight: 700 }}>Product</th>
-                      <th style={{ padding: '8px 12px', color: '#475569', fontWeight: 700 }}>Quantity</th>
-                      <th style={{ padding: '8px 12px', color: '#475569', fontWeight: 700 }}>Order Date</th>
-                      <th style={{ padding: '8px 12px', color: '#475569', fontWeight: 700 }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mockHistoricalOrders.map(po => (
-                      <tr key={po.poNumber} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#0F766E', fontFamily: 'monospace' }}>{po.poNumber}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#0F172A' }}>{po.productName}</td>
-                        <td style={{ padding: '8px 12px', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>{po.quantity.toLocaleString()}</td>
-                        <td style={{ padding: '8px 12px', color: '#475569' }}>{po.date}</td>
-                        <td style={{ padding: '8px 12px', color: '#059669', fontWeight: 700 }}>✓ {po.status}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, fontSize: 12.5, background: '#F8FAFC', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                <div><span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Dosage Capabilities</span> <strong style={{ color: '#0F172A' }}>Tablets, Capsules, Liquids</strong></div>
+                <div><span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Plant Infrastructure</span> <strong style={{ color: '#0F172A' }}>120,000 Sq. Ft. Cleanroom</strong></div>
+                <div><span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>Monthly Capacity</span> <strong style={{ color: '#0F766E', fontFamily: 'monospace' }}>50 Million Units/Mo</strong></div>
               </div>
             </div>
 
-            {/* REQUIREMENT #1: RELEVANT MANUFACTURING CAPABILITIES */}
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', marginBottom: 12, letterSpacing: '0.05em' }}>
-                Relevant Manufacturing Capabilities
+            {/* 5. PRODUCTS MATCHING THIS RFQ */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 10, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.05em' }}>
+                5. Products Matching Current RFQ ({matchedRfqItems.length})
               </div>
 
-              {(() => {
-                // Split mapped products into Current RFQ Products vs Other Capabilities
-                const activeRfqProductIds = new Set(rfqLines.filter(l => l.productId).map(l => l.productId));
-                const currentRfqItems = mfgProducts.filter(item => activeRfqProductIds.has(item.product.id));
-                const otherItems = mfgProducts.filter(item => !activeRfqProductIds.has(item.product.id));
-
-                const renderProductCard = (item: { mapping: ManufacturerProductMapping; product: Product }, isRfqMatch: boolean) => {
-                  const { product, mapping } = item;
-                  return (
-                    <div key={product.id} style={{ padding: 14, background: '#FFFFFF', border: `1px solid ${isRfqMatch ? '#99F6E4' : '#CBD5E1'}`, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 6, boxShadow: '0 1px 2px rgba(15,23,42,0.03)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {isRfqMatch && <span style={{ color: '#0F766E', fontWeight: 900 }}>✓</span>}
-                            <span>{product.name}</span>
-                          </div>
-                          <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
-                            <strong>Generic:</strong> {product.genericName || product.name} · <strong>Salt:</strong> {product.saltCombination || 'Standard Compendial Formulation'}
-                          </div>
+              {matchedRfqItems.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {matchedRfqItems.map(({ product, mapping }) => (
+                    <div key={product.id} style={{ padding: 12, background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A' }}>
+                          ✓ {product.name}
                         </div>
-
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4, background: isRfqMatch ? 'rgba(15, 118, 110, 0.12)' : '#F1F5F9', color: isRfqMatch ? '#0F766E' : '#475569', border: `1px solid ${isRfqMatch ? 'rgba(15, 118, 110, 0.3)' : '#CBD5E1'}` }}>
-                          {isRfqMatch ? 'Current RFQ Match' : 'Active Formulation'}
-                        </span>
+                        <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
+                          Formulation: <strong>{product.dosageForm}</strong> ({product.packSize}) · Tech Match: <strong>100% Compatible</strong>
+                        </div>
                       </div>
 
-                      {/* Product Specifications Grid from Product Catalog */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, background: '#F8FAFC', padding: '10px 12px', borderRadius: 6, border: '1px solid #E2E8F0', fontSize: 11.5, marginTop: 4 }}>
-                        <div><span style={{ color: '#64748B' }}>Strength:</span> <strong style={{ color: '#0F172A', display: 'block' }}>{product.strength || 'N/A'}</strong></div>
-                        <div><span style={{ color: '#64748B' }}>Dosage Form:</span> <strong style={{ color: '#0F172A', display: 'block' }}>{product.dosageForm}</strong></div>
-                        <div><span style={{ color: '#64748B' }}>Pack Size:</span> <strong style={{ color: '#0F172A', display: 'block' }}>{product.packSize}</strong></div>
-                        <div><span style={{ color: '#64748B' }}>Standard MOQ:</span> <strong style={{ color: '#0F766E', display: 'block', fontFamily: 'monospace' }}>{(mapping.moq || product.moq || 1000).toLocaleString()} Units</strong></div>
-                        <div><span style={{ color: '#64748B' }}>Lead Time:</span> <strong style={{ color: '#0F766E', display: 'block' }}>{mapping.standardLeadTimeDays} Days</strong></div>
-                        <div style={{ gridColumn: 'span 3' }}><span style={{ color: '#64748B' }}>Regulatory Info:</span> <span style={{ color: '#334155', fontWeight: 600, display: 'block' }}>{(product.regulatoryInfo || ['WHO-GMP Required', 'CDSCO Applicable']).join(' · ')}</span></div>
+                      <div style={{ fontSize: 12, textAlign: 'right' }}>
+                        <div>Standard Lead Time: <strong style={{ color: '#0F766E' }}>{mapping.standardLeadTimeDays} Days</strong></div>
+                        <div>Standard MOQ: <strong style={{ fontFamily: 'monospace' }}>{(mapping.moq || 1000).toLocaleString()} Units</strong></div>
                       </div>
                     </div>
-                  );
-                };
-
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {/* CURRENT RFQ PRODUCTS SUBSECTION */}
-                    {currentRfqItems.length > 0 && (
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', marginBottom: 8, letterSpacing: '0.04em' }}>
-                          Current RFQ Products ({currentRfqItems.length})
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {currentRfqItems.map(item => renderProductCard(item, true))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* OTHER MANUFACTURING CAPABILITIES SUBSECTION */}
-                    {otherItems.length > 0 && (
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#475569', marginBottom: 8, letterSpacing: '0.04em' }}>
-                          Other Manufacturing Capabilities ({otherItems.length})
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {otherItems.map(item => renderProductCard(item, false))}
-                        </div>
-                      </div>
-                    )}
-
-                    {mfgProducts.length === 0 && (
-                      <div style={{ padding: 14, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 8, color: '#64748B', fontSize: 12.5 }}>
-                        No catalog products currently mapped to this manufacturer.
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: 12, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 12.5, color: '#64748B' }}>
+                  No direct catalog product mapping found for this specific RFQ draft.
+                </div>
+              )}
             </div>
+
+            {/* 6. MANUFACTURER REVIEW / EVALUATION (FOR RFQ CREATOR) */}
+            <div style={{ background: '#FFFBEB', border: '2px solid #FCD34D', borderRadius: 10, padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#B45309', letterSpacing: '0.05em' }}>
+                6. Manufacturer Review & Sourcing Assessment (RFQ Creator Evaluation)
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, fontSize: 12 }}>
+                <div style={{ background: '#FFFFFF', padding: 10, borderRadius: 6, border: '1px solid #FDE68A' }}>
+                  <span style={{ color: '#64748B', display: 'block', fontSize: 11, fontWeight: 700 }}>Compliance & Legal</span>
+                  <strong style={{ color: '#16A34A', fontSize: 13 }}>PASSED (WHO-GMP) ✓</strong>
+                </div>
+
+                <div style={{ background: '#FFFFFF', padding: 10, borderRadius: 6, border: '1px solid #FDE68A' }}>
+                  <span style={{ color: '#64748B', display: 'block', fontSize: 11, fontWeight: 700 }}>RFQ Compatibility</span>
+                  <strong style={{ color: '#0F766E', fontSize: 13 }}>100% Product Match ✓</strong>
+                </div>
+
+                <div style={{ background: '#FFFFFF', padding: 10, borderRadius: 6, border: '1px solid #FDE68A' }}>
+                  <span style={{ color: '#64748B', display: 'block', fontSize: 11, fontWeight: 700 }}>Overall Rating</span>
+                  <strong style={{ color: '#D97706', fontSize: 13 }}>⭐ {ratingVal.toFixed(1)} / 5.0</strong>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 12.5, color: '#92400E', lineHeight: 1.4 }}>
+                <strong>Assessment Recommendation:</strong> {mfg.companyName || mfg.name} is a fully verified, WHO-GMP compliant manufacturer with verified track record and active production capacity for all matched formulation lines in this RFQ.
+              </div>
+            </div>
+
           </div>
 
           {/* Drawer Footer Actions */}
-          <div style={{ padding: 16, background: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', gap: 12, justifyContent: 'flex-between' }}>
+          <div style={{ padding: 16, background: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <button
               onClick={() => setClickedProfileMfgId(null)}
               style={{ padding: '10px 20px', background: '#0F766E', color: '#FFFFFF', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
@@ -935,7 +959,7 @@ export const RFQModule: React.FC = () => {
                               <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
                                 {rfq.lines.map((line) => {
                                   const lineQuotes = rfqQuotes.flatMap(q =>
-                                    q.quoteLines.filter(ql => ql.rfqLineId === line.id).map(ql => ({ quote: q, line: ql }))
+                                    (q.quoteLines || []).filter(ql => ql.rfqLineId === line.id).map(ql => ({ quote: q, line: ql }))
                                   );
 
                                   return (
@@ -951,12 +975,32 @@ export const RFQModule: React.FC = () => {
                                           const isDeclined = !!decRecord;
 
                                           const matchingQuote = lineQuotes.find(q => q.quote.manufacturerId === mfg.id);
-                                          const statusLabel = isDeclined ? 'DECLINED' : matchingQuote ? 'Responded' : mIdx === 0 ? 'Responded' : mIdx === 1 ? 'Opened' : 'Not Responded';
-                                          const unitPrice = !isDeclined && matchingQuote ? matchingQuote.line.unitPrice : (!isDeclined && mIdx === 0) ? 12.00 : (!isDeclined && mIdx === 1) ? 11.50 : undefined;
+                                          const lineRespType = matchingQuote?.line.responseType || (matchingQuote?.line.cannotSupplyReason ? 'CANNOT_SUPPLY' : (matchingQuote ? 'QUOTE' : undefined));
+                                          const isCannotSupplyLine = lineRespType === 'CANNOT_SUPPLY';
+
+                                          const statusLabel = isDeclined 
+                                            ? 'DECLINED' 
+                                            : isCannotSupplyLine 
+                                              ? 'Cannot Supply' 
+                                              : matchingQuote 
+                                                ? 'Quoted' 
+                                                : mIdx === 0 
+                                                  ? 'Quoted' 
+                                                  : mIdx === 1 
+                                                    ? 'Opened' 
+                                                    : 'Not Responded';
+
+                                          const unitPrice = (!isDeclined && !isCannotSupplyLine && matchingQuote) 
+                                            ? matchingQuote.line.unitPrice 
+                                            : (!isDeclined && !isCannotSupplyLine && mIdx === 0) 
+                                              ? 12.00 
+                                              : (!isDeclined && !isCannotSupplyLine && mIdx === 1) 
+                                                ? 11.50 
+                                                : undefined;
                                           const totalCost = unitPrice ? unitPrice * line.quantity : undefined;
 
                                           return (
-                                            <div key={mfg.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: 12.5 }}>
+                                            <div key={mfg.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: isCannotSupplyLine ? '#FFF5F5' : '#FFFFFF', border: isCannotSupplyLine ? '1px solid #FECDD3' : '1px solid #E2E8F0', borderRadius: 6, fontSize: 12.5 }}>
                                               <div>
                                                 {/* Clickable Manufacturer Name */}
                                                 <span
@@ -967,9 +1011,9 @@ export const RFQModule: React.FC = () => {
                                                 </span>
                                                 <span style={{
                                                   fontSize: 11, marginLeft: 8, padding: '2px 6px', borderRadius: 4,
-                                                  background: isDeclined ? '#FEE2E2' : statusLabel === 'Responded' ? 'rgba(15, 118, 110, 0.1)' : '#F1F5F9',
-                                                  color: isDeclined ? '#B91C1C' : statusLabel === 'Responded' ? '#0F766E' : '#64748B',
-                                                  border: isDeclined ? '1px solid #FCA5A5' : '1px solid #CBD5E1',
+                                                  background: isDeclined || isCannotSupplyLine ? '#FEE2E2' : statusLabel === 'Quoted' ? 'rgba(15, 118, 110, 0.1)' : '#F1F5F9',
+                                                  color: isDeclined || isCannotSupplyLine ? '#B91C1C' : statusLabel === 'Quoted' ? '#0F766E' : '#64748B',
+                                                  border: isDeclined || isCannotSupplyLine ? '1px solid #FCA5A5' : '1px solid #CBD5E1',
                                                   fontWeight: 700
                                                 }}>
                                                   Status: {statusLabel}
@@ -979,14 +1023,21 @@ export const RFQModule: React.FC = () => {
                                                     Reason: {decRecord?.declineReason || 'Required delivery date not achievable'}
                                                   </div>
                                                 )}
+                                                {isCannotSupplyLine && (
+                                                  <div style={{ fontSize: 11, color: '#B91C1C', marginTop: 2, fontWeight: 600 }}>
+                                                    Reason: {matchingQuote?.line.cannotSupplyReason} {matchingQuote?.line.cannotSupplyRemarks ? `(${matchingQuote.line.cannotSupplyRemarks})` : ''}
+                                                  </div>
+                                                )}
                                               </div>
 
                                               <div>
                                                 {isDeclined ? (
-                                                  <span style={{ color: '#DC2626', fontSize: 12, fontWeight: 700 }}>Declined by Manufacturer</span>
+                                                  <span style={{ color: '#DC2626', fontSize: 12, fontWeight: 700 }}>Declined RFQ</span>
+                                                ) : isCannotSupplyLine ? (
+                                                  <span style={{ color: '#DC2626', fontSize: 12, fontWeight: 700 }}>Cannot Supply Item</span>
                                                 ) : unitPrice ? (
                                                   <span style={{ fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>
-                                                    Unit Price: <strong>₹{unitPrice.toFixed(2)}</strong> · Total Cost: <strong style={{ color: '#0F766E' }}>₹{totalCost?.toLocaleString()}</strong>
+                                                    Unit Price: <strong>₹{unitPrice.toFixed(2)}</strong> · Total Cost: <strong style={{ color: '#0F766E' }}>₹{totalCost?.toLocaleString('en-IN')}</strong>
                                                   </span>
                                                 ) : (
                                                   <span style={{ color: '#94A3B8', fontSize: 12 }}>No Quote Submitted</span>

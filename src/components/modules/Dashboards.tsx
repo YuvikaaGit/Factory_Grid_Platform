@@ -81,7 +81,7 @@ export const Dashboards: React.FC = () => {
               {[
                 { label: 'RFQ Sourcing Matrix', tab: 'rfqs' },
                 { label: 'Quote Comparison', tab: 'quotes' },
-                { label: 'Master Orders & Splitting', tab: 'orders' },
+                { label: 'Master Order & PO Splitting', tab: 'orders' },
                 { label: 'Cold-Chain Dispatch', tab: 'shipments' },
                 { label: 'Invoices & AR Ledger', tab: 'invoices' },
                 { label: 'Regulatory Compliance Desk', tab: 'compliance' },

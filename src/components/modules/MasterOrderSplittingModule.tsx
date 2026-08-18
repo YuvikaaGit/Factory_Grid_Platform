@@ -150,7 +150,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
   if (viewMode === 'ORIGINAL_QUOTE') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC' }}>
-        
+
         {/* Breadcrumb & Command Header */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -310,7 +310,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48, background: '#F8FAFC' }}>
-        
+
         {/* Breadcrumb & Header */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -466,7 +466,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC' }}>
-        
+
         {/* Success Banner */}
         <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 12, padding: 24, boxShadow: '0 2px 6px rgba(15,23,42,0.04)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -506,7 +506,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
   if (viewMode === 'CREATE_PO_FORM' && targetPoSubOrderObj) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC' }}>
-        
+
         {/* Header Bar */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -634,7 +634,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
   if (viewMode === 'PO_CREATION_LIST' && activeMasterOrder) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC' }}>
-        
+
         {/* Breadcrumb & Header */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -777,7 +777,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48, background: '#F8FAFC' }}>
-        
+
         {/* Breadcrumb & Header */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -924,7 +924,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
   if (viewMode === 'SUB_ORDERS_LIST' && activeMasterOrder) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC' }}>
-        
+
         {/* Breadcrumb & Header */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -1061,7 +1061,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
   if (viewMode === 'SPLIT_SUCCESS') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC' }}>
-        
+
         {/* Success Banner */}
         <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 12, padding: 24, boxShadow: '0 2px 6px rgba(15,23,42,0.04)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -1151,7 +1151,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC' }}>
-        
+
         {/* Header Bar */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -1224,7 +1224,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
   if (viewMode === 'DETAILS' && activeMasterOrder) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC' }}>
-        
+
         {/* Breadcrumb & Command Header */}
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
           <div>
@@ -1479,7 +1479,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
   // ── 11. DEFAULT VIEWMODE: LIST OF MASTER ORDERS ──────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48, background: '#F8FAFC' }}>
-      
+
       {/* Header Bar */}
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
         <div>

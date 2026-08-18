@@ -20,7 +20,7 @@ export type ProductionStage =
   | 'PACKAGING'
   | 'READY_TO_DISPATCH';
 
-export const UNIFIED_STORAGE_KEY = 'factorygrid_unified_suborders_v9';
+export const UNIFIED_STORAGE_KEY = 'factorygrid_unified_suborders_v11';
 
 // Safe Number Formatter
 export const formatNumber = (val: number | undefined | null, fallback = '0'): string => {
@@ -29,26 +29,17 @@ export const formatNumber = (val: number | undefined | null, fallback = '0'): st
 };
 
 export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps> = ({ onNavigateTab }) => {
-  const { manufacturers, addAuditLog, setActiveTab } = useApp();
+  const { manufacturers, addAuditLog, setActiveTab, orders } = useApp();
 
   const myMfg = (manufacturers && manufacturers[0]) || null;
   const myMfgName = myMfg?.companyName || myMfg?.name || 'SunBio LifeSciences Ltd.';
 
-  // Initial Clean Store
-  const getInitialStore = () => {
-    try {
-      const saved = localStorage.getItem(UNIFIED_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed['SO-1001-01'] && parsed['SO-1001-01'].totalQuantity != null) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse unified suborders store', e);
-    }
-    return {
-      'SO-1001-01': {
+  // Dynamic Sub-Orders Store Synced with AppContext Master Orders
+  const syncSubOrdersWithContext = (saved: any) => {
+    const store: Record<string, any> = { ...(saved || {}) };
+
+    if (!store['SO-1001-01']) {
+      store['SO-1001-01'] = {
         subOrderNumber: 'SO-1001-01',
         poNumber: 'PO-2026-1001-01',
         masterOrderNumber: 'MO-2026-1001',
@@ -59,8 +50,6 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
         orderValue: 195300,
         requiredDeliveryDate: '2026-09-02',
         leadTimeDays: 14,
-
-        // Production Domain State
         productionStatus: 'PO_ACCEPTED' as ProductionStage,
         batchNumber: 'BATCH-2026-8801',
         manufacturingLine: 'Line A - Solid Oral Dosages',
@@ -69,31 +58,84 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
         progressPercent: 0,
         rawMaterialIssued: false,
         manufacturingStarted: false,
-        qcInspectionResult: undefined,
-        qcTestedQuantity: 12000,
-        qcPassedQuantity: 12000,
-        qcFailedQuantity: 0,
-        qcRemarks: undefined,
-        packagingPackSize: undefined,
-        packagingMasterCartons: undefined,
-
-        // Connected Shipment Domain Object (null until created in Dispatch & Tracking)
         shipment: null
-      }
-    };
+      };
+    }
+
+    if (Array.isArray(orders)) {
+      orders.forEach(mo => {
+        if (Array.isArray(mo.subOrders)) {
+          mo.subOrders.forEach(so => {
+            const subNum = so.subOrderNumber;
+            if (subNum && !store[subNum]) {
+              store[subNum] = {
+                subOrderNumber: subNum,
+                poNumber: `PO-${subNum}`,
+                masterOrderNumber: mo.orderNumber,
+                customerName: mo.customerName,
+                manufacturerName: so.manufacturerName || myMfgName,
+                productName: so.lines?.[0]?.productName || 'Pharmaceutical Product',
+                totalQuantity: so.lines?.reduce((sum: number, l: any) => sum + l.quantity, 0) || 10000,
+                orderValue: so.totalAmount || 150000,
+                requiredDeliveryDate: mo.expectedDeliveryDate || '2026-09-02',
+                leadTimeDays: 14,
+                productionStatus: 'PO_ACCEPTED',
+                batchNumber: `BATCH-2026-${Math.floor(1000 + Math.random() * 8999)}`,
+                manufacturingLine: 'Line A - Solid Oral Dosages',
+                plannedStartDate: new Date().toISOString().split('T')[0],
+                expectedCompletionDate: '2026-09-01',
+                progressPercent: 0,
+                rawMaterialIssued: false,
+                manufacturingStarted: false,
+                shipment: null,
+                invoice: null
+              };
+            }
+          });
+        }
+      });
+    }
+
+    return store;
+  };
+
+  const getInitialStore = () => {
+    try {
+      const saved = localStorage.getItem(UNIFIED_STORAGE_KEY);
+      const parsed = saved ? JSON.parse(saved) : {};
+      return syncSubOrdersWithContext(parsed);
+    } catch (e) {
+      console.error('Failed to parse unified suborders store', e);
+      return syncSubOrdersWithContext({});
+    }
   };
 
   const [subOrdersState, setSubOrdersState] = useState<Record<string, any>>(getInitialStore);
-  const [selectedOrderCode, setSelectedOrderCode] = useState<string>('SO-1001-01');
+
+  const [selectedOrderCode, setSelectedOrderCode] = useState<string>(() => {
+    try {
+      const target = localStorage.getItem('factorygrid_target_suborder');
+      if (target) return target;
+    } catch (e) {}
+    const keys = Object.keys(getInitialStore());
+    return keys[keys.length - 1] || 'SO-1001-01';
+  });
 
   // Synchronize state automatically on window focus & storage update
   useEffect(() => {
     const syncFromStorage = () => {
       try {
         const saved = localStorage.getItem(UNIFIED_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed['SO-1001-01']) setSubOrdersState(parsed);
+        const parsed = saved ? JSON.parse(saved) : {};
+        const merged = syncSubOrdersWithContext(parsed);
+        setSubOrdersState(merged);
+
+        const target = localStorage.getItem('factorygrid_target_suborder');
+        if (target && merged[target]) {
+          setSelectedOrderCode(target);
+        } else if (!merged[selectedOrderCode]) {
+          const keys = Object.keys(merged);
+          if (keys.length > 0) setSelectedOrderCode(keys[keys.length - 1]);
         }
       } catch (e) { console.error(e); }
     };
@@ -105,7 +147,7 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
       window.removeEventListener('storage', syncFromStorage);
       window.removeEventListener('focus', syncFromStorage);
     };
-  }, []);
+  }, [orders]);
 
   // Persist State Changes
   useEffect(() => {
@@ -116,20 +158,28 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
     }
   }, [subOrdersState]);
 
-  // Robust Sub-Order Record Resolution
-  const activeOrder = subOrdersState[selectedOrderCode] || subOrdersState['SO-1001-01'] || {
-    subOrderNumber: 'SO-1001-01',
-    poNumber: 'PO-2026-1001-01',
-    masterOrderNumber: 'MO-2026-1001',
-    customerName: 'Apex Pharma PCD Franchise',
+  // Robust Sub-Order Record Resolution (NEVER fall back to old completed state for a new order)
+  const activeOrder = subOrdersState[selectedOrderCode] || {
+    subOrderNumber: selectedOrderCode,
+    poNumber: `PO-${selectedOrderCode}`,
+    masterOrderNumber: 'MO-2026-1002',
+    customerName: 'B2B Client Partner',
     manufacturerName: myMfgName,
-    productName: 'Paracetamol 500mg & Azithromycin 500mg Tablets',
-    totalQuantity: 12000,
-    orderValue: 195300,
+    productName: 'Pharmaceutical Products',
+    totalQuantity: 10000,
+    orderValue: 150000,
     requiredDeliveryDate: '2026-09-02',
     leadTimeDays: 14,
+
+    // FRESH PRODUCTION WORKFLOW — PO_ACCEPTED
     productionStatus: 'PO_ACCEPTED',
-    shipment: null
+    batchNumber: `BATCH-2026-${Math.floor(1000 + Math.random() * 8999)}`,
+    manufacturingLine: 'Line A - Solid Oral Dosages',
+    progressPercent: 0,
+    rawMaterialIssued: false,
+    manufacturingStarted: false,
+    shipment: null,
+    invoice: null
   };
 
   // Modal Control States
@@ -182,16 +232,35 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
         qcFailedQuantity: 0,
         qcRemarks: undefined,
         packagingPackSize: undefined,
-        shipment: null
+        packagingMasterCartons: undefined,
+        shipment: null,
+        invoice: null
       }
     };
     setSubOrdersState(resetStore);
     try {
       localStorage.setItem(UNIFIED_STORAGE_KEY, JSON.stringify(resetStore));
       localStorage.removeItem('factorygrid_target_tracking');
+      localStorage.removeItem('factorygrid_target_suborder');
+      window.dispatchEvent(new Event('storage'));
     } catch (e) { console.error(e); }
     addAuditLog('Production Engine', 'Reset Demo Workflow State for Sub-Order SO-1001-01 to PO_ACCEPTED');
-    alert('✔ Workflow Reset to PO ACCEPTED!\n\nYou can now test the manufacturing execution workflow step by step.');
+    alert('✔ Workflow Reset to PO ACCEPTED!\n\nAll production and shipment stages reset. You can now test the manufacturing execution workflow step by step.');
+  };
+
+  // Synchronous Store Saver & Storage Event Dispatcher
+  const saveAndSyncStore = (newStore: Record<string, any>) => {
+    try {
+      localStorage.setItem(UNIFIED_STORAGE_KEY, JSON.stringify(newStore));
+    } catch (e) {
+      console.error('Failed to write suborders store to localStorage', e);
+    }
+    setSubOrdersState(newStore);
+    try {
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {
+      console.error('Failed to dispatch storage event', e);
+    }
   };
 
   // Step 1 -> Step 2: SCHEDULE PRODUCTION
@@ -206,7 +275,8 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
       expectedCompletionDate: schedFinishDate
     };
 
-    setSubOrdersState(prev => ({ ...prev, [selectedOrderCode]: updated }));
+    const newStore = { ...subOrdersState, [selectedOrderCode]: updated };
+    saveAndSyncStore(newStore);
     setShowScheduleModal(false);
     addAuditLog('Production Engine', `Scheduled Production for ${selectedOrderCode}. Batch: ${schedBatch}`);
     alert(`✔ Production Scheduled!\n\nManufacturing Stage: SCHEDULED\nBatch #: ${schedBatch}`);
@@ -221,7 +291,8 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
       rawMaterialIssued: true,
       manufacturingStarted: true
     };
-    setSubOrdersState(prev => ({ ...prev, [selectedOrderCode]: updated }));
+    const newStore = { ...subOrdersState, [selectedOrderCode]: updated };
+    saveAndSyncStore(newStore);
     addAuditLog('Production Engine', `Started Manufacturing Execution for ${selectedOrderCode}`);
     alert(`✔ Manufacturing Started!\n\nManufacturing Stage: IN PRODUCTION`);
   };
@@ -233,7 +304,8 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
       productionStatus: 'QUALITY_INSPECTION',
       progressPercent: 100
     };
-    setSubOrdersState(prev => ({ ...prev, [selectedOrderCode]: updated }));
+    const newStore = { ...subOrdersState, [selectedOrderCode]: updated };
+    saveAndSyncStore(newStore);
     addAuditLog('Production Engine', `Completed Manufacturing Run for ${selectedOrderCode}`);
     alert(`✔ Manufacturing Run Complete!\n\nManufacturing Stage: QUALITY INSPECTION`);
   };
@@ -256,7 +328,8 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
         qcFailedQuantity: qcFailedQty,
         qcRemarks: qcRemarksText
       };
-      setSubOrdersState(prev => ({ ...prev, [selectedOrderCode]: updated }));
+      const newStore = { ...subOrdersState, [selectedOrderCode]: updated };
+      saveAndSyncStore(newStore);
       setShowQcModal(false);
       addAuditLog('QC Laboratory', `QC Passed for ${selectedOrderCode}`);
       alert(`✔ QC Assay Inspection PASSED!\n\nManufacturing Stage: PACKAGING`);
@@ -267,7 +340,8 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
         qcInspectionResult: 'HOLD',
         qcRemarks: qcRemarksText
       };
-      setSubOrdersState(prev => ({ ...prev, [selectedOrderCode]: updated }));
+      const newStore = { ...subOrdersState, [selectedOrderCode]: updated };
+      saveAndSyncStore(newStore);
       setShowQcModal(false);
       addAuditLog('QC Laboratory', `QC Placed on HOLD for ${selectedOrderCode}`);
       alert(`⚠ QC Placed on HOLD!\n\nShipment creation is blocked until QC issue is resolved.`);
@@ -283,7 +357,8 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
       packagingPackSize: packSize,
       packagingMasterCartons: masterCartons
     };
-    setSubOrdersState(prev => ({ ...prev, [selectedOrderCode]: updated }));
+    const newStore = { ...subOrdersState, [selectedOrderCode]: updated };
+    saveAndSyncStore(newStore);
     setShowPackagingModal(false);
     addAuditLog('Packaging Desk', `Packaging Completed for ${selectedOrderCode}`);
     alert(`✔ Packaging Completed!\n\nManufacturing Stage: READY TO DISPATCH\n\nShipment creation is now available in Dispatch & Tracking.`);
@@ -430,16 +505,33 @@ export const ProductionExecutionModule: React.FC<ProductionExecutionModuleProps>
             { label: 'Packaging', step: 5 },
             { label: 'Ready To Dispatch', step: 6 }
           ].map(st => {
-            const isDone = currentMfgStep >= st.step;
+            const isCompleted = currentMfgStep > st.step;
             const isCurrent = currentMfgStep === st.step;
+            const isLocked = currentMfgStep < st.step;
+
             return (
-              <div key={st.step} style={{ background: isCurrent ? '#F0FDFA' : isDone ? '#F8FAFC' : '#F1F5F9', border: isCurrent ? '2px solid #0F766E' : isDone ? '1px solid #86EFAC' : '1px solid #E2E8F0', borderRadius: 8, padding: 12, opacity: isDone ? 1 : 0.4 }}>
+              <div
+                key={st.step}
+                style={{
+                  background: isCurrent ? '#F0FDFA' : isCompleted ? '#F8FAFC' : '#F1F5F9',
+                  border: isCurrent ? '2px solid #0F766E' : isCompleted ? '1px solid #86EFAC' : '1px solid #E2E8F0',
+                  borderRadius: 8,
+                  padding: 12,
+                  opacity: isLocked ? 0.55 : 1
+                }}
+              >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: isCurrent ? '#0F766E' : isDone ? '#16A34A' : '#64748B' }}>STEP 0{st.step}</span>
-                  {isDone ? <span style={{ color: '#16A34A', fontWeight: 800 }}>✓</span> : <span style={{ color: '#94A3B8' }}>○</span>}
+                  <span style={{ fontSize: 10, fontWeight: 800, color: isCurrent ? '#0F766E' : isCompleted ? '#16A34A' : '#64748B' }}>STEP 0{st.step}</span>
+                  {isCompleted ? (
+                    <span style={{ color: '#16A34A', fontWeight: 800 }}>✓</span>
+                  ) : isCurrent ? (
+                    <span style={{ color: '#0F766E', fontWeight: 800 }}>●</span>
+                  ) : (
+                    <span style={{ color: '#94A3B8', fontSize: 10 }}>🔒</span>
+                  )}
                 </div>
-                <div style={{ fontWeight: isCurrent || isDone ? 800 : 500, color: isCurrent ? '#0F766E' : isDone ? '#0F172A' : '#64748B', marginTop: 4 }}>
-                  {st.label} {isCurrent ? '[CURRENT]' : ''}
+                <div style={{ fontWeight: isCurrent || isCompleted ? 800 : 500, color: isCurrent ? '#0F766E' : isCompleted ? '#0F172A' : '#64748B', marginTop: 4 }}>
+                  {st.label} {isCurrent ? '[CURRENT]' : isLocked ? '[LOCKED]' : ''}
                 </div>
               </div>
             );

@@ -357,7 +357,7 @@ export const ManufacturerQuoteSubmissionsModule: React.FC = () => {
 
           {/* ── NEGOTIATION THREAD SECTION (ACTIVE ONLY IF STATUS IS NEGOTIATION) ── */}
           {viewingQuote.status === 'NEGOTIATION' && (() => {
-            const firstLineId = viewingQuote.quoteLines[0]?.rfqLineId || 'rl1';
+            const firstLineId = (viewingQuote.quoteLines && viewingQuote.quoteLines[0])?.rfqLineId || 'rl1';
             const threadKey = `${viewingQuote.rfqId}_${firstLineId}_${myMfgId}`;
             const threadMsgs = (negotiationThreads && negotiationThreads[threadKey]) || [
               {
@@ -369,83 +369,77 @@ export const ManufacturerQuoteSubmissionsModule: React.FC = () => {
                 text: 'We are reviewing your commercial offer. Can you confirm if lead time can be compressed to 11 days for batch execution?'
               }
             ];
-            const rev = revisedQuotes ? revisedQuotes[threadKey] : undefined;
 
             return (
-              <div style={{ background: '#FFFFFF', border: '1px solid #FDE047', borderRadius: 10, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-                <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', color: '#854D0E', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <MessageSquare size={16} /> BUYER NEGOTIATION THREAD
+              <div style={{ marginTop: 20, background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 10, padding: 18 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MessageSquare size={16} style={{ color: '#B45309' }} />
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#B45309', textTransform: 'uppercase' }}>
+                      Buyer Negotiation & Counter Offer Thread
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, background: '#FEF3C7', color: '#B45309', padding: '3px 8px', borderRadius: 4 }}>
+                    {threadMsgs.length} Messages
+                  </span>
                 </div>
 
-                {rev && (
-                  <div style={{ background: '#FEFCE8', border: '1px solid #FDE047', borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12.5, color: '#854D0E', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>✓ Active Revised Offer: Unit Price ₹{rev.unitPrice.toFixed(2)} · Lead Time {rev.leadTimeDays} Days · Final Price ₹{rev.finalPrice.toFixed(2)}/unit</span>
-                    <span style={{ fontSize: 11, color: '#A16207' }}>Submitted on {rev.revisedAt}</span>
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 250, overflowY: 'auto', marginBottom: 16, paddingRight: 4 }}>
-                  {threadMsgs.map(m => (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 220, overflowY: 'auto', marginBottom: 14, paddingRight: 4 }}>
+                  {threadMsgs.map(msg => (
                     <div
-                      key={m.id}
+                      key={msg.id}
                       style={{
-                        alignSelf: m.senderRole === 'SUPPLIER' ? 'flex-end' : 'flex-start',
-                        maxWidth: '75%',
-                        background: m.senderRole === 'SUPPLIER' ? '#0F766E' : '#F1F5F9',
-                        color: m.senderRole === 'SUPPLIER' ? '#FFFFFF' : '#0F172A',
-                        borderRadius: 8,
                         padding: '10px 14px',
-                        fontSize: 13
+                        borderRadius: 8,
+                        background: msg.senderRole === 'SUPPLIER' ? '#ECFDF5' : '#FFFFFF',
+                        border: msg.senderRole === 'SUPPLIER' ? '1px solid #A7F3D0' : '1px solid #FDE68A',
+                        alignSelf: msg.senderRole === 'SUPPLIER' ? 'flex-end' : 'flex-start',
+                        maxWidth: '85%'
                       }}
                     >
-                      <div style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.85, marginBottom: 4 }}>
-                        {m.senderName} · {m.timestamp}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 4, fontSize: 11 }}>
+                        <strong style={{ color: msg.senderRole === 'SUPPLIER' ? '#059669' : '#B45309' }}>{msg.senderName}</strong>
+                        <span style={{ color: '#64748B' }}>{msg.timestamp}</span>
                       </div>
-                      <div>{m.text}</div>
+                      <div style={{ fontSize: 12.5, color: '#1E293B', lineHeight: 1.4 }}>
+                        {msg.text}
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Reply Input Box & Revised Quote Button */}
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    placeholder="Type negotiation reply to buyer procurement team..."
-                    value={detailReplyText}
-                    onChange={e => setDetailReplyText(e.target.value)}
-                    style={{ flex: 1, padding: '9px 14px', fontSize: 13, borderRadius: 6, border: '1px solid #CBD5E1', outline: 'none' }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && detailReplyText.trim()) {
-                        sendNegotiationMessage(threadKey, detailReplyText.trim(), 'SUPPLIER', `${myMfgName} (Sales)`);
-                        setDetailReplyText('');
-                      }
-                    }}
+                {/* Reply & Action Box */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <textarea
+                    rows={2}
+                    placeholder="Enter negotiation response or commercial counter-offer details..."
+                    value={replyText}
+                    onChange={e => setReplyText(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #FDE68A', borderRadius: 6, fontSize: 12.5, outline: 'none' }}
                   />
-                  <button
-                    onClick={() => {
-                      if (detailReplyText.trim()) {
-                        sendNegotiationMessage(threadKey, detailReplyText.trim(), 'SUPPLIER', `${myMfgName} (Sales)`);
-                        setDetailReplyText('');
-                      }
-                    }}
-                    style={{ padding: '9px 18px', fontSize: 13, fontWeight: 700, borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                  >
-                    <Send size={14} /> Reply
-                  </button>
 
-                  <button
-                    onClick={() => setRevisedQuoteModalContext({
-                      rfqId: viewingQuote.rfqId,
-                      rfqNumber: viewingQuote.rfqNumber,
-                      lineId: firstLineId,
-                      productName: viewingQuote.quoteLines[0]?.productName || 'Product Line',
-                      unitPrice: viewingQuote.quoteLines[0]?.unitPrice || 8.50,
-                      leadTimeDays: viewingQuote.quoteLines[0]?.leadTimeDays || 11
-                    })}
-                    style={{ padding: '9px 18px', fontSize: 13, fontWeight: 800, borderRadius: 6, background: '#D97706', color: '#FFF', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                  >
-                    <DollarSign size={14} /> Submit Revised Quote
-                  </button>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                    <button
+                      onClick={() => handleSendReply(threadKey)}
+                      style={{ padding: '8px 16px', fontSize: 12.5, fontWeight: 700, borderRadius: 6, background: '#B45309', color: '#FFF', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Send size={13} /> Send Negotiation Reply
+                    </button>
+
+                    <button
+                      onClick={() => setRevisedQuoteModalContext({
+                        rfqId: viewingQuote.rfqId,
+                        rfqNumber: viewingQuote.rfqNumber,
+                        lineId: firstLineId,
+                        productName: (viewingQuote.quoteLines && viewingQuote.quoteLines[0])?.productName || 'Product Line',
+                        unitPrice: (viewingQuote.quoteLines && viewingQuote.quoteLines[0])?.unitPrice || 8.50,
+                        leadTimeDays: (viewingQuote.quoteLines && viewingQuote.quoteLines[0])?.leadTimeDays || 11
+                      })}
+                      style={{ padding: '9px 18px', fontSize: 13, fontWeight: 800, borderRadius: 6, background: '#D97706', color: '#FFF', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <DollarSign size={14} /> Submit Revised Quote
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -483,7 +477,7 @@ export const ManufacturerQuoteSubmissionsModule: React.FC = () => {
                   }}
                   style={{ padding: '8px 16px', borderRadius: 6, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  <Package size={15} /> Open Sub-Order Management →
+                  <Package size={15} /> Open Order Management →
                 </button>
               </div>
 
@@ -670,7 +664,7 @@ export const ManufacturerQuoteSubmissionsModule: React.FC = () => {
                           {firstLine ? (
                             <span>
                               {firstLine.productName}
-                              {q.quoteLines.length > 1 && <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600, marginLeft: 4 }}>(+{q.quoteLines.length - 1} lines)</span>}
+                              {(q.quoteLines?.length || 0) > 1 && <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600, marginLeft: 4 }}>(+{(q.quoteLines?.length || 0) - 1} lines)</span>}
                             </span>
                           ) : (
                             `${q.quoteLines?.length || 1} Product Lines`

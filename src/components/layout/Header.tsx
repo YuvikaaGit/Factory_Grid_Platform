@@ -7,25 +7,34 @@ import {
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { notifications } = useApp();
+  const { notifications, userProfile, currentRole, activeTab, openProfileTab } = useApp();
   const { theme, toggleTheme } = useTheme();
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  const initials = userProfile?.fullName 
+    ? userProfile.fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2) 
+    : currentRole.slice(0, 2);
+
+  const formattedTab = activeTab.replace(/-/g, ' ').toUpperCase();
+
   return (
     <header className="ent-topbar">
-      {/* Brand */}
+      {/* Brand & Breadcrumb Navigation */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
           FactoryGrid
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 500 }}>
-          Enterprise Procurement Platform
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>/</span>
+          <span>{currentRole.replace(/_/g, ' ')}</span>
+          <span>/</span>
+          <span style={{ color: 'var(--c-primary)', fontWeight: 700 }}>{formattedTab}</span>
         </div>
       </div>
 
       {/* Global Search */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-app)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '6px 12px', width: 340, transition: 'all 150ms' }}
-        onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--border-default)'}
+        onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--c-primary)'}
         onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-subtle)'}>
         <Search size={14} style={{ color: 'var(--text-tertiary)' }} />
         <input
@@ -39,9 +48,9 @@ export const Header: React.FC = () => {
       {/* Right Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {/* Compliance Status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'var(--c-success-light)', border: '1px solid var(--c-success)', borderRadius: 6 }}>
-          <ShieldCheck size={14} style={{ color: 'var(--c-success)' }} />
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-success)' }}>Compliant</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 6 }}>
+          <ShieldCheck size={14} style={{ color: '#10B981' }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#10B981' }}>Compliant</span>
         </div>
 
         {/* Role Switcher */}
@@ -54,7 +63,7 @@ export const Header: React.FC = () => {
           onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.color = 'var(--text-tertiary)'; }}
         >
-          {theme === 'dark' ? <Sparkles size={15} /> : <Sparkles size={15} />}
+          <Sparkles size={15} />
         </button>
 
         {/* Notifications */}
@@ -65,13 +74,17 @@ export const Header: React.FC = () => {
         >
           <Bell size={15} />
           {unreadCount > 0 && (
-            <span style={{ position: 'absolute', top: 6, right: 6, width: 6, height: 6, background: 'var(--c-danger)', borderRadius: '50%' }} />
+            <span style={{ position: 'absolute', top: 6, right: 6, width: 6, height: 6, background: '#EF4444', borderRadius: '50%' }} />
           )}
         </button>
 
         {/* User Avatar */}
-        <div style={{ width: 32, height: 32, borderRadius: 6, background: 'linear-gradient(135deg, var(--c-primary), var(--c-secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#FFFFFF', cursor: 'pointer' }}>
-          VS
+        <div
+          onClick={() => openProfileTab('personal')}
+          title="Click to view My Profile"
+          style={{ width: 32, height: 32, borderRadius: 6, background: 'linear-gradient(135deg, #1D4ED8, #0D9488)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#FFFFFF', cursor: 'pointer' }}
+        >
+          {initials}
         </div>
       </div>
     </header>

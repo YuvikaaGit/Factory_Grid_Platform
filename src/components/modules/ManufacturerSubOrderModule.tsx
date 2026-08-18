@@ -179,10 +179,10 @@ export const ManufacturerSubOrderModule: React.FC = () => {
             <span>/</span>
             <span>supplier</span>
             <span>/</span>
-            <span style={{ fontWeight: 700, color: '#0F172A' }}>Sub-Order Management</span>
+            <span style={{ fontWeight: 700, color: '#0F172A' }}>Order Management</span>
           </div>
           <h1 style={{ margin: '2px 0 0 0', fontSize: 22, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-            Sub-Order Management
+            Order Management
           </h1>
           <p style={{ margin: '3px 0 0 0', fontSize: 13, color: '#475569', fontWeight: 500 }}>
             Manufacturer-specific purchase orders and assigned sub-orders for <strong style={{ color: '#0F766E' }}>{myMfgName}</strong>
@@ -306,12 +306,26 @@ export const ManufacturerSubOrderModule: React.FC = () => {
                     )}
 
                     {isScheduled && (
-                      <button
-                        onClick={() => setActiveTab('production-planning')}
-                        style={{ padding: '8px 18px', borderRadius: 6, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                      >
-                        Start Production Planning →
-                      </button>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => setActiveTab('production-planning')}
+                          style={{ padding: '8px 16px', borderRadius: 6, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        >
+                          Production Planning →
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('shipments')}
+                          style={{ padding: '8px 16px', borderRadius: 6, background: '#F0FDFA', border: '1px solid #99F6E4', color: '#0F766E', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        >
+                          Dispatch & Tracking →
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('invoices')}
+                          style={{ padding: '8px 16px', borderRadius: 6, background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        >
+                          Invoices →
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

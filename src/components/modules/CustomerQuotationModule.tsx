@@ -136,7 +136,7 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
 
     addAuditLog('Customer Quotation Desk', `Created Master Order & split Sub-Orders for RFQ ${activeRfq.rfqNumber}`);
 
-    alert(`✔ Master Order Created & Split into Sub-Orders!\n\nMaster Order MO-2026-1001 created.\nSub-orders split across selected manufacturers.\n\nRedirecting to Sub-Order Management...`);
+    alert(`✔ Master Order Created & Split into Sub-Orders!\n\nMaster Order MO-2026-1001 created.\nSub-orders split across selected manufacturers.\n\nRedirecting to Order Management...`);
 
     if (onApproved) onApproved();
     else setActiveTab('orders');

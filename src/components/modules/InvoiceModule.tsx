@@ -337,12 +337,21 @@ export const InvoiceModule: React.FC = () => {
                         PDF View
                       </button>
 
-                      {inv.balanceAmount > 0 && (
+                      {inv.balanceAmount > 0 && isAccounts && (
                         <button
                           onClick={() => { setShowPaymentModal(inv); setPaymentAmount(String(inv.balanceAmount)); }}
                           style={{ padding: '5px 12px', borderRadius: 6, background: '#2563EB', color: '#FFFFFF', border: 'none', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}
                         >
                           Record Payment →
+                        </button>
+                      )}
+
+                      {inv.balanceAmount > 0 && isBuyer && (
+                        <button
+                          onClick={() => alert(`Online Payment Gateway:\n\nInitiating secure payment for Invoice ${inv.invoiceNumber}.\nOutstanding Balance: ₹${inv.balanceAmount.toLocaleString()}`)}
+                          style={{ padding: '5px 12px', borderRadius: 6, background: '#166534', color: '#FFFFFF', border: 'none', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          Pay Now →
                         </button>
                       )}
                     </div>
@@ -416,8 +425,8 @@ export const InvoiceModule: React.FC = () => {
         </form>
       )}
 
-      {/* ── PAYMENT ENTRY MODAL ───────────────────────────── */}
-      {showPaymentModal && (
+      {/* ── PAYMENT ENTRY MODAL (Finance & Accounts Only) ───────────────────── */}
+      {showPaymentModal && isAccounts && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15, 23, 42, 0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, width: 460, padding: 24, boxShadow: '0 12px 28px rgba(15,23,42,0.15)' }}>
             <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0 }}>Record Payment Entry & Bank Remittance</h3>

@@ -12,17 +12,23 @@ export type AppPage = 'landing' | 'login' | 'dashboard' | 'buyer-register' | 'mf
 const AppContent: React.FC = () => {
   const { isAuthenticated, currentRole } = useApp();
 
+  const isDashboardRoute = (path: string) => {
+    return path === '/buyer' || path.startsWith('/buyer') ||
+      path === '/supplier' || path.startsWith('/supplier') ||
+      path === '/compliance' || path.startsWith('/compliance') ||
+      path === '/sales' || path.startsWith('/sales') ||
+      path === '/accounts' || path.startsWith('/accounts') ||
+      path === '/admin' || path.startsWith('/admin') ||
+      path === '/dashboard' || path.startsWith('/dashboard');
+  };
+
   const getInitialPage = (): AppPage => {
     const path = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '/';
     if (path === '/signin' || path === '/login') {
       return 'login';
     }
-    if (path === '/buyer' || path === '/buyer/dashboard' || path === '/dashboard' || path.startsWith('/supplier')) {
-      if (isAuthenticated) return 'dashboard';
-      if (typeof window !== 'undefined') {
-        window.history.replaceState({}, '', '/signin');
-      }
-      return 'login';
+    if (isDashboardRoute(path)) {
+      return 'dashboard';
     }
     if (path === '/buyer-register') return 'buyer-register';
     if (path === '/mfg-register') return 'mfg-register';
@@ -33,22 +39,13 @@ const AppContent: React.FC = () => {
 
   const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
 
-  // Protect authenticated routes when auth state changes
-  useEffect(() => {
-    const path = window.location.pathname.toLowerCase();
-    if ((path === '/buyer' || path === '/buyer/dashboard' || path === '/dashboard' || currentPage === 'dashboard') && !isAuthenticated) {
-      window.history.replaceState({}, '', '/signin');
-      setCurrentPage('login');
-    }
-  }, [isAuthenticated, currentPage]);
-
   // Handle browser back/forward buttons (popstate)
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname.toLowerCase();
       if (path === '/signin' || path === '/login') {
         setCurrentPage('login');
-      } else if (path === '/buyer' || path === '/buyer/dashboard' || path === '/dashboard') {
+      } else if (isDashboardRoute(path)) {
         if (isAuthenticated) {
           setCurrentPage('dashboard');
         } else {
@@ -77,7 +74,13 @@ const AppContent: React.FC = () => {
       targetPath = '/signin';
     } else if (targetPage === 'dashboard') {
       if (isAuthenticated) {
-        targetPath = currentRole === 'BUYER' ? '/buyer' : '/dashboard';
+        if (currentRole === 'BUYER') targetPath = '/buyer';
+        else if (currentRole === 'SUPPLIER') targetPath = '/supplier';
+        else if (currentRole === 'COMPLIANCE_OFFICER') targetPath = '/compliance';
+        else if (currentRole === 'SALES_MANAGER') targetPath = '/sales';
+        else if (currentRole === 'ACCOUNTS_MANAGER') targetPath = '/accounts';
+        else if (currentRole === 'ADMIN') targetPath = '/admin';
+        else targetPath = '/dashboard';
       } else {
         targetPage = 'login';
         targetPath = '/signin';

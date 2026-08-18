@@ -1,15 +1,16 @@
-import React, { createContext, useContext, useState } from 'react';
-import { 
-  UserRole, Customer, Manufacturer, Product, RFQ, 
-  ManufacturerQuote, MasterOrder, Invoice, ComplianceCase, 
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import {
+  UserRole, Customer, Manufacturer, Product, RFQ,
+  ManufacturerQuote, MasterOrder, Invoice, ComplianceCase,
   NotificationItem, SubOrderStatus, ManufacturerProductMapping,
   BuyerOnboarding, ManufacturerOnboarding, Shipment, CRMLead,
   PaymentTransaction, AuditLog, CustomerVerificationRequest,
-  CustomerVerificationStatus, CustomerVerificationDocument
+  CustomerVerificationStatus, CustomerVerificationDocument,
+  UserProfile, OrganizationProfile, UserDocument, ProfileDocStatus, DocumentVersion
 } from '../types';
-import { 
-  mockCustomers, mockManufacturers, mockProducts, mockRFQs, 
-  mockQuotes, mockMasterOrders, mockInvoices, mockComplianceCases, 
+import {
+  mockCustomers, mockManufacturers, mockProducts, mockRFQs,
+  mockQuotes, mockMasterOrders, mockInvoices, mockComplianceCases,
   mockNotifications, mockManufacturerProductMappings,
   mockBuyerOnboardings, mockManufacturerOnboardings, mockShipments,
   mockCRMLeads, mockPaymentTransactions, mockAuditLogs,
@@ -49,18 +50,18 @@ interface AppContextType {
   paymentTransactions: PaymentTransaction[];
   auditLogs: AuditLog[];
   customerVerifications: CustomerVerificationRequest[];
-  
+
   // Manufacturer Profile Navigation Context
   selectedMfgIdForProfile: string | null;
   setSelectedMfgIdForProfile: (id: string | null) => void;
   mfgProfileProductContext: { productName?: string; strength?: string; dosageForm?: string; quantity?: number; unit?: string } | null;
   setMfgProfileProductContext: (ctx: { productName?: string; strength?: string; dosageForm?: string; quantity?: number; unit?: string } | null) => void;
-  
+
   // Unified RFQ Creation Drawer State
   isCreateRfqDrawerOpen: boolean;
   setIsCreateRfqDrawerOpen: (open: boolean) => void;
   openCreateRfqDrawer: () => void;
-  
+
   // Declined RFQ tracking
   declinedRfqs: Record<string, { rfqId: string; manufacturerId: string; manufacturerName: string; declineReason: string; declineRemarks?: string; declinedAt: string }[]>;
   declineRFQ: (rfqId: string, manufacturerId: string, manufacturerName: string, reason: string, remarks?: string) => void;
@@ -70,7 +71,7 @@ interface AppContextType {
   sendNegotiationMessage: (threadKey: string, text: string, senderRole: 'BUYER' | 'SUPPLIER', senderName: string) => void;
   revisedQuotes: Record<string, { unitPrice: number; taxPercent: number; discountPercent: number; finalPrice: number; leadTimeDays: number; moq: number; remarks?: string; revisedAt: string }>;
   submitRevisedQuote: (threadKey: string, data: { unitPrice: number; taxPercent: number; discountPercent: number; leadTimeDays: number; moq: number; remarks?: string }) => void;
-  
+
   // Action Handlers
   addRFQ: (newRfq: RFQ) => void;
   submitQuote: (quote: ManufacturerQuote) => void;
@@ -78,6 +79,8 @@ interface AppContextType {
   updateSubOrderStatus: (subOrderId: string, status: SubOrderStatus) => void;
   verifyComplianceDocument: (caseId: string, docName: string, passed: boolean) => void;
   approveComplianceCase: (caseId: string) => void;
+  addInvoice: (newInvoice: Invoice) => void;
+  updateInvoiceStatus: (invoiceId: string, status: InvoiceStatus) => void;
   recordInvoicePayment: (invoiceId: string, amount: number, method?: string, ref?: string) => void;
   submitBuyerOnboarding: (data: Omit<BuyerOnboarding, 'id' | 'status' | 'submittedDate'>) => void;
   submitManufacturerOnboarding: (data: Omit<ManufacturerOnboarding, 'id' | 'status' | 'submittedDate'>) => void;
@@ -94,16 +97,401 @@ interface AppContextType {
   rejectCustomerVerification: (requestId: string, reason: string) => void;
   requestMoreCustomerDocs: (requestId: string, notes: string[]) => void;
   resubmitCustomerDocs: (requestId: string, docs: CustomerVerificationDocument[]) => void;
+
+  // My Profile & Organization Profile Management
+  userProfile: UserProfile;
+  orgProfile: OrganizationProfile;
+  userDocuments: UserDocument[];
+  profileSubTab: 'personal' | 'organization' | 'documents' | 'security';
+  setProfileSubTab: (tab: 'personal' | 'organization' | 'documents' | 'security') => void;
+  updateUserProfile: (updatedFields: Partial<UserProfile>) => void;
+  updateOrgProfile: (updatedFields: Partial<OrganizationProfile>) => void;
+  uploadUserDocument: (docData: Partial<UserDocument>) => void;
+  replaceUserDocument: (docId: string, docData: Partial<UserDocument>) => void;
+  changeUserPassword: (currentPass: string, newPass: string) => { success: boolean; message: string };
+  openProfileTab: (subTab?: 'personal' | 'organization' | 'documents' | 'security') => void;
+
+  // Global Dynamic Filter & Cross-Entity Navigation
+  moduleFilters: Record<string, string>;
+  setModuleFilter: (module: string, statusFilter: string) => void;
+  navigateWithFilter: (tab: string, statusFilter?: string) => void;
+  openManufacturerProfile: (mfgId: string, initialTab?: 'OVERVIEW' | 'CAPABILITIES' | 'CATALOG' | 'COMPLIANCE' | 'RELATIONSHIP' | 'PERFORMANCE') => void;
+  mfgProfileInitialTab: 'OVERVIEW' | 'CAPABILITIES' | 'CATALOG' | 'COMPLIANCE' | 'RELATIONSHIP' | 'PERFORMANCE';
+  setMfgProfileInitialTab: (tab: 'OVERVIEW' | 'CAPABILITIES' | 'CATALOG' | 'COMPLIANCE' | 'RELATIONSHIP' | 'PERFORMANCE') => void;
 }
+
+// ── DEFAULT PROFILE DATA DEFINITIONS ─────────────────────────────────
+export const defaultSupplierProfile: UserProfile = {
+  id: 'usr_mfg_001',
+  fullName: 'Rajesh Sharma',
+  email: 'rajesh@sunbiolabs.com',
+  phone: '+91 98765 43210',
+  jobTitle: 'Vice President - Operations & Plant Head',
+  role: 'SUPPLIER',
+  department: 'Manufacturing & Quality Assurance',
+  accountStatus: 'Active',
+  lastLogin: 'Today, 10:15 AM',
+  avatarUrl: ''
+};
+
+export const defaultSupplierOrg: OrganizationProfile = {
+  id: 'org_mfg_001',
+  companyName: 'SunBio Labs Pvt Ltd',
+  companyCode: 'MFG-2026-001',
+  businessType: 'Private Limited Manufacturer',
+  industry: 'Pharmaceutical Formulations',
+  contactEmail: 'contact@sunbiolabs.com',
+  contactPhone: '+91 1795 244100',
+  registeredAddress: 'Plot No. 42-45, Export Promotion Industrial Park, Phase I',
+  city: 'Baddi',
+  state: 'Himachal Pradesh',
+  country: 'India',
+  pincode: '173205',
+  website: 'https://www.sunbiolabs.com',
+  gstin: '02AAACS1234F1Z9',
+  pan: 'AAACS1234F',
+  cinNumber: 'U24231HP2012PTC001234',
+  mfgLicenseNo: 'ML-HP-2024-001',
+  whoGmpNo: 'WHO-GMP-HP-8899',
+  isVerified: true
+};
+
+export const defaultSupplierDocs: UserDocument[] = [
+  {
+    id: 'doc_mfg_1',
+    documentName: 'GST Registration Certificate',
+    documentType: 'GST Certificate',
+    documentNumber: '02AAACS1234F1Z9',
+    issueDate: '2022-04-01',
+    expiryDate: 'N/A',
+    uploadedDate: '2025-11-10',
+    lastUpdated: '2025-11-10',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Compliance Desk Officer',
+    verificationDate: '2025-11-12',
+    remarks: 'Verified via GST portal API.',
+    fileName: 'SunBio_GST_Certificate_2025.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_mfg_2',
+    documentName: 'PAN Card Document',
+    documentType: 'PAN Card / PAN Document',
+    documentNumber: 'AAACS1234F',
+    issueDate: '2012-06-15',
+    expiryDate: 'N/A',
+    uploadedDate: '2025-11-10',
+    lastUpdated: '2025-11-10',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Compliance Desk Officer',
+    verificationDate: '2025-11-12',
+    remarks: 'Valid PAN record match.',
+    fileName: 'SunBio_PAN_Card.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_mfg_3',
+    documentName: 'Company Certificate of Incorporation',
+    documentType: 'Company Registration Certificate',
+    documentNumber: 'U24231HP2012PTC001234',
+    issueDate: '2012-03-20',
+    expiryDate: 'N/A',
+    uploadedDate: '2025-11-10',
+    lastUpdated: '2025-11-10',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Compliance Desk Officer',
+    verificationDate: '2025-11-12',
+    remarks: 'ROC Himachal Pradesh verified.',
+    fileName: 'SunBio_Incorporation_Cert.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_mfg_4',
+    documentName: 'State FDA Manufacturing License (Form 25/28)',
+    documentType: 'Manufacturing License',
+    documentNumber: 'ML-HP-2024-001',
+    issueDate: '2024-01-01',
+    expiryDate: '2029-12-31',
+    uploadedDate: '2025-11-10',
+    lastUpdated: '2025-11-10',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'State FDA Officer',
+    verificationDate: '2025-11-15',
+    remarks: 'Valid for Oral Solids & Injectables.',
+    fileName: 'Manufacturing_License_HP_2024.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_mfg_5',
+    documentName: 'WHO-GMP Certification Audit Report',
+    documentType: 'Drug License / applicable regulatory license',
+    documentNumber: 'WHO-GMP-HP-8899',
+    issueDate: '2025-06-01',
+    expiryDate: '2027-05-31',
+    uploadedDate: '2026-08-01',
+    lastUpdated: '2026-08-01',
+    verificationStatus: 'PENDING VERIFICATION',
+    remarks: 'Under final audit review by CDSCO inspector.',
+    fileName: 'WHO_GMP_Certificate_2026.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_mfg_6',
+    documentName: 'Bank Cancelled Cheque / Account Mandate',
+    documentType: 'Bank / Payment Details',
+    documentNumber: 'HDFC0000123',
+    issueDate: '2024-02-10',
+    expiryDate: 'N/A',
+    uploadedDate: '2025-11-10',
+    lastUpdated: '2025-11-10',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Finance Controller',
+    verificationDate: '2025-11-11',
+    remarks: 'Penny drop verification successful.',
+    fileName: 'SunBio_Cancelled_Cheque.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_mfg_7',
+    documentName: 'ISO 9001:2015 Quality Systems Certificate',
+    documentType: 'Quality Certificates',
+    documentNumber: 'ISO-9001-QUAL-4421',
+    issueDate: '2024-03-15',
+    expiryDate: '2027-03-14',
+    uploadedDate: '2025-11-10',
+    lastUpdated: '2025-11-10',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Compliance Desk Officer',
+    verificationDate: '2025-11-12',
+    remarks: 'ISO registrar verified.',
+    fileName: 'ISO_9001_Quality_Cert.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_mfg_8',
+    documentName: 'Pollution Control Board Clearance (NOC)',
+    documentType: 'Other Business Documents',
+    documentNumber: 'PCB-HP-2025-881',
+    issueDate: '2025-01-10',
+    expiryDate: '2028-01-09',
+    uploadedDate: '2025-11-10',
+    lastUpdated: '2025-11-10',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Compliance Desk Officer',
+    verificationDate: '2025-11-12',
+    remarks: 'Effluent treatment plant compliant.',
+    fileName: 'Pollution_Control_NOC.pdf',
+    fileUrl: '#'
+  }
+];
+
+export const defaultBuyerProfile: UserProfile = {
+  id: 'usr_buyer_001',
+  fullName: 'Dr. Vikram Sethi',
+  email: 'v.sethi@apexpharma.com',
+  phone: '+91 98112 34567',
+  jobTitle: 'Chief Procurement Officer (CPO)',
+  role: 'BUYER',
+  department: 'Global Sourcing & Supply Chain',
+  accountStatus: 'Active',
+  lastLogin: 'Today, 09:45 AM',
+  avatarUrl: ''
+};
+
+export const defaultBuyerOrg: OrganizationProfile = {
+  id: 'org_buyer_001',
+  companyName: 'Apex Pharma Ltd',
+  companyCode: 'BUY-2026-001',
+  businessType: 'Public Limited Company',
+  industry: 'Pharmaceutical Sourcing & Distribution',
+  contactEmail: 'sourcing@apexpharma.com',
+  contactPhone: '+91 22 6789 0000',
+  registeredAddress: 'Apex Tower, Off Western Express Highway, Goregaon East',
+  city: 'Mumbai',
+  state: 'Maharashtra',
+  country: 'India',
+  pincode: '400063',
+  website: 'https://www.apexpharma.com',
+  gstin: '27AAACA9876E1Z2',
+  pan: 'AAACA9876E',
+  cinNumber: 'L24239MH2005PLC154321',
+  isVerified: true
+};
+
+export const defaultBuyerDocs: UserDocument[] = [
+  {
+    id: 'doc_buyer_1',
+    documentName: 'GST Registration Certificate',
+    documentType: 'GST Certificate',
+    documentNumber: '27AAACA9876E1Z2',
+    issueDate: '2020-04-01',
+    expiryDate: 'N/A',
+    uploadedDate: '2025-10-15',
+    lastUpdated: '2025-10-15',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Compliance Desk',
+    verificationDate: '2025-10-16',
+    remarks: 'Verified via GSTN API.',
+    fileName: 'Apex_GST_Certificate.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_buyer_2',
+    documentName: 'Corporate PAN Card',
+    documentType: 'PAN Card / PAN Document',
+    documentNumber: 'AAACA9876E',
+    issueDate: '2005-08-12',
+    expiryDate: 'N/A',
+    uploadedDate: '2025-10-15',
+    lastUpdated: '2025-10-15',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Compliance Desk',
+    verificationDate: '2025-10-16',
+    remarks: 'Verified.',
+    fileName: 'Apex_PAN_Card.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_buyer_3',
+    documentName: 'Certificate of Incorporation (ROC)',
+    documentType: 'Company Registration Certificate',
+    documentNumber: 'L24239MH2005PLC154321',
+    issueDate: '2005-08-10',
+    expiryDate: 'N/A',
+    uploadedDate: '2025-10-15',
+    lastUpdated: '2025-10-15',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Compliance Desk',
+    verificationDate: '2025-10-16',
+    remarks: 'ROC Mumbai verified.',
+    fileName: 'Apex_Incorporation_Cert.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_buyer_4',
+    documentName: 'Wholesale Drug License (Form 20B / 21B)',
+    documentType: 'Drug License',
+    documentNumber: 'MH-MZ4-2023-9091',
+    issueDate: '2023-05-01',
+    expiryDate: '2028-04-30',
+    uploadedDate: '2025-10-15',
+    lastUpdated: '2025-10-15',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Maharashtra FDA',
+    verificationDate: '2025-10-18',
+    remarks: 'Valid for wholesale distribution.',
+    fileName: 'Wholesale_Drug_License_MH.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_buyer_5',
+    documentName: 'Corporate Bank Mandate / Penny Drop',
+    documentType: 'Bank / Payment Details',
+    documentNumber: 'ICIC0000999',
+    issueDate: '2024-01-10',
+    expiryDate: 'N/A',
+    uploadedDate: '2025-10-15',
+    lastUpdated: '2025-10-15',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'Accounts Desk',
+    verificationDate: '2025-10-16',
+    remarks: 'Bank account verified.',
+    fileName: 'Apex_Bank_Mandate.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_buyer_6',
+    documentName: 'Import Export Code (IEC) Certificate',
+    documentType: 'Other Business Documents',
+    documentNumber: 'IEC0305991288',
+    issueDate: '2021-02-15',
+    expiryDate: 'N/A',
+    uploadedDate: '',
+    lastUpdated: '',
+    verificationStatus: 'NOT UPLOADED',
+    remarks: 'Optional for domestic sourcing.',
+    fileName: '',
+    fileUrl: ''
+  }
+];
+
+export const defaultAdminProfile: UserProfile = {
+  id: 'usr_admin_001',
+  fullName: 'Platform Admin',
+  email: 'admin@factorygrid.com',
+  phone: '+91 80 4567 8900',
+  jobTitle: 'Principal Systems & Platform Administrator',
+  role: 'ADMIN',
+  department: 'Platform Operations & Security',
+  accountStatus: 'Active',
+  lastLogin: 'Just now',
+  avatarUrl: ''
+};
+
+export const defaultAdminOrg: OrganizationProfile = {
+  id: 'org_admin_001',
+  companyName: 'FactoryGrid Technologies India Pvt Ltd',
+  companyCode: 'FG-HQ-001',
+  businessType: 'Enterprise SaaS Platform Operator',
+  industry: 'B2B Industrial & Healthcare Tech',
+  contactEmail: 'support@factorygrid.com',
+  contactPhone: '+91 80 4567 8900',
+  registeredAddress: '5th Floor, Technology Park, Outer Ring Road',
+  city: 'Bengaluru',
+  state: 'Karnataka',
+  country: 'India',
+  pincode: '560103',
+  website: 'https://www.factorygrid.com',
+  gstin: '29AAFCS9999P1Z8',
+  pan: 'AAFCS9999P',
+  cinNumber: 'U72200KA2021PTC145678',
+  isVerified: true
+};
+
+export const defaultAdminDocs: UserDocument[] = [
+  {
+    id: 'doc_admin_1',
+    documentName: 'Platform GST Registration',
+    documentType: 'GST Certificate',
+    documentNumber: '29AAFCS9999P1Z8',
+    issueDate: '2021-04-01',
+    expiryDate: 'N/A',
+    uploadedDate: '2025-01-01',
+    lastUpdated: '2025-01-01',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'System',
+    verificationDate: '2025-01-01',
+    remarks: 'Active GST registration.',
+    fileName: 'FactoryGrid_GST.pdf',
+    fileUrl: '#'
+  },
+  {
+    id: 'doc_admin_2',
+    documentName: 'Corporate PAN Card',
+    documentType: 'PAN Card / PAN Document',
+    documentNumber: 'AAFCS9999P',
+    issueDate: '2021-03-01',
+    expiryDate: 'N/A',
+    uploadedDate: '2025-01-01',
+    lastUpdated: '2025-01-01',
+    verificationStatus: 'VERIFIED',
+    verifiedBy: 'System',
+    verificationDate: '2025-01-01',
+    remarks: 'Verified.',
+    fileName: 'FactoryGrid_PAN.pdf',
+    fileUrl: '#'
+  }
+];
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('fg_auth') === 'true';
+      const saved = localStorage.getItem('fg_auth');
+      if (saved === 'false') return false;
     }
-    return false;
+    return true;
   });
   const [currentRole, setCurrentRoleState] = useState<UserRole>(() => {
     if (typeof window !== 'undefined') {
@@ -138,6 +526,191 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem('fg_auth');
       localStorage.removeItem('fg_role');
     }
+  };
+
+  // Helper getters for role-aware profile initial states
+  const getInitialUserProfile = (role: UserRole): UserProfile => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`fg_user_profile_${role}`);
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) { }
+      }
+    }
+    if (role === 'SUPPLIER') return defaultSupplierProfile;
+    if (role === 'ADMIN') return defaultAdminProfile;
+    return defaultBuyerProfile;
+  };
+
+  const getInitialOrgProfile = (role: UserRole): OrganizationProfile => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`fg_org_profile_${role}`);
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) { }
+      }
+    }
+    if (role === 'SUPPLIER') return defaultSupplierOrg;
+    if (role === 'ADMIN') return defaultAdminOrg;
+    return defaultBuyerOrg;
+  };
+
+  const getInitialUserDocs = (role: UserRole): UserDocument[] => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`fg_user_documents_${role}`);
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) { }
+      }
+    }
+    if (role === 'SUPPLIER') return defaultSupplierDocs;
+    if (role === 'ADMIN') return defaultAdminDocs;
+    return defaultBuyerDocs;
+  };
+
+  const [userProfile, setUserProfileState] = useState<UserProfile>(() => getInitialUserProfile(currentRole));
+  const [orgProfile, setOrgProfileState] = useState<OrganizationProfile>(() => getInitialOrgProfile(currentRole));
+  const [userDocuments, setUserDocumentsState] = useState<UserDocument[]>(() => getInitialUserDocs(currentRole));
+  const [profileSubTab, setProfileSubTab] = useState<'personal' | 'organization' | 'documents' | 'security'>('personal');
+
+  // Synchronize role profile state when role changes
+  React.useEffect(() => {
+    setUserProfileState(getInitialUserProfile(currentRole));
+    setOrgProfileState(getInitialOrgProfile(currentRole));
+    setUserDocumentsState(getInitialUserDocs(currentRole));
+  }, [currentRole]);
+
+  const updateUserProfile = (updatedFields: Partial<UserProfile>) => {
+    setUserProfileState(prev => {
+      const updated = { ...prev, ...updatedFields };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`fg_user_profile_${currentRole}`, JSON.stringify(updated));
+      }
+      return updated;
+    });
+    addAuditLog('My Profile', `Updated personal profile information for ${userProfile.fullName}`);
+  };
+
+  const updateOrgProfile = (updatedFields: Partial<OrganizationProfile>) => {
+    setOrgProfileState(prev => {
+      const updated = {
+        ...prev,
+        ...updatedFields,
+        companyCode: prev.companyCode, // protected read-only ID
+        id: prev.id,
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`fg_org_profile_${currentRole}`, JSON.stringify(updated));
+      }
+      return updated;
+    });
+    addAuditLog('Organization Profile', `Updated organization details for ${orgProfile.companyName}`);
+  };
+
+  const uploadUserDocument = (docData: Partial<UserDocument>) => {
+    const timeStr = new Date().toISOString().split('T')[0];
+    const newDoc: UserDocument = {
+      id: 'doc_' + Date.now(),
+      documentName: docData.documentName || docData.documentType || 'Uploaded Document',
+      documentType: docData.documentType || 'Other Business Documents',
+      documentNumber: docData.documentNumber || '',
+      issueDate: docData.issueDate || timeStr,
+      expiryDate: docData.expiryDate || 'N/A',
+      uploadedDate: timeStr,
+      lastUpdated: timeStr,
+      verificationStatus: 'PENDING VERIFICATION',
+      remarks: docData.remarks || 'Document uploaded. Pending compliance officer verification.',
+      fileName: docData.fileName || 'Uploaded_Document.pdf',
+      fileUrl: docData.fileUrl || '#',
+      history: []
+    };
+
+    setUserDocumentsState(prev => {
+      const updated = [newDoc, ...prev];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`fg_user_documents_${currentRole}`, JSON.stringify(updated));
+      }
+      return updated;
+    });
+    addAuditLog('Documents & Verification', `Uploaded ${newDoc.documentName}. Status set to PENDING VERIFICATION.`);
+  };
+
+  const replaceUserDocument = (docId: string, docData: Partial<UserDocument>) => {
+    const timeStr = new Date().toISOString().split('T')[0];
+    setUserDocumentsState(prev => {
+      const updated = prev.map(doc => {
+        if (doc.id !== docId) return doc;
+
+        const oldVersion: DocumentVersion = {
+          version: (doc.history?.length || 0) + 1,
+          uploadedDate: doc.uploadedDate || timeStr,
+          fileName: doc.fileName || 'Previous_Version.pdf',
+          documentNumber: doc.documentNumber,
+          status: doc.verificationStatus,
+          remarks: doc.remarks,
+          url: doc.fileUrl
+        };
+
+        const updatedHistory = [...(doc.history || []), oldVersion];
+
+        return {
+          ...doc,
+          documentNumber: docData.documentNumber !== undefined ? docData.documentNumber : doc.documentNumber,
+          issueDate: docData.issueDate !== undefined ? docData.issueDate : doc.issueDate,
+          expiryDate: docData.expiryDate !== undefined ? docData.expiryDate : doc.expiryDate,
+          uploadedDate: timeStr,
+          lastUpdated: timeStr,
+          verificationStatus: 'PENDING VERIFICATION',
+          remarks: docData.remarks || 'Replaced document uploaded. Pending verification.',
+          fileName: docData.fileName || doc.fileName,
+          fileUrl: docData.fileUrl || doc.fileUrl,
+          history: updatedHistory
+        };
+      });
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`fg_user_documents_${currentRole}`, JSON.stringify(updated));
+      }
+      return updated;
+    });
+    addAuditLog('Documents & Verification', `Replaced document ID ${docId}. Status set to PENDING VERIFICATION.`);
+  };
+
+  const changeUserPassword = (currentPass: string, newPass: string): { success: boolean; message: string } => {
+    if (!currentPass) {
+      return { success: false, message: 'Please enter your current password.' };
+    }
+    if (!newPass || newPass.length < 8) {
+      return { success: false, message: 'New password must be at least 8 characters long.' };
+    }
+    addAuditLog('Security', `Successfully updated account password for ${userProfile.email}`);
+    return { success: true, message: 'Password changed successfully.' };
+  };
+
+  const openProfileTab = (subTab: 'personal' | 'organization' | 'documents' | 'security' = 'personal') => {
+    setProfileSubTab(subTab);
+    setActiveTab('profile');
+  };
+
+  // Global Dynamic Filter & Cross-Entity Navigation State
+  const [moduleFilters, setModuleFiltersState] = useState<Record<string, string>>({});
+  const [mfgProfileInitialTab, setMfgProfileInitialTab] = useState<'OVERVIEW' | 'CAPABILITIES' | 'CATALOG' | 'COMPLIANCE' | 'RELATIONSHIP' | 'PERFORMANCE'>('OVERVIEW');
+
+  const setModuleFilter = (module: string, statusFilter: string) => {
+    setModuleFiltersState(prev => ({
+      ...prev,
+      [module]: statusFilter
+    }));
+  };
+
+  const navigateWithFilter = (tab: string, statusFilter?: string) => {
+    if (statusFilter) {
+      setModuleFilter(tab, statusFilter);
+    }
+    setActiveTab(tab);
+  };
+
+  const openManufacturerProfile = (mfgId: string, initialTab: 'OVERVIEW' | 'CAPABILITIES' | 'CATALOG' | 'COMPLIANCE' | 'RELATIONSHIP' | 'PERFORMANCE' = 'OVERVIEW') => {
+    setSelectedMfgIdForProfile(mfgId);
+    setMfgProfileInitialTab(initialTab);
+    setActiveTab('manufacturers');
   };
   const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>(mockManufacturers);
@@ -176,8 +749,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const removeMapping = (productId: string, manufacturerId: string) => {
     setMappings(prev => prev.filter(m => !(m.productId === productId && m.manufacturerId === manufacturerId)));
   };
-  const [rfqs, setRfqs] = useState<RFQ[]>(mockRFQs);
-  const [quotes, setQuotes] = useState<ManufacturerQuote[]>(mockQuotes);
+  const [rfqs, setRfqs] = useState<RFQ[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_rfqs');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(r => ({
+            ...r,
+            lines: Array.isArray(r?.lines) ? r.lines : [],
+            status: r?.status || 'Pricing In Progress',
+            customerName: r?.customerName || 'Apex Pharma PCD Franchise',
+            rfqNumber: r?.rfqNumber || 'RFQ-2026-1001'
+          }));
+        }
+      }
+    } catch (e) {}
+    return mockRFQs;
+  });
+
+  const [quotes, setQuotes] = useState<ManufacturerQuote[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_quotes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(q => ({
+            ...q,
+            quoteLines: Array.isArray(q?.quoteLines) ? q.quoteLines : []
+          }));
+        }
+      }
+    } catch (e) {}
+    return mockQuotes;
+  });
 
   // Declined RFQs state
   const [declinedRfqs, setDeclinedRfqs] = useState<Record<string, { rfqId: string; manufacturerId: string; manufacturerName: string; declineReason: string; declineRemarks?: string; declinedAt: string }[]>>({});
@@ -261,7 +866,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     addAuditLog('REVISED_QUOTE', `Submitted revised quote for ${threadKey}: Final Price ₹${finalPrice}`);
   };
-  const [orders, setOrders] = useState<MasterOrder[]>(mockMasterOrders);
+
+  const [orders, setOrders] = useState<MasterOrder[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_orders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(o => ({
+            ...o,
+            subOrders: Array.isArray(o?.subOrders) ? o.subOrders : []
+          }));
+        }
+      }
+    } catch (e) {}
+    return mockMasterOrders;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_rfqs', JSON.stringify(rfqs));
+    } catch (e) { }
+  }, [rfqs]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_quotes', JSON.stringify(quotes));
+    } catch (e) { }
+  }, [quotes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_orders', JSON.stringify(orders));
+    } catch (e) { }
+  }, [orders]);
   const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
   const [complianceCases, setComplianceCases] = useState<ComplianceCase[]>(mockComplianceCases);
   const [notifications, setNotifications] = useState<NotificationItem[]>(mockNotifications);
@@ -316,7 +954,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const submitQuote = (newQuote: ManufacturerQuote) => {
     setQuotes(prev => [newQuote, ...prev]);
-    setRfqs(prev => prev.map(r => r.id === newQuote.rfqId ? { ...r, status: 'QUOTED' } : r));
+    // 'Quoted' must match RFQStatus type exactly (Pascal case)
+    setRfqs(prev => prev.map(r => r.id === newQuote.rfqId ? { ...r, status: 'Quoted' as const } : r));
     addAuditLog('Quote Matrix', `Submitted sealed quote ${newQuote.id} for RFQ ${newQuote.rfqNumber}`);
   };
 
@@ -356,36 +995,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const items = subOrderMap[mfgId];
       const subTotal = items.reduce((acc, item) => acc + item.totalPrice, 0);
       const subNum = `SO-2026-${1000 + orders.length + 1}-0${idx + 1}`;
-
-      // Create linked shipment tracking record
-      const newShp: Shipment = {
-        id: `shp_${Date.now()}_${idx}`,
-        subOrderId: `so_${Date.now()}_${idx}`,
-        subOrderNumber: subNum,
-        masterOrderNumber: masterOrdNum,
-        manufacturerName: mfg ? mfg.companyName : 'Partner Manufacturer',
-        customerName: rfq.customerName,
-        vehicleNumber: 'HP 12 B ' + (9000 + idx),
-        courierName: 'ColdEx Logistics',
-        trackingNumber: 'TRK-COLD-' + (88000 + idx),
-        driverName: 'Gurpreet Singh',
-        driverPhone: '+91 98765 00112',
-        gpsLocation: { lat: 28.6139, lng: 77.209, address: 'Baddi Industrial Zone, Himachal Pradesh' },
-        coldChainRequired: true,
-        coldChainStatus: 'COMPLIANT (2°C - 8°C)',
-        tempLogs: [
-          { timestamp: '08:00 AM', temperatureC: 4.1, status: 'NORMAL' },
-          { timestamp: '12:00 PM', temperatureC: 4.5, status: 'NORMAL' }
-        ],
-        dispatchDate: new Date().toISOString().split('T')[0],
-        eta: '2026-09-02',
-        status: 'DISPATCHED',
-        timeline: [
-          { title: 'Quality Batch Clearance & COA Uploaded', timestamp: 'Just now', completed: true },
-          { title: 'Loaded into Cold Chain Container', timestamp: 'Just now', completed: true }
-        ]
-      };
-      setShipments(prev => [newShp, ...prev]);
 
       return {
         id: `so_${Date.now()}_${idx}`,
@@ -442,35 +1051,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
     addAuditLog('Order Splitting', `Generated Master Order ${masterOrdNum} with ${subOrders.length} Sub-Orders`);
 
-    // Auto-generate invoice
-    const newInvoice: Invoice = {
-      id: `inv_${Date.now()}`,
-      invoiceNumber: `INV-2026-${4400 + invoices.length + 1}`,
-      masterOrderId: newMasterOrder.id,
-      orderNumber: newMasterOrder.orderNumber,
-      customerId: rfq.customerId,
-      customerName: rfq.customerName,
-      customerCode: rfq.customerCode,
-      invoiceDate: new Date().toISOString().split('T')[0],
-      dueDate: '2026-09-30',
-      subtotal: Math.round(totalMasterAmount * 0.88),
-      taxTotal: Math.round(totalMasterAmount * 0.12),
-      totalAmount: Math.round(totalMasterAmount),
-      paidAmount: 0,
-      balanceAmount: Math.round(totalMasterAmount),
-      status: 'OPEN',
-      lines: rfq.lines.map((l, i) => ({
-        id: `il_${i}`,
-        productId: l.productId,
-        productName: l.productName,
-        hsnCode: '30049099',
-        quantity: l.quantity,
-        unitPrice: selections[l.id]?.price || 40,
-        taxAmount: Math.round(l.quantity * (selections[l.id]?.price || 40) * 0.12),
-        totalAmount: Math.round(l.quantity * (selections[l.id]?.price || 40) * 1.12)
-      }))
-    };
-    setInvoices(prev => [newInvoice, ...prev]);
+    // Register fresh sub-orders into Unified Storage for Production Execution & Dispatch
+    try {
+      const UNIFIED_KEY = 'factorygrid_unified_suborders_v11';
+      const saved = localStorage.getItem(UNIFIED_KEY);
+      const currentStore = saved ? JSON.parse(saved) : {};
+
+      subOrders.forEach(so => {
+        const subNum = so.subOrderNumber;
+        currentStore[subNum] = {
+          subOrderNumber: subNum,
+          poNumber: `PO-${subNum}`,
+          masterOrderNumber: masterOrdNum,
+          customerName: rfq.customerName,
+          manufacturerName: so.manufacturerName,
+          productName: so.lines[0]?.productName || rfq.productName || 'Pharmaceutical Products',
+          totalQuantity: so.lines.reduce((acc: number, l: any) => acc + l.quantity, 0) || rfq.targetQuantity || 10000,
+          orderValue: so.totalAmount,
+          requiredDeliveryDate: '2026-09-02',
+          leadTimeDays: 14,
+
+          // FRESH PRODUCTION WORKFLOW — STRICTLY PO_ACCEPTED
+          productionStatus: 'PO_ACCEPTED',
+          batchNumber: `BATCH-2026-${Math.floor(1000 + Math.random() * 8999)}`,
+          manufacturingLine: 'Line A - Solid Oral Dosages',
+          plannedStartDate: new Date().toISOString().split('T')[0],
+          expectedCompletionDate: '2026-08-28',
+          progressPercent: 0,
+          rawMaterialIssued: false,
+          manufacturingStarted: false,
+          qcInspectionResult: undefined,
+          qcTestedQuantity: so.lines.reduce((acc: number, l: any) => acc + l.quantity, 0) || 10000,
+          qcPassedQuantity: so.lines.reduce((acc: number, l: any) => acc + l.quantity, 0) || 10000,
+          qcFailedQuantity: 0,
+          qcRemarks: undefined,
+          packagingPackSize: undefined,
+          packagingMasterCartons: undefined,
+
+          // STRICTLY NO SHIPMENT OR INVOICE AT CREATION
+          shipment: null,
+          invoice: null
+        };
+      });
+
+      localStorage.setItem(UNIFIED_KEY, JSON.stringify(currentStore));
+      if (subOrders[0]) {
+        localStorage.setItem('factorygrid_target_suborder', subOrders[0].subOrderNumber);
+      }
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {
+      console.error('Failed to sync new sub-orders to unified store', e);
+    }
   };
 
   const updateSubOrderStatus = (subOrderId: string, status: SubOrderStatus) => {
@@ -479,7 +1110,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!hasSub) return mo;
 
       const updatedSubOrders = mo.subOrders.map(so => so.id === subOrderId ? { ...so, status } : so);
-      
+
       let rolledStatus = mo.status;
       if (updatedSubOrders.some(so => so.status === 'IN_PRODUCTION')) {
         rolledStatus = 'IN_PRODUCTION';
@@ -513,6 +1144,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setManufacturers(prev => prev.map(mfg => mfg.id === compCase.entityId ? { ...mfg, status: 'ACTIVE', complianceStatus: 'APPROVED' } : mfg));
     }
     addAuditLog('Compliance Desk', `Approved compliance case ${compCase.caseNumber} for ${compCase.entityName}`);
+  };
+
+  const addInvoice = (newInvoice: Invoice) => {
+    setInvoices(prev => {
+      const idx = prev.findIndex(i => i.id === newInvoice.id || i.invoiceNumber === newInvoice.invoiceNumber || (newInvoice.subOrderNumber && i.subOrderNumber === newInvoice.subOrderNumber));
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], ...newInvoice };
+        return updated;
+      }
+      return [newInvoice, ...prev];
+    });
+
+    addAuditLog('Invoice Engine', `Created Tax Invoice ${newInvoice.invoiceNumber} for ${newInvoice.customerName} (Total: ₹${newInvoice.totalAmount.toLocaleString()})`);
+
+    const newNotif: NotificationItem = {
+      id: 'n_' + Date.now(),
+      title: `B2B Tax Invoice ${newInvoice.invoiceNumber} Issued`,
+      message: `Tax invoice ${newInvoice.invoiceNumber} generated for Master Order ${newInvoice.orderNumber} (Amount: ₹${newInvoice.totalAmount.toLocaleString()}).`,
+      timestamp: 'Just now',
+      type: 'SUCCESS',
+      category: 'INVOICE',
+      read: false,
+      link: 'invoices'
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+  };
+
+  const updateInvoiceStatus = (invoiceId: string, status: InvoiceStatus) => {
+    setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status } : inv));
+    addAuditLog('Invoices & AR', `Updated Invoice ${invoiceId} status to ${status}`);
   };
 
   const recordInvoicePayment = (invoiceId: string, amount: number, method = 'RTGS', ref = 'RTGS-' + Date.now()) => {
@@ -616,7 +1278,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const approveBuyerOnboarding = (id: string) => {
     const buyerCode = `BUY-2026-${100 + Math.floor(Math.random() * 900)}`;
     setBuyerOnboardings(prev => prev.map(b => b.id === id ? { ...b, status: 'APPROVED', buyerCode } : b));
-    
+
     // Auto-create Customer in Directory
     const b = buyerOnboardings.find(item => item.id === id);
     if (b) {
@@ -945,12 +1607,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isCreateRfqDrawerOpen, setIsCreateRfqDrawerOpen, openCreateRfqDrawer,
       addRFQ, submitQuote, selectQuoteAndCreateOrder,
       updateSubOrderStatus, verifyComplianceDocument, approveComplianceCase,
-      recordInvoicePayment, submitBuyerOnboarding, submitManufacturerOnboarding,
+      addInvoice, updateInvoiceStatus, recordInvoicePayment, submitBuyerOnboarding, submitManufacturerOnboarding,
       approveBuyerOnboarding, approveManufacturerOnboarding, updateShipmentStatus,
       addCRMInteraction, addAuditLog,
       submitCustomerVerificationRequest, assignComplianceOfficer,
       approveCustomerVerification, rejectCustomerVerification,
-      requestMoreCustomerDocs, resubmitCustomerDocs
+      requestMoreCustomerDocs, resubmitCustomerDocs,
+      userProfile, orgProfile, userDocuments, profileSubTab, setProfileSubTab,
+      updateUserProfile, updateOrgProfile, uploadUserDocument, replaceUserDocument,
+      changeUserPassword, openProfileTab,
+      moduleFilters, setModuleFilter, navigateWithFilter, openManufacturerProfile,
+      mfgProfileInitialTab, setMfgProfileInitialTab
     }}>
       {children}
     </AppContext.Provider>
@@ -962,4 +1629,5 @@ export const useApp = () => {
   if (!context) throw new Error('useApp must be used within AppProvider');
   return context;
 };
+
 

@@ -1051,7 +1051,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
 
         {/* Desktop Action Buttons */}
         <div className="fg-desktop-nav" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button className="fg-btn-ghost" style={{ padding: '10px 18px', fontSize: 14 }} onClick={() => setIsContactSalesModalOpen(true)}>Contact Sales</button>
           <button className="fg-btn-ghost" style={{ padding: '10px 18px', fontSize: 14 }} onClick={() => onNavigate('login')}>Sign In</button>
           <button className="fg-btn-primary" style={{ padding: '10px 22px', fontSize: 14 }} onClick={handleEnterPlatform}>
             Enter Platform <ArrowRight size={15} />
@@ -1085,9 +1084,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
               {item}
             </button>
           ))}
-          <button onClick={() => { setIsMobileMenuOpen(false); setIsContactSalesModalOpen(true); }} className="fg-btn-ghost" style={{ width: '100%', height: 44, justifyContent: 'center' }}>
-            Contact Sales
-          </button>
           <button onClick={() => { setIsMobileMenuOpen(false); onNavigate('login'); }} className="fg-btn-ghost" style={{ width: '100%', height: 44, justifyContent: 'center' }}>
             Sign In to Workspace
           </button>

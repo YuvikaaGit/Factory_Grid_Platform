@@ -102,6 +102,43 @@ export interface PerformanceMetrics {
   avgRfqResponseHours: number;
 }
 
+export interface ManufacturerReview {
+  id: string;
+  buyerName: string;
+  buyerCode?: string;
+  orderNumber: string;
+  productName: string;
+  rating: number;
+  date: string;
+  comment: string;
+  verifiedBuyer: boolean;
+}
+
+export interface ManufacturerRatingDetails {
+  overallRating: number;
+  totalReviews: number;
+  distribution: {
+    fiveStar: number;
+    fourStar: number;
+    threeStar: number;
+    twoStar: number;
+    oneStar: number;
+  };
+  categoryRatings: {
+    delivery: number;
+    quality: number;
+    communication: number;
+    compliance: number;
+  };
+  performance: {
+    onTimeDeliveryRate: number;
+    qualityPassRate: number;
+    rfqResponseRate: number;
+    completedOrdersCount: number;
+  };
+  recentReviews: ManufacturerReview[];
+}
+
 export interface Manufacturer {
   id: string;
   code: string;
@@ -127,6 +164,7 @@ export interface Manufacturer {
   capabilities?: CapabilityItem[];
   shortlisted?: boolean;
   performanceMetrics?: PerformanceMetrics;
+  ratingDetails?: ManufacturerRatingDetails;
 }
 
 export interface Product {
@@ -218,6 +256,10 @@ export interface ManufacturerQuoteLine {
   leadTimeDays: number;
   moq: number;
   calculatedFinalPrice: number;
+  deliveryTerms?: string;
+  responseType?: 'QUOTE' | 'CANNOT_SUPPLY';
+  cannotSupplyReason?: string;
+  cannotSupplyRemarks?: string;
 }
 
 export interface ManufacturerQuote {
@@ -236,6 +278,7 @@ export interface ManufacturerQuote {
   rejectionReason?: string;
   subOrderId?: string;
   subOrderNumber?: string;
+  quoteType?: 'FULL_QUOTE' | 'PARTIAL_QUOTE';
 }
 
 export interface SubOrderLine {
@@ -296,9 +339,13 @@ export interface Invoice {
   invoiceNumber: string;
   masterOrderId: string;
   orderNumber: string;
+  subOrderId?: string;
+  subOrderNumber?: string;
   customerId: string;
   customerName: string;
   customerCode: string;
+  manufacturerId?: string;
+  manufacturerName?: string;
   invoiceDate: string;
   dueDate: string;
   subtotal: number;
@@ -308,6 +355,8 @@ export interface Invoice {
   balanceAmount: number;
   status: InvoiceStatus;
   lines: InvoiceLine[];
+  sentToCustomer?: boolean;
+  sentAt?: string;
 }
 
 export interface ComplianceCase {
@@ -465,6 +514,8 @@ export type CustomerVerificationDocumentType =
   | 'PAN Card'
   | 'Drug License'
   | 'Incorporation Certificate'
+  | 'Bank Details'
+  | 'Authorized Signatory Details'
   | 'Cancelled Cheque'
   | 'Signed Agreement';
 
@@ -605,5 +656,68 @@ export interface CustomerVerificationRequest {
   approvedAt?: string;
 }
 
+// ── MY PROFILE & ORGANIZATION PROFILE MANAGEMENT TYPES ─────────────────
+export interface UserProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  jobTitle: string;
+  role: UserRole;
+  department: string;
+  accountStatus: 'Active' | 'Inactive' | 'Pending Verification';
+  lastLogin: string;
+  avatarUrl?: string;
+}
 
+export interface OrganizationProfile {
+  id: string;
+  companyName: string; // Organization Name for Buyer, Company Name for Supplier
+  companyCode: string; // Organization Code for Buyer, Company Code for Supplier
+  businessType: string;
+  industry: string;
+  contactEmail: string;
+  contactPhone: string;
+  registeredAddress: string;
+  city: string;
+  state: string;
+  country: string;
+  pincode: string;
+  website: string;
+  gstin: string;
+  pan: string;
+  cinNumber: string;
+  mfgLicenseNo?: string;
+  whoGmpNo?: string;
+  isVerified: boolean;
+}
 
+export type ProfileDocStatus = 'NOT UPLOADED' | 'PENDING VERIFICATION' | 'VERIFIED' | 'REJECTED' | 'EXPIRED';
+
+export interface DocumentVersion {
+  version: number;
+  uploadedDate: string;
+  fileName: string;
+  documentNumber?: string;
+  status: ProfileDocStatus;
+  remarks?: string;
+  url?: string;
+}
+
+export interface UserDocument {
+  id: string;
+  documentName: string;
+  documentType: string;
+  documentNumber?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  uploadedDate?: string;
+  lastUpdated?: string;
+  verificationStatus: ProfileDocStatus;
+  verifiedBy?: string;
+  verificationDate?: string;
+  remarks?: string;
+  fileUrl?: string;
+  fileName?: string;
+  history?: DocumentVersion[];
+}

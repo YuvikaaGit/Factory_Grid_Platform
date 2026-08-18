@@ -181,6 +181,25 @@ export const ManufacturerDashboardModule: React.FC = () => {
             WHO-GMP & CDSCO License Valid
           </div>
         </div>
+
+        {/* Metric 6: Order History */}
+        <div
+          onClick={() => setActiveTab('mfg-order-history')}
+          style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 10, padding: 18, cursor: 'pointer', transition: 'all 0.15s ease', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = '#0F766E'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = '#CBD5E1'}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Order History</span>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#F0FDFA', color: '#0F766E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Clock size={16} />
+            </div>
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>{mySubOrders.length || 3}</div>
+          <div style={{ fontSize: 11.5, color: '#0F766E', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+            View Sub-Order History →
+          </div>
+        </div>
       </div>
 
       {/* ── Operational Navigation Grid ──────────────────────────────── */}
@@ -279,7 +298,7 @@ export const ManufacturerDashboardModule: React.FC = () => {
                 <ShoppingBag size={20} />
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>Sub-Order Management</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>Order Management</div>
                 <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{mySubOrders.length} purchase orders assigned</div>
               </div>
             </div>

@@ -247,6 +247,20 @@ export const ProductCatalogModule: React.FC = () => {
     });
   }, [selectedProduct, mappings, manufacturers]);
 
+  // Helper to resolve Manufacturer Name for a product
+  const getManufacturerName = (prdId: string) => {
+    const pMappings = (mappings || []).filter(m => m.productId === prdId);
+    if (pMappings.length > 0) {
+      const names = pMappings.map(map => {
+        const mfg = (manufacturers || []).find(m => m.id === map.manufacturerId);
+        return mfg?.companyName || mfg?.name || map.manufacturerName;
+      }).filter(Boolean);
+      if (names.length > 0) return Array.from(new Set(names)).join(', ');
+    }
+    const defaultMfg = manufacturers[0];
+    return defaultMfg?.companyName || defaultMfg?.name || 'SunBio LifeSciences Ltd.';
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48 }}>
 
@@ -368,27 +382,28 @@ export const ProductCatalogModule: React.FC = () => {
       </div>
 
       {/* ── Admin Central Product Master Table ──────────────────────── */}
-      <div style={{ background: '#FFFFFF', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.05)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+      <div style={{ background: '#FFFFFF', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15, 23, 42, 0.05)', overflowX: 'auto' }}>
+        <table style={{ width: '100%', minWidth: 1150, borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>PRODUCT CODE</th>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>PRODUCT NAME</th>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>GENERIC NAME</th>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>SALT COMBINATION</th>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>STRENGTH</th>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>DOSAGE FORM</th>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>PACK SIZE</th>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>UOM</th>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>CATEGORY</th>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>STATUS</th>
-              <th style={{ padding: '14px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right', paddingRight: 20 }}>ACTIONS</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 110 }}>PRODUCT CODE</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>PRODUCT NAME</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>GENERIC NAME</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>SALT COMBINATION</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 90 }}>STRENGTH</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 100 }}>DOSAGE FORM</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 110 }}>PACK SIZE</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 70 }}>UOM</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 110 }}>CATEGORY</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 160 }}>MANUFACTURER</th>
+              <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 90 }}>STATUS</th>
+              <th style={{ padding: '12px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right', width: 135 }}>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan={11} style={{ textAlign: 'center', padding: '48px 20px', color: '#64748B' }}>
+                <td colSpan={12} style={{ textAlign: 'center', padding: '48px 20px', color: '#64748B' }}>
                   <Package size={36} style={{ color: '#94A3B8', marginBottom: 10, display: 'block', margin: '0 auto 10px' }} />
                   <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>No central products found.</div>
                   <div style={{ fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 18 }}>
@@ -405,6 +420,7 @@ export const ProductCatalogModule: React.FC = () => {
             ) : (
               filteredProducts.map((prd) => {
                 const statusStr = prd.status || 'Active';
+                const mfgName = getManufacturerName(prd.id);
                 return (
                   <tr
                     key={prd.id}
@@ -414,56 +430,64 @@ export const ProductCatalogModule: React.FC = () => {
                     onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
                   >
                     {/* 1. PRODUCT CODE */}
-                    <td style={{ padding: '14px 16px', fontSize: 12.5, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace' }}>
+                    <td style={{ padding: '12px 10px', fontSize: 12, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                       {prd.code}
                     </td>
 
                     {/* 2. PRODUCT NAME */}
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A' }}>{prd.name}</div>
+                    <td style={{ padding: '12px 10px' }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A', lineHeight: 1.3 }}>{prd.name}</div>
                     </td>
 
                     {/* 3. GENERIC NAME */}
-                    <td style={{ padding: '14px 16px', fontSize: 13, fontWeight: 700, color: '#1E293B' }}>
+                    <td style={{ padding: '12px 10px', fontSize: 12.5, fontWeight: 700, color: '#1E293B' }}>
                       {prd.genericName}
                     </td>
 
                     {/* 4. SALT COMBINATION */}
-                    <td style={{ padding: '14px 16px', fontSize: 12.5, color: '#475569', maxWidth: 220, lineHeight: 1.4 }}>
+                    <td style={{ padding: '12px 10px', fontSize: 12, color: '#475569', maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={prd.saltCombination}>
                       {prd.saltCombination}
                     </td>
 
                     {/* 5. STRENGTH */}
-                    <td style={{ padding: '14px 16px', fontSize: 13, fontWeight: 800, color: '#0F766E' }}>
+                    <td style={{ padding: '12px 10px', fontSize: 12.5, fontWeight: 800, color: '#0F766E', whiteSpace: 'nowrap' }}>
                       {prd.strength}
                     </td>
 
                     {/* 6. DOSAGE FORM */}
-                    <td style={{ padding: '14px 16px' }}>
-                      <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
+                    <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 7px', borderRadius: 6, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
                         {prd.dosageForm}
                       </span>
                     </td>
 
                     {/* 7. PACK SIZE */}
-                    <td style={{ padding: '14px 16px', fontSize: 12.5, color: '#334155', fontWeight: 600 }}>
+                    <td style={{ padding: '12px 10px', fontSize: 12, color: '#334155', fontWeight: 600, maxWidth: 110, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={prd.packSize}>
                       {prd.packSize}
                     </td>
 
                     {/* 8. UOM */}
-                    <td style={{ padding: '14px 16px', fontSize: 12.5, color: '#475569' }}>
+                    <td style={{ padding: '12px 10px', fontSize: 12, color: '#475569', whiteSpace: 'nowrap' }}>
                       {prd.uom || 'Units'}
                     </td>
 
                     {/* 9. CATEGORY */}
-                    <td style={{ padding: '14px 16px', fontSize: 12.5, fontWeight: 600, color: '#334155' }}>
+                    <td style={{ padding: '12px 10px', fontSize: 12, fontWeight: 600, color: '#334155', whiteSpace: 'nowrap' }}>
                       {prd.category}
                     </td>
 
-                    {/* 10. STATUS */}
-                    <td style={{ padding: '14px 16px' }}>
+                    {/* 10. MANUFACTURER */}
+                    <td style={{ padding: '12px 10px', fontSize: 12, fontWeight: 700, color: '#0F766E', maxWidth: 160 }} title={mfgName}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
+                        <Factory size={13} style={{ color: '#0F766E', flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mfgName}</span>
+                      </div>
+                    </td>
+
+                    {/* 11. STATUS */}
+                    <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
                       <span style={{
-                        fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
+                        fontSize: 10.5, fontWeight: 700, padding: '3px 7px', borderRadius: 4,
                         background: statusStr === 'Active' ? '#DCFCE7' : '#F3F4F6',
                         color: statusStr === 'Active' ? '#15803D' : '#4B5563',
                         border: statusStr === 'Active' ? '1px solid #86EFAC' : '1px solid #D1D5DB'
@@ -472,25 +496,25 @@ export const ProductCatalogModule: React.FC = () => {
                       </span>
                     </td>
 
-                    {/* 11. ACTIONS */}
-                    <td onClick={e => e.stopPropagation()} style={{ padding: '14px 16px', textAlign: 'right', paddingRight: 20 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                    {/* 12. ACTIONS */}
+                    <td onClick={e => e.stopPropagation()} style={{ padding: '12px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
                         <button
                           onClick={() => setSelectedProduct(prd)}
-                          style={{ padding: '5px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6, background: 'rgba(15, 118, 110, 0.08)', border: '1px solid rgba(15, 118, 110, 0.25)', color: '#0F766E', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          style={{ padding: '4px 8px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(15, 118, 110, 0.08)', border: '1px solid rgba(15, 118, 110, 0.25)', color: '#0F766E', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}
                         >
                           <Eye size={12} /> View
                         </button>
                         <button
                           onClick={(e) => handleOpenEditModal(prd, e)}
-                          style={{ padding: '5px 8px', fontSize: 11.5, fontWeight: 600, borderRadius: 6, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                          style={{ padding: '4px 7px', fontSize: 11, fontWeight: 600, borderRadius: 6, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
                           title="Edit Product Master"
                         >
                           <Edit3 size={12} />
                         </button>
                         <button
                           onClick={(e) => handleToggleStatus(prd, e)}
-                          style={{ padding: '5px 8px', fontSize: 11.5, fontWeight: 600, borderRadius: 6, background: statusStr === 'Active' ? '#FEE2E2' : '#DCFCE7', border: statusStr === 'Active' ? '1px solid #FCA5A5' : '1px solid #86EFAC', color: statusStr === 'Active' ? '#B91C1C' : '#15803D', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                          style={{ padding: '4px 7px', fontSize: 11, fontWeight: 600, borderRadius: 6, background: statusStr === 'Active' ? '#FEE2E2' : '#DCFCE7', border: statusStr === 'Active' ? '1px solid #FCA5A5' : '1px solid #86EFAC', color: statusStr === 'Active' ? '#B91C1C' : '#15803D', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
                           title={statusStr === 'Active' ? 'Deactivate Product' : 'Activate Product'}
                         >
                           <Power size={12} />

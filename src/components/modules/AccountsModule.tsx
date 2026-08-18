@@ -20,8 +20,11 @@ const agingBucketColor = { '0-30': '#047857', '31-60': '#B45309', '61-90': '#B91
 const agingBucketLabel = { '0-30': 'Current (0–30 days)', '31-60': 'Moderate (31–60 days)', '61-90': 'Overdue (61–90 days)', '90+': 'Critical (90+ days)' };
 
 export const AccountsModule: React.FC = () => {
-  const { invoices, paymentTransactions, customers, recordInvoicePayment, addAuditLog } = useApp();
+  const { invoices, paymentTransactions, customers, recordInvoicePayment, addAuditLog, currentRole } = useApp();
   const [activeSubTab, setActiveSubTab] = useState<'RECEIVABLES' | 'TRANSACTIONS' | 'CREDIT_LIMITS' | 'AGING'>('RECEIVABLES');
+
+  const isFinanceUser = currentRole === 'ACCOUNTS_MANAGER' || currentRole === 'ADMIN';
+  const isBuyerUser = currentRole === 'BUYER';
 
   const totalOutstanding = invoices.reduce((acc, inv) => acc + inv.balanceAmount, 0);
   const totalBilled = invoices.reduce((acc, inv) => acc + inv.totalAmount, 0);
@@ -182,12 +185,23 @@ export const AccountsModule: React.FC = () => {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       {inv.balanceAmount > 0 ? (
-                        <button
-                          onClick={() => { setPaymentModalInvoiceId(inv.id); setPayAmount(inv.balanceAmount); }}
-                          className="ent-btn-primary" style={{ fontSize: 11, height: 30, padding: '0 10px' }}
-                        >
-                          <Plus size={11} /> Record Payment
-                        </button>
+                        isFinanceUser ? (
+                          <button
+                            onClick={() => { setPaymentModalInvoiceId(inv.id); setPayAmount(inv.balanceAmount); }}
+                            className="ent-btn-primary" style={{ fontSize: 11, height: 30, padding: '0 10px' }}
+                          >
+                            <Plus size={11} /> Record Payment
+                          </button>
+                        ) : isBuyerUser ? (
+                          <button
+                            onClick={() => alert(`Online Payment Gateway:\n\nInitiating secure payment for Invoice ${inv.invoiceNumber}.\nOutstanding Balance: ₹${inv.balanceAmount.toLocaleString()}`)}
+                            className="ent-btn-primary" style={{ fontSize: 11, height: 30, padding: '0 10px', background: '#166534' }}
+                          >
+                            Pay Now →
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>Unpaid Balance</span>
+                        )
                       ) : (
                         <span style={{ fontSize: 12, fontWeight: 700, color: '#047857' }}>PAID IN FULL ✓</span>
                       )}
@@ -393,12 +407,23 @@ export const AccountsModule: React.FC = () => {
                           </span>
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          <button
-                            onClick={() => { setPaymentModalInvoiceId(inv.id); setPayAmount(inv.balanceAmount); setActiveSubTab('RECEIVABLES'); }}
-                            className="ent-btn-primary" style={{ fontSize: 11, height: 30, padding: '0 10px' }}
-                          >
-                            Record Payment
-                          </button>
+                          {isFinanceUser ? (
+                            <button
+                              onClick={() => { setPaymentModalInvoiceId(inv.id); setPayAmount(inv.balanceAmount); setActiveSubTab('RECEIVABLES'); }}
+                              className="ent-btn-primary" style={{ fontSize: 11, height: 30, padding: '0 10px' }}
+                            >
+                              Record Payment
+                            </button>
+                          ) : isBuyerUser ? (
+                            <button
+                              onClick={() => alert(`Online Payment Gateway:\n\nInitiating secure payment for Invoice ${inv.invoiceNumber}.\nOutstanding Balance: ₹${inv.balanceAmount.toLocaleString()}`)}
+                              className="ent-btn-primary" style={{ fontSize: 11, height: 30, padding: '0 10px', background: '#166534' }}
+                            >
+                              Pay Now →
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: 11.5, color: '#64748B', fontWeight: 600 }}>Unpaid</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -409,8 +434,8 @@ export const AccountsModule: React.FC = () => {
         </div>
       )}
 
-      {/* Record Payment Modal */}
-      {paymentModalInvoiceId && (
+      {/* Record Payment Modal (Finance & Accounts Only) */}
+      {paymentModalInvoiceId && isFinanceUser && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="ent-card" style={{ width: 480, padding: 24 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Record Treasury Payment</h3>

@@ -5,16 +5,29 @@ import {
   FileText, Search, Filter, Clock, CheckCircle2, AlertTriangle,
   X, Send, Eye, Save, Calendar, Check, AlertCircle, Building2, Package,
   ShieldCheck, XCircle, ThumbsDown, ArrowLeft, MessageSquare, Edit3, DollarSign,
-  Calculator, Truck, Percent, Tag
+  Calculator, Truck, Percent, Tag, Paperclip
 } from 'lucide-react';
 
+export type LineResponseType = 'UNANSWERED' | 'QUOTE' | 'CANNOT_SUPPLY';
+
+export type CannotSupplyReasonOption =
+  | 'Currently Unavailable'
+  | 'Product Not Manufactured'
+  | 'Production Capacity Unavailable'
+  | 'MOQ Cannot Be Met'
+  | 'Required Delivery Date Cannot Be Met'
+  | 'Other';
+
 interface LineInputState {
+  responseType: LineResponseType;
   unitPrice: number;
   moq: number;
   leadTimeDays: number;
   taxPercent: number;
   discountPercent: number;
   deliveryTerms: string;
+  cannotSupplyReason: CannotSupplyReasonOption | '';
+  cannotSupplyRemarks: string;
   remarks: string;
 }
 
@@ -132,205 +145,18 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
   // Selected RFQ for Detail Inspection / Pricing View
   const [selectedRfqForDetail, setSelectedRfqForDetail] = useState<RFQ | null>(null);
 
-  // Per-Line Commercial Input States for active RFQ (6 Fields Per Line)
+  // Message Buyer Modal State for Ready to Quote
+  const [messageModalData, setMessageModalData] = useState<{
+    rfqNumber: string;
+    buyerName: string;
+    productName: string;
+    messageText: string;
+  } | null>(null);
+  const [messageSuccessToast, setMessageSuccessToast] = useState<string | null>(null);
+
+  // Per-Line Commercial Input States for active RFQ
   const [lineInputs, setLineInputs] = useState<Record<string, LineInputState>>({});
   const [quoteFormError, setQuoteFormError] = useState<string | null>(null);
-
-  // Synchronize line inputs when opening RFQ Detail
-  useEffect(() => {
-    if (selectedRfqForDetail) {
-      const existingQuote = quotes.find(q => q.rfqId === selectedRfqForDetail.id && (q.manufacturerId === myMfgId || q.manufacturerName?.includes('SunBio')));
-      const initial: Record<string, LineInputState> = {};
-
-      selectedRfqForDetail.lines.forEach(line => {
-        const matchLine = existingQuote?.quoteLines?.find(ql => ql.rfqLineId === line.id || ql.productId === line.productId);
-        initial[line.id] = {
-          unitPrice: matchLine?.unitPrice ?? (line.targetPrice || 12.00),
-          moq: matchLine?.moq ?? 1000,
-          leadTimeDays: matchLine?.leadTimeDays ?? 14,
-          taxPercent: matchLine?.taxPercent ?? 12,
-          discountPercent: matchLine?.discountPercent ?? 5,
-          deliveryTerms: (matchLine as any)?.deliveryTerms || (existingQuote as any)?.deliveryTerms || 'Ex-Factory Hyderabad / Cold-Chain Fleet',
-          remarks: ''
-        };
-      });
-
-      setLineInputs(initial);
-      setQuoteFormError(null);
-    }
-  }, [selectedRfqForDetail, quotes, myMfgId]);
-
-  // Handle Per-Line Input Field Changes
-  const handleLineInputChange = (lineId: string, field: keyof LineInputState, value: any) => {
-    setLineInputs(prev => ({
-      ...prev,
-      [lineId]: {
-        ...(prev[lineId] || {
-          unitPrice: 12.00,
-          moq: 1000,
-          leadTimeDays: 14,
-          taxPercent: 12,
-          discountPercent: 5,
-          deliveryTerms: 'Ex-Factory Hyderabad / Cold-Chain Fleet',
-          remarks: ''
-        }),
-        [field]: value
-      }
-    }));
-  };
-
-  // Calculate Real-Time Line Breakdown Math
-  const getLineCalculation = (line: any) => {
-    const input = lineInputs[line.id] || {
-      unitPrice: line.targetPrice || 12.00,
-      moq: 1000,
-      leadTimeDays: 14,
-      taxPercent: 12,
-      discountPercent: 5,
-      deliveryTerms: 'Ex-Factory Hyderabad / Cold-Chain Fleet',
-      remarks: ''
-    };
-
-    const baseAmount = line.quantity * input.unitPrice;
-    const discountAmount = baseAmount * (input.discountPercent / 100);
-    const amountAfterDiscount = baseAmount - discountAmount;
-    const taxAmount = amountAfterDiscount * (input.taxPercent / 100);
-    const finalLineAmount = Math.round(amountAfterDiscount + taxAmount);
-
-    return {
-      baseAmount,
-      discountAmount,
-      taxAmount,
-      finalLineAmount
-    };
-  };
-
-  // Consolidated Quote Overall Summary Calculations
-  const consolidatedSummary = useMemo(() => {
-    if (!selectedRfqForDetail) return { totalLines: 0, totalQty: 0, subtotal: 0, totalDiscount: 0, totalTax: 0, finalQuotationValue: 0, maxLeadTime: 14, overallDeliveryTerms: 'Ex-Factory Hyderabad' };
-
-    let totalQty = 0;
-    let subtotal = 0;
-    let totalDiscount = 0;
-    let totalTax = 0;
-    let finalQuotationValue = 0;
-    let maxLeadTime = 0;
-    let overallDeliveryTerms = 'Ex-Factory Hyderabad / Cold-Chain Fleet';
-
-    selectedRfqForDetail.lines.forEach(line => {
-      totalQty += line.quantity;
-      const input = lineInputs[line.id] || {
-        unitPrice: line.targetPrice || 12.00,
-        moq: 1000,
-        leadTimeDays: 14,
-        taxPercent: 12,
-        discountPercent: 5,
-        deliveryTerms: 'Ex-Factory Hyderabad / Cold-Chain Fleet',
-        remarks: ''
-      };
-
-      const calc = getLineCalculation(line);
-      subtotal += calc.baseAmount;
-      totalDiscount += calc.discountAmount;
-      totalTax += calc.taxAmount;
-      finalQuotationValue += calc.finalLineAmount;
-      if (input.leadTimeDays > maxLeadTime) maxLeadTime = input.leadTimeDays;
-      if (input.deliveryTerms) overallDeliveryTerms = input.deliveryTerms;
-    });
-
-    return {
-      totalLines: selectedRfqForDetail.lines.length,
-      totalQty,
-      subtotal: Math.round(subtotal),
-      totalDiscount: Math.round(totalDiscount),
-      totalTax: Math.round(totalTax),
-      finalQuotationValue: Math.round(finalQuotationValue),
-      maxLeadTime: maxLeadTime || 14,
-      overallDeliveryTerms
-    };
-  }, [selectedRfqForDetail, lineInputs]);
-
-  // Single Consolidated Quote Submission Handler
-  const handleSingleConsolidatedQuoteSubmit = () => {
-    if (!selectedRfqForDetail) return;
-    setQuoteFormError(null);
-
-    if (isDeclinedByMe(selectedRfqForDetail.id)) {
-      setQuoteFormError('This RFQ has been declined. Quote submission is disabled.');
-      return;
-    }
-
-    const isExpired = new Date() > new Date(selectedRfqForDetail.deadlineDate);
-    if (isExpired) {
-      setQuoteFormError('RFQ deadline has passed. Late quotations cannot be submitted.');
-      return;
-    }
-
-    // Comprehensive Mandatory Field Validation per Product Line
-    for (const line of selectedRfqForDetail.lines) {
-      const input = lineInputs[line.id];
-      if (!input || !input.unitPrice || input.unitPrice <= 0) {
-        setQuoteFormError(`Complete pricing details for ${line.productName}: Valid Unit Price is required before submitting the quotation.`);
-        return;
-      }
-      if (!input.moq || input.moq <= 0) {
-        setQuoteFormError(`Complete pricing details for ${line.productName}: Valid MOQ is required before submitting the quotation.`);
-        return;
-      }
-      if (!input.leadTimeDays || input.leadTimeDays <= 0) {
-        setQuoteFormError(`Complete pricing details for ${line.productName}: Valid Lead Time is required before submitting the quotation.`);
-        return;
-      }
-    }
-
-    // Build consolidated quoteLines array containing all 6 commercial fields for each line
-    const quoteLines = selectedRfqForDetail.lines.map(line => {
-      const input = lineInputs[line.id] || {
-        unitPrice: 12.00,
-        moq: 1000,
-        leadTimeDays: 14,
-        taxPercent: 12,
-        discountPercent: 5,
-        deliveryTerms: 'Ex-Factory Hyderabad / Cold-Chain Fleet',
-        remarks: ''
-      };
-      const calc = getLineCalculation(line);
-
-      return {
-        rfqLineId: line.id,
-        productId: line.productId,
-        productName: line.productName,
-        unitPrice: input.unitPrice,
-        taxPercent: input.taxPercent,
-        discountPercent: input.discountPercent,
-        leadTimeDays: input.leadTimeDays,
-        moq: input.moq,
-        deliveryTerms: input.deliveryTerms,
-        calculatedFinalPrice: calc.finalLineAmount
-      };
-    });
-
-    const totalCalculatedAmount = quoteLines.reduce((acc, l) => acc + l.calculatedFinalPrice, 0);
-
-    const newQuote: ManufacturerQuote = {
-      id: `QTE-2026-${Math.floor(100 + Math.random() * 900)}`,
-      rfqId: selectedRfqForDetail.id,
-      rfqNumber: selectedRfqForDetail.rfqNumber,
-      manufacturerId: myMfgId,
-      manufacturerName: myMfgName,
-      submissionDate: new Date().toISOString().split('T')[0],
-      validUntil: '2026-09-30',
-      status: 'SUBMITTED',
-      quoteLines,
-      totalAmount: totalCalculatedAmount,
-      remarks: 'WHO-GMP lab batch assay included with cold chain packaging.',
-      ...({ deliveryTerms: consolidatedSummary.overallDeliveryTerms } as any)
-    };
-
-    submitQuote(newQuote);
-    addAuditLog('SUBMIT_MANUFACTURER_QUOTE', `Submitted consolidated quote for RFQ ${selectedRfqForDetail.rfqNumber} (${quoteLines.length} products, ₹${totalCalculatedAmount.toLocaleString('en-IN')})`);
-    alert(`✔ Consolidated Quotation Submitted Successfully!\n\nRFQ #: ${selectedRfqForDetail.rfqNumber}\nProduct Lines: ${selectedRfqForDetail.lines.length}\nFinal Quotation Value: ₹${totalCalculatedAmount.toLocaleString('en-IN')}`);
-  };
 
   // Negotiation Modal State (product-level modal post-buyer response)
   const [viewingNegotiationLine, setViewingNegotiationLine] = useState<{
@@ -365,6 +191,277 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
   const [declineReason, setDeclineReason] = useState<string>('');
   const [declineRemarks, setDeclineRemarks] = useState<string>('');
   const [declineFormError, setDeclineFormError] = useState<string | null>(null);
+
+  // Synchronize line inputs when opening RFQ Detail
+  useEffect(() => {
+    if (selectedRfqForDetail) {
+      const existingQuote = quotes.find(q => q.rfqId === selectedRfqForDetail.id && (q.manufacturerId === myMfgId || q.manufacturerName?.includes('SunBio')));
+      const initial: Record<string, LineInputState> = {};
+
+      selectedRfqForDetail.lines.forEach(line => {
+        const matchLine = existingQuote?.quoteLines?.find(ql => ql.rfqLineId === line.id || ql.productId === line.productId);
+        const respType: LineResponseType = matchLine ? (matchLine.responseType || (matchLine.cannotSupplyReason ? 'CANNOT_SUPPLY' : 'QUOTE')) : 'UNANSWERED';
+
+        initial[line.id] = {
+          responseType: respType,
+          unitPrice: matchLine?.unitPrice ?? (line.targetPrice || 12.00),
+          moq: matchLine?.moq ?? 1000,
+          leadTimeDays: matchLine?.leadTimeDays ?? 14,
+          taxPercent: matchLine?.taxPercent ?? 12,
+          discountPercent: matchLine?.discountPercent ?? 5,
+          deliveryTerms: (matchLine as any)?.deliveryTerms || (existingQuote as any)?.deliveryTerms || 'Ex-Factory Hyderabad / Cold-Chain Fleet',
+          cannotSupplyReason: (matchLine?.cannotSupplyReason as CannotSupplyReasonOption) || '',
+          cannotSupplyRemarks: matchLine?.cannotSupplyRemarks || '',
+          remarks: ''
+        };
+      });
+
+      setLineInputs(initial);
+      setQuoteFormError(null);
+    }
+  }, [selectedRfqForDetail, quotes, myMfgId]);
+
+  // Handle Per-Line Input Field Changes
+  const handleLineInputChange = (lineId: string, field: keyof LineInputState, value: any) => {
+    setLineInputs(prev => ({
+      ...prev,
+      [lineId]: {
+        ...(prev[lineId] || {
+          responseType: 'UNANSWERED',
+          unitPrice: 12.00,
+          moq: 1000,
+          leadTimeDays: 14,
+          taxPercent: 12,
+          discountPercent: 5,
+          deliveryTerms: 'Ex-Factory Hyderabad / Cold-Chain Fleet',
+          cannotSupplyReason: '',
+          cannotSupplyRemarks: '',
+          remarks: ''
+        }),
+        [field]: value
+      }
+    }));
+  };
+
+  // Calculate Real-Time Line Breakdown Math
+  const getLineCalculation = (line: any) => {
+    const input = lineInputs[line.id] || {
+      responseType: 'UNANSWERED',
+      unitPrice: line.targetPrice || 12.00,
+      moq: 1000,
+      leadTimeDays: 14,
+      taxPercent: 12,
+      discountPercent: 5,
+      deliveryTerms: 'Ex-Factory Hyderabad / Cold-Chain Fleet',
+      cannotSupplyReason: '',
+      cannotSupplyRemarks: '',
+      remarks: ''
+    };
+
+    if (input.responseType !== 'QUOTE') {
+      return {
+        baseAmount: 0,
+        discountAmount: 0,
+        taxAmount: 0,
+        finalLineAmount: 0
+      };
+    }
+
+    const baseAmount = line.quantity * input.unitPrice;
+    const discountAmount = baseAmount * (input.discountPercent / 100);
+    const amountAfterDiscount = baseAmount - discountAmount;
+    const taxAmount = amountAfterDiscount * (input.taxPercent / 100);
+    const finalLineAmount = Math.round(amountAfterDiscount + taxAmount);
+
+    return {
+      baseAmount,
+      discountAmount,
+      taxAmount,
+      finalLineAmount
+    };
+  };
+
+  // Consolidated Quote Overall Summary Calculations
+  const consolidatedSummary = useMemo(() => {
+    if (!selectedRfqForDetail) return { totalLines: 0, quotedLinesCount: 0, cannotSupplyLinesCount: 0, unansweredLinesCount: 0, totalQty: 0, subtotal: 0, totalDiscount: 0, totalTax: 0, finalQuotationValue: 0, maxLeadTime: 14, overallDeliveryTerms: 'Ex-Factory Hyderabad' };
+
+    let totalQty = 0;
+    let subtotal = 0;
+    let totalDiscount = 0;
+    let totalTax = 0;
+    let finalQuotationValue = 0;
+    let maxLeadTime = 0;
+    let overallDeliveryTerms = 'Ex-Factory Hyderabad / Cold-Chain Fleet';
+    let quotedLinesCount = 0;
+    let cannotSupplyLinesCount = 0;
+    let unansweredLinesCount = 0;
+
+    selectedRfqForDetail.lines.forEach(line => {
+      const input = lineInputs[line.id] || {
+        responseType: 'UNANSWERED',
+        unitPrice: line.targetPrice || 12.00,
+        moq: 1000,
+        leadTimeDays: 14,
+        taxPercent: 12,
+        discountPercent: 5,
+        deliveryTerms: 'Ex-Factory Hyderabad / Cold-Chain Fleet',
+        cannotSupplyReason: '',
+        cannotSupplyRemarks: '',
+        remarks: ''
+      };
+
+      if (input.responseType === 'QUOTE') {
+        quotedLinesCount++;
+        totalQty += line.quantity;
+        const calc = getLineCalculation(line);
+        subtotal += calc.baseAmount;
+        totalDiscount += calc.discountAmount;
+        totalTax += calc.taxAmount;
+        finalQuotationValue += calc.finalLineAmount;
+        if (input.leadTimeDays > maxLeadTime) maxLeadTime = input.leadTimeDays;
+        if (input.deliveryTerms) overallDeliveryTerms = input.deliveryTerms;
+      } else if (input.responseType === 'CANNOT_SUPPLY') {
+        cannotSupplyLinesCount++;
+      } else {
+        unansweredLinesCount++;
+      }
+    });
+
+    return {
+      totalLines: selectedRfqForDetail.lines.length,
+      quotedLinesCount,
+      cannotSupplyLinesCount,
+      unansweredLinesCount,
+      totalQty,
+      subtotal: Math.round(subtotal),
+      totalDiscount: Math.round(totalDiscount),
+      totalTax: Math.round(totalTax),
+      finalQuotationValue: Math.round(finalQuotationValue),
+      maxLeadTime: maxLeadTime || 14,
+      overallDeliveryTerms
+    };
+  }, [selectedRfqForDetail, lineInputs]);
+
+  // Single Consolidated Quote Submission Handler (Supports Full & Partial Quotes)
+  const handleSingleConsolidatedQuoteSubmit = () => {
+    if (!selectedRfqForDetail) return;
+    setQuoteFormError(null);
+
+    if (isDeclinedByMe(selectedRfqForDetail.id)) {
+      setQuoteFormError('This RFQ has been declined. Quote submission is disabled.');
+      return;
+    }
+
+    const isExpired = new Date() > new Date(selectedRfqForDetail.deadlineDate);
+    if (isExpired) {
+      setQuoteFormError('RFQ deadline has passed. Late quotations cannot be submitted.');
+      return;
+    }
+
+    // 1. Validation: Every RFQ line must have an explicit response (QUOTE or CANNOT_SUPPLY)
+    for (const line of selectedRfqForDetail.lines) {
+      const input = lineInputs[line.id];
+      if (!input || !input.responseType || input.responseType === 'UNANSWERED') {
+        setQuoteFormError(`Please provide a response for all RFQ product lines before submitting ("${line.productName}" has no response selection).`);
+        return;
+      }
+
+      if (input.responseType === 'QUOTE') {
+        if (!input.unitPrice || input.unitPrice <= 0) {
+          setQuoteFormError(`Complete pricing details for ${line.productName}: Valid Unit Price is required before submitting.`);
+          return;
+        }
+        if (!input.moq || input.moq <= 0) {
+          setQuoteFormError(`Complete pricing details for ${line.productName}: Valid MOQ is required before submitting.`);
+          return;
+        }
+        if (!input.leadTimeDays || input.leadTimeDays <= 0) {
+          setQuoteFormError(`Complete pricing details for ${line.productName}: Valid Lead Time is required before submitting.`);
+          return;
+        }
+      } else if (input.responseType === 'CANNOT_SUPPLY') {
+        if (!input.cannotSupplyReason) {
+          setQuoteFormError(`Please select a reason why "${line.productName}" cannot be supplied.`);
+          return;
+        }
+        if (input.cannotSupplyReason === 'Other' && (!input.cannotSupplyRemarks || !input.cannotSupplyRemarks.trim())) {
+          setQuoteFormError(`Please enter reason details for "${line.productName}" under 'Other'.`);
+          return;
+        }
+      }
+    }
+
+    // 2. Validation: If ALL lines are marked CANNOT_SUPPLY, require using Decline RFQ instead
+    const quotedCount = selectedRfqForDetail.lines.filter(l => lineInputs[l.id]?.responseType === 'QUOTE').length;
+    const cannotSupplyCount = selectedRfqForDetail.lines.filter(l => lineInputs[l.id]?.responseType === 'CANNOT_SUPPLY').length;
+
+    if (quotedCount === 0) {
+      setQuoteFormError('All product lines are marked as Cannot Supply. Please use the "Decline RFQ" button to decline the entire RFQ.');
+      return;
+    }
+
+    const quoteType = cannotSupplyCount > 0 ? 'PARTIAL_QUOTE' : 'FULL_QUOTE';
+
+    // Build consolidated quoteLines array containing line response state
+    const quoteLines = selectedRfqForDetail.lines.map(line => {
+      const input = lineInputs[line.id] || {
+        responseType: 'QUOTE',
+        unitPrice: 12.00,
+        moq: 1000,
+        leadTimeDays: 14,
+        taxPercent: 12,
+        discountPercent: 5,
+        deliveryTerms: 'Ex-Factory Hyderabad / Cold-Chain Fleet',
+        cannotSupplyReason: '',
+        cannotSupplyRemarks: '',
+        remarks: ''
+      };
+      const calc = getLineCalculation(line);
+
+      return {
+        rfqLineId: line.id,
+        productId: line.productId,
+        productName: line.productName,
+        responseType: input.responseType,
+        unitPrice: input.responseType === 'QUOTE' ? input.unitPrice : 0,
+        taxPercent: input.responseType === 'QUOTE' ? input.taxPercent : 0,
+        discountPercent: input.responseType === 'QUOTE' ? input.discountPercent : 0,
+        leadTimeDays: input.responseType === 'QUOTE' ? input.leadTimeDays : 0,
+        moq: input.responseType === 'QUOTE' ? input.moq : 0,
+        deliveryTerms: input.deliveryTerms,
+        cannotSupplyReason: input.responseType === 'CANNOT_SUPPLY' ? input.cannotSupplyReason : undefined,
+        cannotSupplyRemarks: input.responseType === 'CANNOT_SUPPLY' ? input.cannotSupplyRemarks : undefined,
+        calculatedFinalPrice: calc.finalLineAmount
+      };
+    });
+
+    const totalCalculatedAmount = quoteLines.reduce((acc, l) => acc + l.calculatedFinalPrice, 0);
+
+    const newQuote: ManufacturerQuote = {
+      id: `QTE-2026-${Math.floor(100 + Math.random() * 900)}`,
+      rfqId: selectedRfqForDetail.id,
+      rfqNumber: selectedRfqForDetail.rfqNumber,
+      manufacturerId: myMfgId,
+      manufacturerName: myMfgName,
+      submissionDate: new Date().toISOString().split('T')[0],
+      validUntil: '2026-09-30',
+      status: 'SUBMITTED',
+      quoteType,
+      quoteLines,
+      totalAmount: totalCalculatedAmount,
+      remarks: quoteType === 'PARTIAL_QUOTE' 
+        ? `Partial Quote: ${quotedCount} lines quoted, ${cannotSupplyCount} lines marked Cannot Supply.` 
+        : 'Full Quote: WHO-GMP lab batch assay included with cold chain packaging.',
+      ...({ deliveryTerms: consolidatedSummary.overallDeliveryTerms } as any)
+    };
+
+    submitQuote(newQuote);
+    addAuditLog('SUBMIT_MANUFACTURER_QUOTE', `Submitted ${quoteType === 'PARTIAL_QUOTE' ? 'Partial' : 'Full'} Quote for RFQ ${selectedRfqForDetail.rfqNumber} (${quotedCount}/${selectedRfqForDetail.lines.length} products quoted, ₹${totalCalculatedAmount.toLocaleString('en-IN')})`);
+    
+    alert(`✔ ${quoteType === 'PARTIAL_QUOTE' ? 'Partial' : 'Full'} Quotation Submitted Successfully!\n\nRFQ #: ${selectedRfqForDetail.rfqNumber}\nQuoted Lines: ${quotedCount}\nCannot Supply Lines: ${cannotSupplyCount}\nFinal Quotation Value: ₹${totalCalculatedAmount.toLocaleString('en-IN')}`);
+  };
+
+
 
   // Open Decline Confirmation Modal
   const handleOpenDeclineModal = (rfq: RFQ, e?: React.MouseEvent) => {
@@ -454,47 +551,48 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48, background: '#F8FAFC' }}>
       
-      {selectedRfqForDetail ? (
-        /* ── RFQ PRICING & CONSOLIDATED QUOTATION VIEW ─────────────────────────── */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          
-          {/* Top Header Bar */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '18px 24px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <button
-                onClick={() => setSelectedRfqForDetail(null)}
-                style={{ padding: '7px 12px', borderRadius: 6, background: '#F8FAFC', color: '#0F172A', border: '1px solid #CBD5E1', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <ArrowLeft size={15} /> Back to Assigned RFQs
-              </button>
+      {selectedRfqForDetail ? (() => {
+        const isDeclined = isDeclinedByMe(selectedRfqForDetail.id);
+        const myQuote = quotes.find(q => q.rfqId === selectedRfqForDetail.id && (q.manufacturerId === myMfgId || q.manufacturerName?.includes('SunBio')));
+        const isSubmitted = !!myQuote && (myQuote.status === 'SUBMITTED' || myQuote.status === 'ACCEPTED' || myQuote.status === 'SUB-ORDER CREATED');
+        const isExpired = new Date() > new Date(selectedRfqForDetail.deadlineDate);
 
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace' }}>{selectedRfqForDetail.rfqNumber}</span>
-                  {(() => {
-                    const badge = getRFQStatusBadge(selectedRfqForDetail);
-                    return (
-                      <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
-                        {badge.label}
-                      </span>
-                    );
-                  })()}
+        return (
+          /* ── RFQ PRICING & CONSOLIDATED QUOTATION VIEW ─────────────────────────── */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            
+            {/* Top Header Bar */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '18px 24px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <button
+                  onClick={() => setSelectedRfqForDetail(null)}
+                  style={{ padding: '7px 12px', borderRadius: 6, background: '#F8FAFC', color: '#0F172A', border: '1px solid #CBD5E1', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <ArrowLeft size={15} /> Back to Assigned RFQs
+                </button>
+
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace' }}>{selectedRfqForDetail.rfqNumber}</span>
+                    {(() => {
+                      const badge = getRFQStatusBadge(selectedRfqForDetail);
+                      return (
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
+                          {badge.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
+                    {selectedRfqForDetail.customerName}
+                  </h1>
                 </div>
-                <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>
-                  {selectedRfqForDetail.customerName}
-                </h1>
               </div>
-            </div>
 
-            {/* TOP-RIGHT ACTION BUTTONS ONLY: Decline RFQ & Single Consolidated Submit Quote */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {(() => {
-                const isDeclined = isDeclinedByMe(selectedRfqForDetail.id);
-                const myQuote = quotes.find(q => q.rfqId === selectedRfqForDetail.id && (q.manufacturerId === myMfgId || q.manufacturerName?.includes('SunBio')));
-                const isSubmitted = myQuote && (myQuote.status === 'SUBMITTED' || myQuote.status === 'ACCEPTED' || myQuote.status === 'SUB-ORDER CREATED');
-                const isExpired = new Date() > new Date(selectedRfqForDetail.deadlineDate);
-
-                if (isDeclined) {
+              {/* TOP-RIGHT ACTION BUTTONS ONLY: Decline RFQ & Single Consolidated Submit Quote */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {(() => {
+                  if (isDeclined) {
                   return (
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#DC2626', padding: '6px 12px', background: '#FEF2F2', borderRadius: 6, border: '1px solid #FCA5A5' }}>
                       ✕ RFQ Declined
@@ -586,25 +684,50 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
                 const hasMsgs = threadMsgs.length > 0;
 
                 const inputState = lineInputs[line.id] || {
+                  responseType: 'UNANSWERED',
                   unitPrice: line.targetPrice || 12.00,
                   moq: 1000,
                   leadTimeDays: 14,
                   taxPercent: 12,
                   discountPercent: 5,
                   deliveryTerms: 'Ex-Factory Hyderabad / Cold-Chain Fleet',
+                  cannotSupplyReason: '',
+                  cannotSupplyRemarks: '',
                   remarks: ''
                 };
 
                 const calc = getLineCalculation(line);
 
                 return (
-                  <div key={line.id} style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 10, padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div key={line.id} style={{
+                    background: inputState.responseType === 'CANNOT_SUPPLY' ? '#FFF5F5' : inputState.responseType === 'QUOTE' ? '#F0FDFA' : '#F8FAFC',
+                    border: inputState.responseType === 'CANNOT_SUPPLY' ? '1px solid #FECDD3' : inputState.responseType === 'QUOTE' ? '1px solid #99F6E4' : '1px solid #CBD5E1',
+                    borderRadius: 10, padding: 18, display: 'flex', flexDirection: 'column', gap: 14
+                  }}>
                     
                     {/* Line Header & Requirements */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #E2E8F0', paddingBottom: 12 }}>
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A' }}>{line.productName}</span>
+
+                          {/* LINE RESPONSE STATUS BADGE */}
+                          {inputState.responseType === 'QUOTE' && (
+                            <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
+                              ✓ Ready to Quote
+                            </span>
+                          )}
+                          {inputState.responseType === 'CANNOT_SUPPLY' && (
+                            <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: '#FEE2E2', color: '#B91C1C', border: '1px solid #FCA5A5' }}>
+                              ✕ Cannot Supply
+                            </span>
+                          )}
+                          {inputState.responseType === 'UNANSWERED' && (
+                            <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A' }}>
+                              ⚠ Response Required
+                            </span>
+                          )}
+
                           {hasMsgs && (
                             <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A' }}>
                               BUYER NEGOTIATION ACTIVE ({threadMsgs.length} msgs)
@@ -641,96 +764,246 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
                       )}
                     </div>
 
-                    {/* 6 COMMERCIAL INPUT FIELDS FOR THIS PRODUCT LINE */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
-                      <div>
-                        <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>UNIT PRICE (₹) *</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          required
-                          value={inputState.unitPrice}
-                          onChange={e => handleLineInputChange(line.id, 'unitPrice', Number(e.target.value))}
-                          style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontWeight: 700, background: '#FFF' }}
-                        />
-                      </div>
+                    {/* UNIFORM LINE RESPONSE ACTION CONTROL BAR FOR EVERY PRODUCT */}
+                    {!isSubmitted && !isDeclined && !isExpired && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 8, padding: '10px 14px', flexWrap: 'wrap', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Line Action:</span>
+                          {inputState.responseType === 'UNANSWERED' && (
+                            <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 4, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A' }}>
+                              ⚠ Response Required
+                            </span>
+                          )}
+                          {inputState.responseType === 'QUOTE' && (
+                            <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 4, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
+                              ✓ Ready to Quote
+                            </span>
+                          )}
+                          {inputState.responseType === 'CANNOT_SUPPLY' && (
+                            <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 4, background: '#FEE2E2', color: '#B91C1C', border: '1px solid #FCA5A5' }}>
+                              ✕ Cannot Supply
+                            </span>
+                          )}
+                        </div>
 
-                      <div>
-                        <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>MOQ (UNITS) *</label>
-                        <input
-                          type="number"
-                          required
-                          value={inputState.moq}
-                          onChange={e => handleLineInputChange(line.id, 'moq', Number(e.target.value))}
-                          style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFF' }}
-                        />
-                      </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleLineInputChange(line.id, 'responseType', 'QUOTE')}
+                            style={{
+                              padding: '7px 16px',
+                              borderRadius: 6,
+                              fontSize: 12.5,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              border: inputState.responseType === 'QUOTE' ? '2px solid #0F766E' : '1px solid #CBD5E1',
+                              background: inputState.responseType === 'QUOTE' ? '#0F766E' : '#FFFFFF',
+                              color: inputState.responseType === 'QUOTE' ? '#FFFFFF' : '#475569',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              boxShadow: inputState.responseType === 'QUOTE' ? '0 2px 4px rgba(15,118,110,0.2)' : 'none'
+                            }}
+                          >
+                            <Check size={14} /> Quote Product
+                          </button>
 
-                      <div>
-                        <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>LEAD TIME (DAYS) *</label>
-                        <input
-                          type="number"
-                          required
-                          value={inputState.leadTimeDays}
-                          onChange={e => handleLineInputChange(line.id, 'leadTimeDays', Number(e.target.value))}
-                          style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFF' }}
-                        />
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() => handleLineInputChange(line.id, 'responseType', 'CANNOT_SUPPLY')}
+                            style={{
+                              padding: '7px 16px',
+                              borderRadius: 6,
+                              fontSize: 12.5,
+                              fontWeight: 800,
+                              cursor: 'pointer',
+                              border: inputState.responseType === 'CANNOT_SUPPLY' ? '2px solid #E11D48' : '1px solid #CBD5E1',
+                              background: inputState.responseType === 'CANNOT_SUPPLY' ? '#E11D48' : '#FFFFFF',
+                              color: inputState.responseType === 'CANNOT_SUPPLY' ? '#FFFFFF' : '#475569',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              boxShadow: inputState.responseType === 'CANNOT_SUPPLY' ? '0 2px 4px rgba(225,29,72,0.2)' : 'none'
+                            }}
+                          >
+                            <X size={14} /> Cannot Supply
+                          </button>
 
-                      <div>
-                        <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>TAX (%)</label>
-                        <input
-                          type="number"
-                          value={inputState.taxPercent}
-                          onChange={e => handleLineInputChange(line.id, 'taxPercent', Number(e.target.value))}
-                          style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFF' }}
-                        />
+                          <button
+                            type="button"
+                            onClick={() => setMessageModalData({
+                              rfqNumber: selectedRfqForDetail.rfqNumber,
+                              buyerName: selectedRfqForDetail.customerName || 'Apex Pharma Procurement',
+                              productName: line.productName,
+                              messageText: ''
+                            })}
+                            style={{
+                              padding: '7px 14px',
+                              borderRadius: 6,
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              border: '1px solid #CBD5E1',
+                              background: '#FFFFFF',
+                              color: '#0F766E',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6
+                            }}
+                            title="Message Buyer"
+                          >
+                            <MessageSquare size={14} /> Message
+                          </button>
+                        </div>
                       </div>
+                    )}
 
-                      <div>
-                        <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>DISCOUNT (%)</label>
-                        <input
-                          type="number"
-                          value={inputState.discountPercent}
-                          onChange={e => handleLineInputChange(line.id, 'discountPercent', Number(e.target.value))}
-                          style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFF' }}
-                        />
+                    {/* RESPONSE BODY: UNANSWERED PROMPT BANNER */}
+                    {inputState.responseType === 'UNANSWERED' && (
+                      <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 8, padding: '12px 16px', fontSize: 12.5, color: '#92400E', fontWeight: 600 }}>
+                        ⚠️ <strong>Response Required for {line.productName}:</strong> Click <strong>Quote Product</strong> above to enter pricing or <strong>Cannot Supply</strong> if unable to supply this item.
                       </div>
+                    )}
 
-                      <div>
-                        <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>DELIVERY TERMS</label>
-                        <select
-                          value={inputState.deliveryTerms}
-                          onChange={e => handleLineInputChange(line.id, 'deliveryTerms', e.target.value)}
-                          style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12.5, background: '#FFF', fontWeight: 600 }}
-                        >
-                          <option value="Ex-Factory Hyderabad / Cold-Chain Fleet">Ex-Factory Hyderabad / Cold Fleet</option>
-                          <option value="FOR Destination / Freight Included">FOR Destination / Freight Included</option>
-                          <option value="FOB Port Clearance Included">FOB Port Clearance Included</option>
-                          <option value="CIF Consignee Warehouse">CIF Consignee Warehouse</option>
-                        </select>
-                      </div>
-                    </div>
+                    {/* RESPONSE BODY: CANNOT SUPPLY REASON FORM */}
+                    {inputState.responseType === 'CANNOT_SUPPLY' && (
+                      <div style={{ background: '#FFF1F2', border: '1px solid #FECDD3', borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#9F1239', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          CANNOT SUPPLY REASON & REMARKS
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: '#9F1239', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Select Reason *</label>
+                            <select
+                              value={inputState.cannotSupplyReason}
+                              onChange={e => handleLineInputChange(line.id, 'cannotSupplyReason', e.target.value)}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #FDA4AF', borderRadius: 6, fontSize: 12.5, background: '#FFF', fontWeight: 700, color: '#9F1239' }}
+                            >
+                              <option value="">-- Choose Cannot Supply Reason --</option>
+                              <option value="Currently Unavailable">Currently Unavailable</option>
+                              <option value="Product Not Manufactured">Product Not Manufactured</option>
+                              <option value="Production Capacity Unavailable">Production Capacity Unavailable</option>
+                              <option value="MOQ Cannot Be Met">MOQ Cannot Be Met</option>
+                              <option value="Required Delivery Date Cannot Be Met">Required Delivery Date Cannot Be Met</option>
+                              <option value="Other">Other (Specify details below)</option>
+                            </select>
+                          </div>
 
-                    {/* DYNAMIC CALCULATION BREAKDOWN FOR THIS LINE */}
-                    <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, fontSize: 12 }}>
-                      <div>
-                        <span style={{ color: '#64748B', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' }}>Base Amount:</span>
-                        <div style={{ fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>₹{calc.baseAmount.toLocaleString('en-IN')}</div>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: '#9F1239', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                              Reason Details / Remarks {inputState.cannotSupplyReason === 'Other' ? '*' : '(Optional)'}
+                            </label>
+                            <input
+                              type="text"
+                              placeholder={inputState.cannotSupplyReason === 'Other' ? 'Required: Enter explanation...' : 'Additional notes...'}
+                              value={inputState.cannotSupplyRemarks}
+                              onChange={e => handleLineInputChange(line.id, 'cannotSupplyRemarks', e.target.value)}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #FDA4AF', borderRadius: 6, fontSize: 12.5, background: '#FFF' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: 11.5, color: '#881337', fontStyle: 'italic', marginTop: 2 }}>
+                          ℹ️ Note: Marking this item as Cannot Supply excludes it from pricing while allowing you to quote remaining products.
+                        </div>
                       </div>
-                      <div>
-                        <span style={{ color: '#DC2626', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' }}>Discount ({inputState.discountPercent}%):</span>
-                        <div style={{ fontWeight: 700, color: '#DC2626', fontFamily: 'monospace' }}>-₹{Math.round(calc.discountAmount).toLocaleString('en-IN')}</div>
-                      </div>
-                      <div>
-                        <span style={{ color: '#16A34A', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' }}>Tax ({inputState.taxPercent}%):</span>
-                        <div style={{ fontWeight: 700, color: '#16A34A', fontFamily: 'monospace' }}>+₹{Math.round(calc.taxAmount).toLocaleString('en-IN')}</div>
-                      </div>
-                      <div>
-                        <span style={{ color: '#0F766E', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase' }}>Final Line Amount:</span>
-                        <div style={{ fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', fontSize: 14 }}>₹{calc.finalLineAmount.toLocaleString('en-IN')}</div>
-                      </div>
-                    </div>
+                    )}
+
+                    {/* RESPONSE BODY: QUOTE COMMERCIAL FIELDS */}
+                    {inputState.responseType === 'QUOTE' && (
+                      <>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>UNIT PRICE (₹) *</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              required
+                              value={inputState.unitPrice}
+                              onChange={e => handleLineInputChange(line.id, 'unitPrice', Number(e.target.value))}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontWeight: 700, background: '#FFF' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>MOQ (UNITS) *</label>
+                            <input
+                              type="number"
+                              required
+                              value={inputState.moq}
+                              onChange={e => handleLineInputChange(line.id, 'moq', Number(e.target.value))}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFF' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>LEAD TIME (DAYS) *</label>
+                            <input
+                              type="number"
+                              required
+                              value={inputState.leadTimeDays}
+                              onChange={e => handleLineInputChange(line.id, 'leadTimeDays', Number(e.target.value))}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFF' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>TAX (%)</label>
+                            <input
+                              type="number"
+                              value={inputState.taxPercent}
+                              onChange={e => handleLineInputChange(line.id, 'taxPercent', Number(e.target.value))}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFF' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>DISCOUNT (%)</label>
+                            <input
+                              type="number"
+                              value={inputState.discountPercent}
+                              onChange={e => handleLineInputChange(line.id, 'discountPercent', Number(e.target.value))}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFF' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>DELIVERY TERMS</label>
+                            <select
+                              value={inputState.deliveryTerms}
+                              onChange={e => handleLineInputChange(line.id, 'deliveryTerms', e.target.value)}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12.5, background: '#FFF', fontWeight: 600 }}
+                            >
+                              <option value="Ex-Factory Hyderabad / Cold-Chain Fleet">Ex-Factory Hyderabad / Cold Fleet</option>
+                              <option value="FOR Destination / Freight Included">FOR Destination / Freight Included</option>
+                              <option value="FOB Port Clearance Included">FOB Port Clearance Included</option>
+                              <option value="CIF Consignee Warehouse">CIF Consignee Warehouse</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* DYNAMIC CALCULATION BREAKDOWN FOR THIS LINE */}
+                        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, fontSize: 12 }}>
+                          <div>
+                            <span style={{ color: '#64748B', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' }}>Base Amount:</span>
+                            <div style={{ fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>₹{calc.baseAmount.toLocaleString('en-IN')}</div>
+                          </div>
+                          <div>
+                            <span style={{ color: '#DC2626', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' }}>Discount ({inputState.discountPercent}%):</span>
+                            <div style={{ fontWeight: 700, color: '#DC2626', fontFamily: 'monospace' }}>-₹{Math.round(calc.discountAmount).toLocaleString('en-IN')}</div>
+                          </div>
+                          <div>
+                            <span style={{ color: '#16A34A', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase' }}>Tax ({inputState.taxPercent}%):</span>
+                            <div style={{ fontWeight: 700, color: '#16A34A', fontFamily: 'monospace' }}>+₹{Math.round(calc.taxAmount).toLocaleString('en-IN')}</div>
+                          </div>
+                          <div>
+                            <span style={{ color: '#0F766E', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase' }}>Final Line Amount:</span>
+                            <div style={{ fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', fontSize: 14 }}>₹{calc.finalLineAmount.toLocaleString('en-IN')}</div>
+                          </div>
+                        </div>
+                      </>
+                    )}
 
                   </div>
                 );
@@ -742,11 +1015,22 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
           <div style={{ background: '#F0FDFA', border: '2px solid #0F766E', borderRadius: 12, padding: 22, boxShadow: '0 4px 14px rgba(15,118,110,0.1)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #99F6E4', paddingBottom: 12, flexWrap: 'wrap', gap: 12 }}>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  CONSOLIDATED QUOTE SUMMARY
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#0F766E', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    CONSOLIDATED QUOTE SUMMARY
+                  </span>
+                  {consolidatedSummary.cannotSupplyLinesCount > 0 ? (
+                    <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A' }}>
+                      PARTIAL QUOTATION
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
+                      FULL QUOTATION
+                    </span>
+                  )}
                 </div>
-                <h3 style={{ margin: '2px 0 0 0', fontSize: 18, fontWeight: 800, color: '#0F172A' }}>
-                  ONE CONSOLIDATED QUOTATION ({consolidatedSummary.totalLines} Product Lines · {consolidatedSummary.totalQty.toLocaleString()} Total Units)
+                <h3 style={{ margin: '4px 0 0 0', fontSize: 18, fontWeight: 800, color: '#0F172A' }}>
+                  CONSOLIDATED OFFER ({consolidatedSummary.quotedLinesCount} Quoted · {consolidatedSummary.cannotSupplyLinesCount} Cannot Supply · {consolidatedSummary.totalQty.toLocaleString()} Units)
                 </h3>
               </div>
 
@@ -759,6 +1043,8 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 12.5, color: '#334155', marginBottom: 20 }}>
+              <div>Quoted Lines: <strong style={{ color: '#15803D' }}>{consolidatedSummary.quotedLinesCount} of {consolidatedSummary.totalLines}</strong></div>
+              <div>Cannot Supply: <strong style={{ color: '#B91C1C' }}>{consolidatedSummary.cannotSupplyLinesCount} lines</strong></div>
               <div>Subtotal Base Amount: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>₹{consolidatedSummary.subtotal.toLocaleString('en-IN')}</strong></div>
               <div>Total Discount: <strong style={{ color: '#DC2626', fontFamily: 'monospace' }}>-₹{consolidatedSummary.totalDiscount.toLocaleString('en-IN')}</strong></div>
               <div>Total Tax (GST): <strong style={{ color: '#16A34A', fontFamily: 'monospace' }}>+₹{consolidatedSummary.totalTax.toLocaleString('en-IN')}</strong></div>
@@ -803,7 +1089,8 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
           </div>
 
         </div>
-      ) : (
+      );
+    })() : (
         /* ── ASSIGNED RFQS MAIN LIST VIEW (ENTERPRISE B2B TABLE) ───────────── */
         <>
           {/* Header Bar */}
@@ -1131,6 +1418,86 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* ── MODAL 4: MESSAGE BUYER MODAL ──────────────────────────── */}
+      {messageModalData && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10020, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setMessageModalData(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 14, padding: 24, boxShadow: '0 20px 48px rgba(15, 23, 42, 0.2)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <MessageSquare size={20} style={{ color: '#0F766E' }} />
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: 0 }}>Message Buyer</h3>
+              </div>
+              <button onClick={() => setMessageModalData(null)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}><X size={18} /></button>
+            </div>
+
+            {/* Info Card */}
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, fontSize: 12.5, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div>Buyer Name: <strong style={{ color: '#0F766E' }}>{messageModalData.buyerName}</strong></div>
+              <div>RFQ Number: <strong style={{ fontFamily: 'monospace' }}>{messageModalData.rfqNumber}</strong></div>
+              <div>Product: <strong>{messageModalData.productName}</strong></div>
+            </div>
+
+            {/* Message Textarea */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Message Text</label>
+              <textarea
+                rows={4}
+                placeholder="Type your message to the buyer regarding specifications, batch size, or lead time..."
+                value={messageModalData.messageText}
+                onChange={e => setMessageModalData(prev => prev ? { ...prev, messageText: e.target.value } : null)}
+                style={{ width: '100%', padding: 12, fontSize: 13, borderRadius: 8, border: '1px solid #CBD5E1', outline: 'none', resize: 'vertical' }}
+              />
+            </div>
+
+            {/* Attachment & Action Footer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTop: '1px solid #E2E8F0' }}>
+              <button
+                type="button"
+                onClick={() => alert('📄 Attachment capability: File attached to message.')}
+                style={{ background: 'none', border: 'none', color: '#0F766E', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <Paperclip size={14} /> Attach File
+              </button>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setMessageModalData(null)}
+                  style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!messageModalData.messageText.trim()) {
+                      alert('Please enter a message before sending.');
+                      return;
+                    }
+                    setMessageSuccessToast(`✔ Message sent to ${messageModalData.buyerName} regarding ${messageModalData.productName}!`);
+                    setMessageModalData(null);
+                    setTimeout(() => setMessageSuccessToast(null), 4000);
+                  }}
+                  style={{ padding: '8px 18px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFFFFF', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Send Message
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Toast Success Notification ── */}
+      {messageSuccessToast && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 10030, background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 10, padding: '14px 20px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, fontWeight: 700, color: '#166534' }}>
+          <CheckCircle2 size={18} style={{ color: '#16A34A' }} />
+          <span>{messageSuccessToast}</span>
         </div>
       )}
 

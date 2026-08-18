@@ -12,7 +12,8 @@ import { AIMatchingModule } from './AIMatchingModule';
 export const BuyerWorkspaceModule: React.FC = () => {
   const {
     currentRole, rfqs, addRFQ, orders, invoices, complianceCases,
-    manufacturers, products, notifications, setActiveTab, addAuditLog, openCreateRfqDrawer
+    manufacturers, products, notifications, setActiveTab, addAuditLog, openCreateRfqDrawer,
+    navigateWithFilter
   } = useApp();
 
   const [activeTabLocal, setActiveTabLocal] = useState<'DASHBOARD' | 'RFQ_CENTER' | 'AI_MATCHING'>('DASHBOARD');
@@ -239,31 +240,31 @@ export const BuyerWorkspaceModule: React.FC = () => {
 
           {/* Top KPI Cards (Simple enterprise cards) */}
           <div className="ent-kpi-strip">
-            <div className="ent-kpi-strip-item" onClick={() => setActiveTab('rfqs')} style={{ cursor: 'pointer' }}>
+            <div className="ent-kpi-strip-item" onClick={() => navigateWithFilter('rfqs', 'PRICING_IN_PROGRESS')} style={{ cursor: 'pointer' }} title="View Active RFQs">
               <div className="kpi-label">Open RFQs</div>
               <div className="kpi-value" style={{ color: 'var(--text-primary)' }}>{openRfqsCount}</div>
               <div className="kpi-sub">Active in sourcing cycle</div>
             </div>
 
-            <div className="ent-kpi-strip-item" onClick={() => setActiveTab('quotes')} style={{ cursor: 'pointer' }}>
+            <div className="ent-kpi-strip-item" onClick={() => navigateWithFilter('quotes', 'SUBMITTED')} style={{ cursor: 'pointer' }} title="View Submitted Quotes">
               <div className="kpi-label">Quotes Received</div>
               <div className="kpi-value" style={{ color: 'var(--c-info, #0284C7)' }}>{quotesReceivedCount}</div>
               <div className="kpi-sub">Sealed manufacturer bids</div>
             </div>
 
-            <div className="ent-kpi-strip-item" onClick={() => setActiveTab('orders')} style={{ cursor: 'pointer' }}>
+            <div className="ent-kpi-strip-item" onClick={() => navigateWithFilter('orders', 'IN_PRODUCTION')} style={{ cursor: 'pointer' }} title="View Orders In Production">
               <div className="kpi-label">Orders In Progress</div>
               <div className="kpi-value" style={{ color: 'var(--c-success, #047857)' }}>{ordersInProgressCount}</div>
               <div className="kpi-sub">Under production at plant</div>
             </div>
 
-            <div className="ent-kpi-strip-item" onClick={() => setActiveTab('quotes')} style={{ cursor: 'pointer' }}>
+            <div className="ent-kpi-strip-item" onClick={() => navigateWithFilter('quotes', 'PENDING')} style={{ cursor: 'pointer' }} title="View Pending Approval Quotes">
               <div className="kpi-label">Pending Approval</div>
               <div className="kpi-value" style={{ color: 'var(--c-warning, #B45309)' }}>{pendingApprovalCount}</div>
               <div className="kpi-sub">Bids awaiting Buyer PO</div>
             </div>
 
-            <div className="ent-kpi-strip-item" onClick={() => setActiveTab('invoices')} style={{ cursor: 'pointer' }}>
+            <div className="ent-kpi-strip-item" onClick={() => navigateWithFilter('invoices', 'OPEN')} style={{ cursor: 'pointer' }} title="View Pending Invoices">
               <div className="kpi-label">Invoices Pending</div>
               <div className="kpi-value" style={{ color: 'var(--text-secondary)' }}>{invoicesPendingCount}</div>
               <div className="kpi-sub">Accounts payable balance</div>

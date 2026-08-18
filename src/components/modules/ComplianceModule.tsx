@@ -6,6 +6,9 @@ import {
   Send, UserCheck, Key, FileCheck, Building2, Factory, MessageSquare, Plus, File,
   Filter, MoreVertical, Calendar, Bell, User, Check, Shield
 } from 'lucide-react';
+import { ManufacturerVerificationModule } from './ManufacturerVerificationModule';
+import { TrademarkVerificationModule } from './TrademarkVerificationModule';
+import { BrandVerificationModule } from './BrandVerificationModule';
 import { ComplianceCase } from '../../types';
 
 export interface VerificationRecord {
@@ -151,9 +154,9 @@ export const ComplianceModule: React.FC = () => {
     setActiveTab
   } = useApp();
 
+  const [activeComplianceSubTab, setActiveComplianceSubTab] = useState<'GENERAL' | 'MANUFACTURER_VERIFICATION' | 'TRADEMARK_VERIFICATION' | 'BRAND_VERIFICATION'>('GENERAL');
   const [queueTab, setQueueTab] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRING'>('PENDING');
   const [searchTerm, setSearchTerm] = useState('');
-  const [riskFilter, setRiskFilter] = useState<string>('ALL');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
@@ -231,7 +234,6 @@ export const ComplianceModule: React.FC = () => {
       r.licenseNumber.toLowerCase().includes(searchTerm.toLowerCase());
 
     if (!matchSearch) return false;
-    if (riskFilter !== 'ALL' && r.riskScore !== riskFilter) return false;
     if (typeFilter !== 'ALL' && r.type !== typeFilter) return false;
 
     if (queueTab === 'PENDING') return r.status === 'PENDING' || r.status === 'UNDER_REVIEW' || r.status === 'CHANGES_REQUESTED';
@@ -330,10 +332,91 @@ export const ComplianceModule: React.FC = () => {
     }
   };
 
+  if (activeComplianceSubTab === 'MANUFACTURER_VERIFICATION') {
+    return (
+      <div>
+        <div style={{ background: '#FFFFFF', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', gap: 12 }}>
+          <button onClick={() => setActiveComplianceSubTab('GENERAL')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#F1F5F9', border: '1px solid #CBD5E1', cursor: 'pointer' }}>
+            ← Back to Compliance Queue
+          </button>
+          <button onClick={() => setActiveComplianceSubTab('MANUFACTURER_VERIFICATION')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 700, background: '#1D4ED8', color: '#FFF', border: 'none', cursor: 'pointer' }}>
+            Manufacturer Onboarding Verification
+          </button>
+          <button onClick={() => setActiveComplianceSubTab('TRADEMARK_VERIFICATION')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#FFFFFF', border: '1px solid #CBD5E1', cursor: 'pointer' }}>
+            Trademark (TM) Verification
+          </button>
+          <button onClick={() => setActiveComplianceSubTab('BRAND_VERIFICATION')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#FFFFFF', border: '1px solid #CBD5E1', cursor: 'pointer' }}>
+            Brand Verification Workflow
+          </button>
+        </div>
+        <ManufacturerVerificationModule />
+      </div>
+    );
+  }
+
+  if (activeComplianceSubTab === 'TRADEMARK_VERIFICATION') {
+    return (
+      <div>
+        <div style={{ background: '#FFFFFF', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', gap: 12 }}>
+          <button onClick={() => setActiveComplianceSubTab('GENERAL')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#F1F5F9', border: '1px solid #CBD5E1', cursor: 'pointer' }}>
+            ← Back to Compliance Queue
+          </button>
+          <button onClick={() => setActiveComplianceSubTab('MANUFACTURER_VERIFICATION')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#FFFFFF', border: '1px solid #CBD5E1', cursor: 'pointer' }}>
+            Manufacturer Onboarding Verification
+          </button>
+          <button onClick={() => setActiveComplianceSubTab('TRADEMARK_VERIFICATION')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 700, background: '#1D4ED8', color: '#FFF', border: 'none', cursor: 'pointer' }}>
+            Trademark (TM) Verification
+          </button>
+          <button onClick={() => setActiveComplianceSubTab('BRAND_VERIFICATION')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#FFFFFF', border: '1px solid #CBD5E1', cursor: 'pointer' }}>
+            Brand Verification Workflow
+          </button>
+        </div>
+        <TrademarkVerificationModule />
+      </div>
+    );
+  }
+
+  if (activeComplianceSubTab === 'BRAND_VERIFICATION') {
+    return (
+      <div>
+        <div style={{ background: '#FFFFFF', borderBottom: '1px solid #E2E8F0', padding: '12px 24px', display: 'flex', gap: 12 }}>
+          <button onClick={() => setActiveComplianceSubTab('GENERAL')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#F1F5F9', border: '1px solid #CBD5E1', cursor: 'pointer' }}>
+            ← Back to Compliance Queue
+          </button>
+          <button onClick={() => setActiveComplianceSubTab('MANUFACTURER_VERIFICATION')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#FFFFFF', border: '1px solid #CBD5E1', cursor: 'pointer' }}>
+            Manufacturer Onboarding Verification
+          </button>
+          <button onClick={() => setActiveComplianceSubTab('TRADEMARK_VERIFICATION')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#FFFFFF', border: '1px solid #CBD5E1', cursor: 'pointer' }}>
+            Trademark (TM) Verification
+          </button>
+          <button onClick={() => setActiveComplianceSubTab('BRAND_VERIFICATION')} style={{ height: 32, padding: '0 14px', borderRadius: 6, fontSize: 12, fontWeight: 700, background: '#1D4ED8', color: '#FFF', border: 'none', cursor: 'pointer' }}>
+            Brand Verification Workflow
+          </button>
+        </div>
+        <BrandVerificationModule />
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingBottom: 48, background: '#F8FAFC', minHeight: '100vh' }}>
 
-      {/* ── TOP HEADER BAR ────────────────────────────────────── */}
+      {/* ── TOP NAVIGATION DESK SWITCHER ────────────────────────── */}
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 16px', display: 'flex', gap: 12, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Compliance Desks:</span>
+        <button onClick={() => setActiveComplianceSubTab('GENERAL')} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 700, background: '#1D4ED8', color: '#FFF', border: 'none', cursor: 'pointer' }}>
+          Compliance Verification Queue
+        </button>
+        <button onClick={() => setActiveComplianceSubTab('MANUFACTURER_VERIFICATION')} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#F8FAFC', border: '1px solid #CBD5E1', color: '#0F172A', cursor: 'pointer' }}>
+          Manufacturer Onboarding Verification →
+        </button>
+        <button onClick={() => setActiveComplianceSubTab('TRADEMARK_VERIFICATION')} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#F8FAFC', border: '1px solid #CBD5E1', color: '#0F172A', cursor: 'pointer' }}>
+          Trademark (TM) Verification →
+        </button>
+        <button onClick={() => setActiveComplianceSubTab('BRAND_VERIFICATION')} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: '#F8FAFC', border: '1px solid #CBD5E1', color: '#0F172A', cursor: 'pointer' }}>
+          Brand Verification Workflow →
+        </button>
+      </div>
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '20px 24px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ width: 44, height: 44, borderRadius: 10, background: '#EFF6FF', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
@@ -357,10 +440,6 @@ export const ComplianceModule: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => setActiveTab('customer-verification')} style={{ height: 38, padding: '0 16px', borderRadius: 8, background: '#0F172A', color: '#FFFFFF', border: 'none', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <UserCheck size={14} /> Customer Verification Desk →
-          </button>
-
           <div style={{ position: 'relative' }}>
             <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
             <input
@@ -368,13 +447,9 @@ export const ComplianceModule: React.FC = () => {
               placeholder="Search companies, GST, licenses..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              style={{ width: 240, height: 38, paddingLeft: 34, paddingRight: 12, borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5, outline: 'none', background: '#FFFFFF', color: '#0F172A' }}
+              style={{ width: 260, height: 38, paddingLeft: 34, paddingRight: 12, borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5, outline: 'none', background: '#FFFFFF', color: '#0F172A' }}
             />
           </div>
-
-          <button onClick={() => alert('Bulk Verification executed for selected pending cases.')} style={{ height: 38, padding: '0 16px', borderRadius: 8, background: '#2563EB', color: '#FFFFFF', border: 'none', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <CheckCircle2 size={14} /> Bulk Verify Selected →
-          </button>
         </div>
       </div>
 
@@ -468,18 +543,8 @@ export const ComplianceModule: React.FC = () => {
             <option value="MANUFACTURER">Manufacturers</option>
           </select>
 
-          <select value={riskFilter} onChange={e => setRiskFilter(e.target.value)} style={{ height: 34, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12, color: '#334155', outline: 'none' }}>
-            <option value="ALL">All Risk Scores</option>
-            <option value="LOW">Low Risk</option>
-            <option value="MEDIUM">Medium Risk</option>
-            <option value="HIGH">High Risk</option>
-          </select>
-
           <button onClick={() => alert('Compliance Queue Refreshed.')} style={{ height: 34, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
             <RefreshCw size={13} /> Refresh
-          </button>
-          <button onClick={() => alert('Compliance Audit Log Exported.')} style={{ height: 34, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-            <Download size={13} /> Export
           </button>
         </div>
       </div>

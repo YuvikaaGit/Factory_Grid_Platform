@@ -131,6 +131,64 @@ export const mockManufacturers: Manufacturer[] = [
       onTimeDeliveryRate: 98.4,
       batchQualityPassRate: 99.8,
       avgRfqResponseHours: 14
+    },
+    ratingDetails: {
+      overallRating: 4.8,
+      totalReviews: 128,
+      distribution: {
+        fiveStar: 78,
+        fourStar: 15,
+        threeStar: 5,
+        twoStar: 2,
+        oneStar: 0
+      },
+      categoryRatings: {
+        delivery: 4.8,
+        quality: 4.9,
+        communication: 4.7,
+        compliance: 4.9
+      },
+      performance: {
+        onTimeDeliveryRate: 98.4,
+        qualityPassRate: 99.8,
+        rfqResponseRate: 98.0,
+        completedOrdersCount: 128
+      },
+      recentReviews: [
+        {
+          id: 'rev_1',
+          buyerName: 'Apex Pharma Ltd',
+          buyerCode: 'BUY-2026-001',
+          orderNumber: 'MO-2026-1001',
+          productName: 'Amoxyclav 625mg Tablets',
+          rating: 5,
+          date: '2026-08-10',
+          comment: 'Apex Pharma delivered the order within the committed timeline with flawless COA clearance.',
+          verifiedBuyer: true
+        },
+        {
+          id: 'rev_2',
+          buyerName: 'MedLife Hospital Chain',
+          buyerCode: 'BUY-2026-002',
+          orderNumber: 'MO-2026-1002',
+          productName: 'Paracetamol 650mg ER Tablets',
+          rating: 5,
+          date: '2026-07-28',
+          comment: 'Excellent Alu-Alu strip packaging and on-time cold chain dispatch.',
+          verifiedBuyer: true
+        },
+        {
+          id: 'rev_3',
+          buyerName: 'BioCure Healthcare',
+          buyerCode: 'BUY-2026-003',
+          orderNumber: 'MO-2026-0988',
+          productName: 'Pantoprazole 40mg Injection',
+          rating: 4,
+          date: '2026-06-15',
+          comment: 'High quality batch documentation and prompt customer service response.',
+          verifiedBuyer: true
+        }
+      ]
     }
   },
   {
@@ -175,6 +233,42 @@ export const mockManufacturers: Manufacturer[] = [
       onTimeDeliveryRate: 99.1,
       batchQualityPassRate: 99.9,
       avgRfqResponseHours: 8
+    },
+    ratingDetails: {
+      overallRating: 4.9,
+      totalReviews: 184,
+      distribution: {
+        fiveStar: 86,
+        fourStar: 11,
+        threeStar: 3,
+        twoStar: 0,
+        oneStar: 0
+      },
+      categoryRatings: {
+        delivery: 4.9,
+        quality: 5.0,
+        communication: 4.8,
+        compliance: 4.9
+      },
+      performance: {
+        onTimeDeliveryRate: 99.1,
+        qualityPassRate: 99.9,
+        rfqResponseRate: 99.0,
+        completedOrdersCount: 184
+      },
+      recentReviews: [
+        {
+          id: 'rev_m2_1',
+          buyerName: 'Global Health Alliance',
+          buyerCode: 'BUY-2026-004',
+          orderNumber: 'MO-2026-1004',
+          productName: 'Specialty Injectable Ampoules',
+          rating: 5,
+          date: '2026-08-12',
+          comment: 'EU-GMP standards adhered to 100%. Outstanding batch consistency.',
+          verifiedBuyer: true
+        }
+      ]
     }
   },
   {
@@ -217,6 +311,42 @@ export const mockManufacturers: Manufacturer[] = [
       onTimeDeliveryRate: 96.5,
       batchQualityPassRate: 99.4,
       avgRfqResponseHours: 18
+    },
+    ratingDetails: {
+      overallRating: 4.6,
+      totalReviews: 64,
+      distribution: {
+        fiveStar: 68,
+        fourStar: 22,
+        threeStar: 7,
+        twoStar: 3,
+        oneStar: 0
+      },
+      categoryRatings: {
+        delivery: 4.5,
+        quality: 4.7,
+        communication: 4.6,
+        compliance: 4.7
+      },
+      performance: {
+        onTimeDeliveryRate: 96.5,
+        qualityPassRate: 99.4,
+        rfqResponseRate: 94.0,
+        completedOrdersCount: 64
+      },
+      recentReviews: [
+        {
+          id: 'rev_m3_1',
+          buyerName: 'Zenith Global Exporters',
+          buyerCode: 'BUY-2026-005',
+          orderNumber: 'MO-2026-0955',
+          productName: 'Effervescent Granules',
+          rating: 5,
+          date: '2026-07-20',
+          comment: 'Great support for export documentation and WHO-GMP compliance certificates.',
+          verifiedBuyer: true
+        }
+      ]
     }
   }
 ];
@@ -532,6 +662,100 @@ export const mockMasterOrders: MasterOrder[] = [
         awbNumber: 'BD-9912048',
         lines: [
           { id: 'sol3', productId: 'p3', productName: 'Azithromycin 500mg Tablets', dosageForm: 'Tablet', quantity: 1500, unitPrice: 59.00, taxPercent: 12, discountPercent: 5, totalPrice: 94150 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'mo2',
+    orderNumber: 'MO-2026-0987',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-07-15',
+    expectedDeliveryDate: '2026-08-15',
+    status: 'DELIVERED',
+    totalAmount: 185000,
+    shippingAddress: 'Plot 42, Okhla Industrial Area Phase III, New Delhi - 110020',
+    subOrders: [
+      {
+        id: 'so-987-01',
+        subOrderNumber: 'SO-2026-0987-01',
+        masterOrderId: 'mo2',
+        masterOrderNumber: 'MO-2026-0987',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'DELIVERED',
+        totalAmount: 185000,
+        startDate: '2026-07-16',
+        expectedDeliveryDate: '2026-08-15',
+        transporterName: 'Safexpress Cold-Chain',
+        awbNumber: 'SAF-7729104',
+        lines: [
+          { id: 'sol987_1', productId: 'p6', productName: 'Paracetamol 500mg Tablets', dosageForm: 'Tablet', quantity: 15000, unitPrice: 9.50, taxPercent: 12, discountPercent: 0, totalPrice: 159600 },
+          { id: 'sol987_2', productId: 'p4', productName: 'Pantoprazole 40mg Injection', dosageForm: 'Injection', quantity: 500, unitPrice: 45.00, taxPercent: 12, discountPercent: 0, totalPrice: 25400 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'mo3',
+    orderNumber: 'MO-2026-0901',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-06-10',
+    expectedDeliveryDate: '2026-07-10',
+    status: 'CLOSED',
+    totalAmount: 312000,
+    shippingAddress: 'Plot 42, Okhla Industrial Area Phase III, New Delhi - 110020',
+    subOrders: [
+      {
+        id: 'so-901-01',
+        subOrderNumber: 'SO-2026-0901-01',
+        masterOrderId: 'mo3',
+        masterOrderNumber: 'MO-2026-0901',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'CLOSED',
+        totalAmount: 312000,
+        startDate: '2026-06-12',
+        expectedDeliveryDate: '2026-07-08',
+        transporterName: 'TCI Express Cold Fleet',
+        awbNumber: 'TCI-6654210',
+        lines: [
+          { id: 'sol901_1', productId: 'p1', productName: 'Amoxicillin 250mg Capsules', dosageForm: 'Capsule', quantity: 25000, unitPrice: 11.20, taxPercent: 12, discountPercent: 5, totalPrice: 312000 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'mo4',
+    orderNumber: 'MO-2026-1002',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-17',
+    expectedDeliveryDate: '2026-09-10',
+    status: 'PO_ACCEPTED',
+    totalAmount: 123400,
+    shippingAddress: 'Plot 42, Okhla Industrial Area Phase III, New Delhi - 110020',
+    subOrders: [
+      {
+        id: 'so-1002-01',
+        subOrderNumber: 'SO-2026-1002-01',
+        masterOrderId: 'mo4',
+        masterOrderNumber: 'MO-2026-1002',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'PO_ACCEPTED',
+        totalAmount: 123400,
+        startDate: '2026-08-17',
+        expectedDeliveryDate: '2026-09-10',
+        transporterName: 'V-Trans Express',
+        awbNumber: 'VT-9921004',
+        lines: [
+          { id: 'sol1002_1', productId: 'p6', productName: 'Paracetamol 500mg Tablets', dosageForm: 'Tablet', quantity: 10000, unitPrice: 10.28, taxPercent: 12, discountPercent: 0, totalPrice: 123400 }
         ]
       }
     ]

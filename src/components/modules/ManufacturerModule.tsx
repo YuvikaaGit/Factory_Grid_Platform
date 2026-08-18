@@ -304,7 +304,7 @@ export const ManufacturerModule: React.FC = () => {
           key={profileMfg.id}
           manufacturer={profileMfg}
           searchRequirementContext={profileReqContext}
-          initialTab={selectedMfgIdForProfile ? 'CATALOG' : 'OVERVIEW'}
+          initialTab={mfgProfileInitialTab || (selectedMfgIdForProfile ? 'CATALOG' : 'OVERVIEW')}
           onBack={() => {
             if (selectedMfgIdForProfile) {
               setSelectedMfgIdForProfile(null);
@@ -924,14 +924,23 @@ export const ManufacturerModule: React.FC = () => {
                               <Badge status={mfg.complianceStatus} />
                             </div>
 
-                            <div className="ent-mono" style={{ fontSize: 11.5, color: 'var(--text-tertiary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div className="ent-mono" style={{ fontSize: 11.5, color: 'var(--text-tertiary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <span>Code: <strong>{mfg.code}</strong></span>
                               <span>·</span>
                               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                                 <MapPin size={12} /> {mfg.city}, {mfg.state}
                               </span>
                               <span>·</span>
-                              <span style={{ color: 'var(--c-warning)', fontWeight: 700 }}>★ {mfg.rating} / 5.0</span>
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openManufacturerProfile(mfg.id, 'PERFORMANCE');
+                                }}
+                                style={{ color: 'var(--c-warning)', fontWeight: 700, cursor: 'pointer', background: 'rgba(245, 158, 11, 0.1)', padding: '2px 6px', borderRadius: 4, border: '1px solid rgba(245, 158, 11, 0.2)', transition: 'all 120ms ease' }}
+                                title="Click to view detailed Ratings & Performance breakdown"
+                              >
+                                ★ {mfg.ratingDetails?.overallRating || mfg.rating || 4.6} / 5.0 ({mfg.ratingDetails?.totalReviews || 128} Reviews)
+                              </span>
                             </div>
                           </div>
                         </div>

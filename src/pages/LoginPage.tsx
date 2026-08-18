@@ -212,7 +212,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
       setActiveTab('dashboard');
     } else {
       role = staffRole;
-      if (staffRole === 'COMPLIANCE_OFFICER') setActiveTab('compliance');
+      if (staffRole === 'COMPLIANCE_OFFICER') setActiveTab('customer-verification');
       else if (staffRole === 'ACCOUNTS_MANAGER') setActiveTab('invoices');
       else if (staffRole === 'SALES_MANAGER') setActiveTab('customers');
       else if (staffRole === 'ADMIN') setActiveTab('settings');

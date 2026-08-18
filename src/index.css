@@ -7,55 +7,59 @@
    ========================================================= */
 
 :root {
-  /* Light Theme - Clean White Workspace on Soft Grey Neutral */
-  --bg-app: #F8FAFC;
+  /* Light Theme - Clarity OS Inspired Clean Palette */
+  --bg-app: #F9FAFB;
   --bg-surface: #FFFFFF;
   --bg-sidebar: #0F172A;
   --bg-elevated: #FFFFFF;
-  --bg-subtle: #F1F5F9;
+  --bg-subtle: #F3F4F6;
   
-  /* Enterprise Color Tokens */
-  --c-primary: #0F766E;        /* Deep Teal */
-  --c-primary-hover: #0D9488;
-  --c-primary-light: #CCFBF1;
-  --c-primary-soft: rgba(15, 118, 110, 0.08);
+  /* Clarity OS Color Palette Tokens */
+  --c-primary: #1D4ED8;        /* Deep Blue #1D4ED8 */
+  --c-primary-hover: #1E40AF;
+  --c-primary-light: #DBEAFE;
+  --c-primary-soft: rgba(29, 78, 216, 0.08);
 
-  --c-secondary: #1E40AF;      /* Enterprise Navy */
-  --c-secondary-hover: #1D4ED8;
-  --c-secondary-light: #DBEAFE;
-  --c-secondary-soft: rgba(30, 64, 175, 0.08);
+  --c-secondary: #0D9488;      /* Teal #0D9488 */
+  --c-secondary-hover: #0F766E;
+  --c-secondary-light: #CCFBF1;
+  --c-secondary-soft: rgba(13, 148, 136, 0.08);
 
-  --c-accent: #6D28D9;         /* Imperial Violet */
-  --c-accent-light: #EDE9FE;
+  --c-accent: #6366F1;         /* Indigo Accent */
+  --c-accent-light: #EEF2FF;
 
-  --c-success: #047857;        /* Emerald */
+  --c-success: #10B981;        /* Green #10B981 */
   --c-success-light: #D1FAE5;
-  --c-success-soft: rgba(4, 120, 87, 0.08);
+  --c-success-soft: rgba(16, 185, 129, 0.08);
 
-  --c-warning: #B45309;        /* Amber Gold */
+  --c-warning: #F59E0B;        /* Amber #F59E0B */
   --c-warning-light: #FEF3C7;
-  --c-warning-soft: rgba(180, 83, 9, 0.08);
+  --c-warning-soft: rgba(245, 158, 11, 0.08);
 
-  --c-danger: #B91C1C;         /* Crimson Red */
+  --c-danger: #EF4444;         /* Red #EF4444 */
   --c-danger-light: #FEE2E2;
-  --c-danger-soft: rgba(185, 28, 28, 0.08);
+  --c-danger-soft: rgba(239, 68, 68, 0.08);
+
+  --c-neutral: #6B7280;        /* Neutral Gray #6B7280 */
+  --c-neutral-light: #F3F4F6;
+  --c-neutral-soft: rgba(107, 114, 128, 0.08);
 
   /* Border Tokens */
-  --border-subtle: #E2E8F0;
+  --border-subtle: #E2E8F0;    /* Light Gray #E2E8F0 */
   --border-default: #CBD5E1;
   --border-strong: #94A3B8;
 
   /* Typography Colors */
-  --text-primary: #0F172A;
-  --text-secondary: #334155;
-  --text-tertiary: #64748B;
-  --text-quaternary: #94A3B8;
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-tertiary: #6B7280;
+  --text-quaternary: #9CA3AF;
 
   /* Elevation Shadows */
-  --shadow-subtle: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  --shadow-default: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
-  --shadow-elevated: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
-  --shadow-floating: 0 12px 28px -4px rgba(15, 23, 42, 0.14), 0 4px 12px -2px rgba(15, 23, 42, 0.08);
+  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-default: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-elevated: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --shadow-floating: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
 
   /* Geometry Grid */
   --sidebar-w: 260px;
@@ -65,7 +69,7 @@
   --radius-lg: 10px;
   --radius-xl: 12px;
 
-  /* Strict 8px Spacing Grid */
+  /* Strict Spacing Grid */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;

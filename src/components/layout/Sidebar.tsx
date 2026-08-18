@@ -90,19 +90,20 @@ export const Sidebar: React.FC = () => {
                       borderRadius: 6,
                       cursor: 'pointer',
                       fontSize: 13,
-                      fontWeight: 500,
+                      fontWeight: isActive ? 700 : 500,
                       color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.7)',
                       transition: 'all 150ms ease',
                       textAlign: 'left',
                       border: 'none',
-                      background: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                      borderLeft: isActive ? '3px solid #1D4ED8' : '3px solid transparent',
+                      background: isActive ? 'rgba(29, 78, 216, 0.25)' : 'transparent',
                       width: '100%',
                       fontFamily: 'inherit',
                       marginBottom: 2,
                     }}
                     onMouseEnter={(e) => {
                       if (!isActive) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
                       }
                     }}
                     onMouseLeave={(e) => {

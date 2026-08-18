@@ -30,13 +30,17 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose,
   if (!isOpen) return null;
 
   const moduleActions = [
+    { id: 'customer-verification', title: 'Customer Onboarding Verification', category: 'Compliance', icon: Users, shortcut: '⌘V' },
+    { id: 'manufacturer-verification', title: 'Manufacturer Onboarding Verification', category: 'Compliance', icon: Factory, shortcut: '⌘M' },
+    { id: 'trademark-verification', title: 'Trademark (TM) Verification Desk', category: 'Compliance', icon: FileText, shortcut: '⌘T' },
+    { id: 'brand-verification', title: 'Brand Verification & LOA Authorization', category: 'Compliance', icon: ShieldAlert, shortcut: '⌘A' },
+    { id: 'compliance', title: 'Regulatory Compliance & Audit Desk', category: 'Compliance', icon: ShieldAlert, shortcut: '⌘C' },
     { id: 'rfqs', title: 'Create New Multi-Line RFQ', category: 'Sourcing', icon: FileText, shortcut: '⌘R' },
     { id: 'quotes', title: 'Compare Manufacturer Quotes Matrix', category: 'Sourcing', icon: ShoppingBag, shortcut: '⌘Q' },
     { id: 'orders', title: 'Order Splitting & Manufacturing', category: 'Operations', icon: Truck, shortcut: '⌘O' },
     { id: 'shipments', title: 'Cold-Chain Shipment Telemetry', category: 'Logistics', icon: Truck, shortcut: '⌘S' },
-    { id: 'manufacturers', title: 'Browse WHO-GMP Manufacturers', category: 'Directory', icon: Factory, shortcut: '⌘M' },
+    { id: 'manufacturers', title: 'Browse WHO-GMP Manufacturers', category: 'Directory', icon: Factory },
     { id: 'customers', title: 'Sales CRM & Customer Accounts', category: 'CRM', icon: Users, shortcut: '⌘K' },
-    { id: 'compliance', title: 'Compliance Desk Regulatory Audit', category: 'Compliance', icon: ShieldAlert, shortcut: '⌘C' },
     { id: 'invoices', title: 'Invoices & Accounts Ledger', category: 'Finance', icon: Receipt, shortcut: '⌘I' },
     { id: 'reports', title: 'Generate Executive Business Reports', category: 'BI', icon: BarChart3, shortcut: '⌘B' },
   ];
