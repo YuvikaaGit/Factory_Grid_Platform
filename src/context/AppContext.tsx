@@ -16,6 +16,16 @@ import {
   mockCRMLeads, mockPaymentTransactions, mockAuditLogs,
   mockCustomerVerifications
 } from '../data/mockData';
+import { ShipmentCredentials } from '../services/connectors/types';
+import { GSTCredentials } from '../services/connectors/gstTypes';
+import { verifyTOTPToken, generateRecoveryCodes } from '../services/auth/totpUtils';
+
+export interface TwoFactorState {
+  isEnabled: boolean;
+  secret?: string;
+  enabledAt?: string;
+  recoveryCodes: { code: string; isUsed: boolean; usedAt?: string }[];
+}
 
 interface AppContextType {
   isAuthenticated: boolean;
@@ -80,8 +90,9 @@ interface AppContextType {
   verifyComplianceDocument: (caseId: string, docName: string, passed: boolean) => void;
   approveComplianceCase: (caseId: string) => void;
   addInvoice: (newInvoice: Invoice) => void;
+  updateInvoice: (invoiceId: string, updatedFields: Partial<Invoice>) => void;
   updateInvoiceStatus: (invoiceId: string, status: InvoiceStatus) => void;
-  recordInvoicePayment: (invoiceId: string, amount: number, method?: string, ref?: string) => void;
+  recordInvoicePayment: (invoiceId: string, amount: number, method?: string, ref?: string, currency?: string, paymentDate?: string) => void;
   submitBuyerOnboarding: (data: Omit<BuyerOnboarding, 'id' | 'status' | 'submittedDate'>) => void;
   submitManufacturerOnboarding: (data: Omit<ManufacturerOnboarding, 'id' | 'status' | 'submittedDate'>) => void;
   approveBuyerOnboarding: (id: string) => void;
@@ -108,8 +119,24 @@ interface AppContextType {
   updateOrgProfile: (updatedFields: Partial<OrganizationProfile>) => void;
   uploadUserDocument: (docData: Partial<UserDocument>) => void;
   replaceUserDocument: (docId: string, docData: Partial<UserDocument>) => void;
+
+  // Shipment & GST Connectors State
+  shipmentConnectors: Record<string, ShipmentCredentials>;
+  gstConnectors: Record<string, GSTCredentials>;
+  saveShipmentConnector: (providerId: string, creds: ShipmentCredentials) => void;
+  disconnectShipmentConnector: (providerId: string) => void;
+  saveGSTConnector: (providerId: string, creds: GSTCredentials) => void;
+  disconnectGSTConnector: (providerId: string) => void;
   changeUserPassword: (currentPass: string, newPass: string) => { success: boolean; message: string };
   openProfileTab: (subTab?: 'personal' | 'organization' | 'documents' | 'security') => void;
+
+  // Two-Factor Authentication (2FA) State & Security Handlers
+  twoFactorState: TwoFactorState;
+  enable2FA: (secret: string, recoveryCodes: string[]) => void;
+  disable2FA: (currentPass: string, totpCode: string) => Promise<{ success: boolean; message: string }>;
+  verify2FAAttempt: (totpCode: string) => Promise<{ success: boolean; message: string }>;
+  useRecoveryCode: (code: string) => { success: boolean; message: string };
+  regenerateRecoveryCodes: (currentPass: string, totpCode: string) => Promise<{ success: boolean; message: string; newCodes?: string[] }>;
 
   // Global Dynamic Filter & Cross-Entity Navigation
   moduleFilters: Record<string, string>;
@@ -749,19 +776,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const removeMapping = (productId: string, manufacturerId: string) => {
     setMappings(prev => prev.filter(m => !(m.productId === productId && m.manufacturerId === manufacturerId)));
   };
-  const [rfqs, setRfqs] = useState<RFQ[]>(() => {
+    const [rfqs, setRfqs] = useState<RFQ[]>(() => {
     try {
       const saved = localStorage.getItem('fg_rfqs');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(r => ({
-            ...r,
-            lines: Array.isArray(r?.lines) ? r.lines : [],
-            status: r?.status || 'Pricing In Progress',
-            customerName: r?.customerName || 'Apex Pharma PCD Franchise',
-            rfqNumber: r?.rfqNumber || 'RFQ-2026-1001'
-          }));
+          const savedIds = new Set(parsed.map((r: any) => r.id || r.rfqNumber));
+          const missingMocks = mockRFQs.filter(r => !savedIds.has(r.id) && !savedIds.has(r.rfqNumber));
+          return [...parsed, ...missingMocks];
         }
       }
     } catch (e) {}
@@ -867,16 +890,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('REVISED_QUOTE', `Submitted revised quote for ${threadKey}: Final Price ₹${finalPrice}`);
   };
 
-  const [orders, setOrders] = useState<MasterOrder[]>(() => {
+    const [orders, setOrders] = useState<MasterOrder[]>(() => {
     try {
       const saved = localStorage.getItem('fg_orders');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(o => ({
-            ...o,
-            subOrders: Array.isArray(o?.subOrders) ? o.subOrders : []
-          }));
+          const savedIds = new Set(parsed.map((o: any) => o.id || o.orderNumber));
+          const missingMocks = mockMasterOrders.filter(mo => !savedIds.has(mo.id) && !savedIds.has(mo.orderNumber));
+          return [...parsed, ...missingMocks];
         }
       }
     } catch (e) {}
@@ -929,6 +951,96 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>(mockAuditLogs);
   const [customerVerifications, setCustomerVerifications] = useState<CustomerVerificationRequest[]>(mockCustomerVerifications);
 
+  // Shipment & GST Integration State
+  const [shipmentConnectors, setShipmentConnectors] = useState<Record<string, ShipmentCredentials>>(() => {
+    try {
+      const saved = localStorage.getItem('fg_shipment_connectors');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      bluedart: {
+        customerCode: 'BD998210',
+        consumerKey: 'bd_key_sandbox_9981',
+        consumerSecret: 'bd_secret_sandbox_88921',
+        environment: 'SANDBOX',
+        isConnected: true,
+        connectedAt: '2026-08-15'
+      }
+    };
+  });
+
+  const [gstConnectors, setGstConnectors] = useState<Record<string, GSTCredentials>>(() => {
+    try {
+      const saved = localStorage.getItem('fg_gst_connectors');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      messagecentral: {
+        apiKey: 'mc_key_live_44921',
+        apiSecret: 'mc_sec_live_99812',
+        environment: 'PRODUCTION',
+        isConnected: true,
+        connectedAt: '2026-08-10'
+      }
+    };
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_shipment_connectors', JSON.stringify(shipmentConnectors));
+    } catch (e) {}
+  }, [shipmentConnectors]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_gst_connectors', JSON.stringify(gstConnectors));
+    } catch (e) {}
+  }, [gstConnectors]);
+
+  const saveShipmentConnector = (providerId: string, creds: ShipmentCredentials) => {
+    const updated = {
+      ...shipmentConnectors,
+      [providerId]: {
+        ...creds,
+        isConnected: true,
+        connectedAt: new Date().toISOString().split('T')[0]
+      }
+    };
+    setShipmentConnectors(updated);
+    addAuditLog('Integrations', `Connected Shipment Provider ${providerId.toUpperCase()} (${creds.environment})`);
+  };
+
+  const disconnectShipmentConnector = (providerId: string) => {
+    setShipmentConnectors(prev => {
+      const copy = { ...prev };
+      delete copy[providerId];
+      return copy;
+    });
+    addAuditLog('Integrations', `Disconnected Shipment Provider ${providerId.toUpperCase()}`);
+  };
+
+  const saveGSTConnector = (providerId: string, creds: GSTCredentials) => {
+    const updated = {
+      ...gstConnectors,
+      [providerId]: {
+        ...creds,
+        isConnected: true,
+        connectedAt: new Date().toISOString().split('T')[0]
+      }
+    };
+    setGstConnectors(updated);
+    addAuditLog('Integrations', `Connected GST Provider ${providerId.toUpperCase()} (${creds.environment})`);
+  };
+
+  const disconnectGSTConnector = (providerId: string) => {
+    setGstConnectors(prev => {
+      const copy = { ...prev };
+      delete copy[providerId];
+      return copy;
+    });
+    addAuditLog('Integrations', `Disconnected GST Provider ${providerId.toUpperCase()}`);
+  };
+
   // Profile Navigation State
   const [selectedMfgIdForProfile, setSelectedMfgIdForProfile] = useState<string | null>(null);
   const [mfgProfileProductContext, setMfgProfileProductContext] = useState<{ productName?: string; strength?: string; dosageForm?: string; quantity?: number; unit?: string } | null>(null);
@@ -954,6 +1066,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addRFQ = (newRfq: RFQ) => {
+    if (currentRole === 'ADMIN') {
+      alert("Admin access is read-only. This action is not available for your role.");
+      return;
+    }
     setRfqs(prev => [newRfq, ...prev]);
     addAuditLog('RFQ Center', `Created RFQ ${newRfq.rfqNumber} with ${newRfq.lines.length} lines`);
     // Notify suppliers
@@ -1007,12 +1123,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    const masterOrdNum = `MO-2026-${1000 + orders.length + 1}`;
+    const orderSeq = 5000 + orders.length + Math.floor(Math.random() * 1000);
+    const masterOrdNum = `MO-2026-${orderSeq}`;
     const subOrders = Object.keys(subOrderMap).map((mfgId, idx) => {
       const mfg = manufacturers.find(m => m.id === mfgId);
       const items = subOrderMap[mfgId];
       const subTotal = items.reduce((acc, item) => acc + item.totalPrice, 0);
-      const subNum = `SO-2026-${1000 + orders.length + 1}-0${idx + 1}`;
+      const subNum = `SO-2026-${orderSeq}-0${idx + 1}`;
 
       return {
         id: `so_${Date.now()}_${idx}`,
@@ -1025,7 +1142,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         totalAmount: Math.round(subTotal),
         startDate: new Date().toISOString().split('T')[0],
         expectedDeliveryDate: '2026-09-01',
-        lines: items
+        lines: items,
+        invoice: null,
+        invoiceId: null
       };
     });
 
@@ -1165,6 +1284,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addInvoice = (newInvoice: Invoice) => {
+    if (currentRole === 'ADMIN') {
+      alert("Admin access is governance & monitoring. Tax invoices must be issued by manufacturers.");
+      return;
+    }
     setInvoices(prev => {
       const idx = prev.findIndex(i => i.id === newInvoice.id || i.invoiceNumber === newInvoice.invoiceNumber || (newInvoice.subOrderNumber && i.subOrderNumber === newInvoice.subOrderNumber));
       if (idx >= 0) {
@@ -1190,6 +1313,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications(prev => [newNotif, ...prev]);
   };
 
+    const updateInvoice = (invoiceId: string, updatedFields: Partial<Invoice>) => {
+    if (currentRole === 'ADMIN') {
+      alert("Admin role cannot modify financial invoices.");
+      return;
+    }
+    setInvoices(prev => prev.map(inv => {
+      if (inv.id !== invoiceId) return inv;
+      const existingPayments = Array.isArray(inv.payments) ? inv.payments : [];
+      const existingPaid = inv.paidAmount;
+      const newTotal = updatedFields.totalAmount ?? inv.totalAmount;
+      const newBal = Math.max(0, newTotal - existingPaid);
+      let newStatus: InvoiceStatus = inv.status;
+      if (newBal <= 0) newStatus = 'PAID';
+      else if (existingPaid > 0) newStatus = 'PARTIAL_PAYMENT';
+      else newStatus = updatedFields.status || inv.status;
+      return {
+        ...inv,
+        ...updatedFields,
+        paidAmount: existingPaid,
+        balanceAmount: newBal,
+        payments: existingPayments,
+        status: newStatus
+      };
+    }));
+    addAuditLog('Invoice Engine', `Edited Invoice ${invoiceId}`);
+  };
+
   const updateInvoiceStatus = (invoiceId: string, status: InvoiceStatus) => {
     setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status } : inv));
     addAuditLog('Invoices & AR', `Updated Invoice ${invoiceId} status to ${status}`);
@@ -1200,18 +1350,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     amount: number,
     method = 'RTGS',
     ref = 'RTGS-' + Date.now(),
-    currency = 'GBP'
+    currency = 'INR',
+    paymentDate?: string
   ) => {
+    if (currentRole === 'ADMIN') {
+      alert("Admin access is strictly read-only monitoring & governance. Financial transaction execution is restricted to Accounts & Supplier roles.");
+      return;
+    }
     setInvoices(prev => prev.map(inv => {
       if (inv.id !== invoiceId && inv.invoiceNumber !== invoiceId) return inv;
 
-      const curr = currency || inv.currency || 'GBP';
+      const curr = currency || inv.currency || 'INR';
       const validAmount = Math.max(0, amount);
-      const newPaid = Math.round((inv.paidAmount + validAmount) * 100) / 100;
+      const timeStr = new Date().toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
+      const pDate = paymentDate || new Date().toISOString().split('T')[0];
+
+      const newRecord: PaymentRecord = {
+        id: 'pay_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+        invoiceId: inv.id,
+        amount: validAmount,
+        currency: curr,
+        paymentMethod: method,
+        paymentDate: pDate,
+        reference: ref,
+        status: 'COMPLETED',
+        remarks: 'Payment recorded in treasury ledger',
+        createdAt: new Date().toISOString(),
+        timeline: [
+          { title: `${curr} ${validAmount.toLocaleString()} received in account`, timestamp: timeStr, status: 'COMPLETED', details: `Ref/UTR: ${ref}` },
+          { title: 'Payment ledger updated', timestamp: timeStr, status: 'COMPLETED' }
+        ]
+      };
+
+      const existingPayments = Array.isArray(inv.payments) ? inv.payments : [];
+      const updatedPayments = [...existingPayments, newRecord];
+
+      const newPaid = Math.round(updatedPayments.reduce((acc, p) => acc + (p.amount || 0), 0) * 100) / 100;
       const newBal = Math.max(0, Math.round((inv.totalAmount - newPaid) * 100) / 100);
 
       let newStatus: InvoiceStatus = inv.status;
-      if (newBal === 0) {
+      if (newBal <= 0) {
         newStatus = 'PAID';
       } else if (newPaid > 0) {
         newStatus = 'PARTIAL_PAYMENT';
@@ -1219,36 +1397,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         newStatus = 'UNPAID';
       }
 
-      const timeStr = new Date().toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
-
-      const newRecord: PaymentRecord = {
-        id: 'pay_' + Date.now(),
-        invoiceId: inv.id,
-        amount: validAmount,
-        currency: curr,
-        paymentMethod: method,
-        paymentDate: new Date().toISOString().split('T')[0],
-        reference: ref,
-        status: 'COMPLETED',
-        remarks: 'Payment recorded in treasury ledger',
-        timeline: [
-          { title: `${curr} ${validAmount.toLocaleString()} received in account`, timestamp: timeStr, status: 'COMPLETED', details: `Ref/UTR: ${ref}` },
-          { title: 'Send confirmation email to client', timestamp: timeStr, status: 'COMPLETED' },
-          { title: 'Transfer initiated', timestamp: timeStr, status: 'COMPLETED' },
-          { title: 'Reached partner bank', timestamp: timeStr, status: 'COMPLETED' },
-          { title: 'Converted & Settled', timestamp: newBal === 0 ? 'Settled 100%' : 'Settlement in progress', status: newBal === 0 ? 'COMPLETED' : 'IN_PROGRESS' }
-        ]
-      };
-
-      const updatedPayments = [...(inv.payments || []), newRecord];
-
       const newTx: PaymentTransaction = {
         id: 'tx_' + Date.now(),
         transactionRef: ref,
         invoiceId: inv.id,
         invoiceNumber: inv.invoiceNumber,
         customerName: inv.customerName,
-        date: new Date().toISOString().split('T')[0],
+        date: pDate,
         amount: validAmount,
         paymentMethod: method as any,
         status: 'COMPLETED',
@@ -1266,7 +1421,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }));
 
-    addAuditLog('Invoices & AR', `Recorded payment of ${currency || 'GBP'} ${amount.toLocaleString()} for Invoice ${invoiceId}`);
+    addAuditLog('Invoices & AR', `Recorded payment of ${currency || 'INR'} ${amount.toLocaleString()} for Invoice ${invoiceId}`);
   };
 
   const submitBuyerOnboarding = (data: Omit<BuyerOnboarding, 'id' | 'status' | 'submittedDate'>) => {
@@ -1657,6 +1812,116 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications(prev => [notif, ...prev]);
   };
 
+  // ── Two-Factor Authentication (2FA) State & Functions ─────────────
+  const [twoFactorState, setTwoFactorState] = useState<TwoFactorState>(() => {
+    try {
+      const saved = localStorage.getItem('factorygrid_2fa_state');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      isEnabled: false,
+      recoveryCodes: []
+    };
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('factorygrid_2fa_state', JSON.stringify(twoFactorState));
+    } catch (e) {}
+  }, [twoFactorState]);
+
+  const enable2FA = (secret: string, codes: string[]) => {
+    const formattedCodes = codes.map(c => ({ code: c, isUsed: false }));
+    const newState: TwoFactorState = {
+      isEnabled: true,
+      secret,
+      enabledAt: new Date().toISOString().split('T')[0],
+      recoveryCodes: formattedCodes
+    };
+    setTwoFactorState(newState);
+    addAuditLog('Security Settings', '2FA Two-Factor Authentication Enabled');
+  };
+
+  const disable2FA = async (currentPass: string, totpCode: string): Promise<{ success: boolean; message: string }> => {
+    if (!twoFactorState.isEnabled || !twoFactorState.secret) {
+      return { success: false, message: '2FA is not enabled on this account.' };
+    }
+
+    if (currentPass !== 'password123' && currentPass.length < 4) {
+      return { success: false, message: '✕ Password verification failed. Incorrect current password.' };
+    }
+
+    const isValidOtp = await verifyTOTPToken(twoFactorState.secret, totpCode);
+    if (!isValidOtp) {
+      return { success: false, message: '✕ Invalid 2FA verification code. Please check your authenticator app.' };
+    }
+
+    setTwoFactorState({ isEnabled: false, recoveryCodes: [] });
+    addAuditLog('Security Settings', '2FA Two-Factor Authentication Disabled');
+    return { success: true, message: '✓ Two-Factor Authentication disabled successfully.' };
+  };
+
+  const verify2FAAttempt = async (totpCode: string): Promise<{ success: boolean; message: string }> => {
+    if (!twoFactorState.isEnabled || !twoFactorState.secret) {
+      return { success: true, message: '2FA is disabled.' };
+    }
+    const isValid = await verifyTOTPToken(twoFactorState.secret, totpCode);
+    if (isValid) {
+      addAuditLog('Authentication', 'Successful 2FA Verification');
+      return { success: true, message: '✓ 2FA Verified' };
+    } else {
+      addAuditLog('Security Alert', 'Failed 2FA Verification Attempt');
+      return { success: false, message: '✕ Invalid verification code. Please try again.' };
+    }
+  };
+
+  const useRecoveryCode = (inputCode: string): { success: boolean; message: string } => {
+    if (!twoFactorState.isEnabled) return { success: false, message: '2FA is not enabled.' };
+    const cleanCode = inputCode.trim().toUpperCase();
+    const existingIndex = twoFactorState.recoveryCodes.findIndex(rc => rc.code.toUpperCase() === cleanCode);
+
+    if (existingIndex === -1) {
+      return { success: false, message: '✕ Invalid recovery code.' };
+    }
+
+    if (twoFactorState.recoveryCodes[existingIndex].isUsed) {
+      return { success: false, message: '✕ This recovery code has already been used.' };
+    }
+
+    const updatedCodes = [...twoFactorState.recoveryCodes];
+    updatedCodes[existingIndex] = {
+      ...updatedCodes[existingIndex],
+      isUsed: true,
+      usedAt: new Date().toISOString()
+    };
+
+    setTwoFactorState(prev => ({ ...prev, recoveryCodes: updatedCodes }));
+    addAuditLog('Authentication', '2FA Recovery Code Used');
+    return { success: true, message: '✓ Recovery Code Verified. Sign in authorized.' };
+  };
+
+  const regenerateRecoveryCodes = async (currentPass: string, totpCode: string): Promise<{ success: boolean; message: string; newCodes?: string[] }> => {
+    if (!twoFactorState.isEnabled || !twoFactorState.secret) {
+      return { success: false, message: '2FA is not enabled.' };
+    }
+
+    if (currentPass !== 'password123' && currentPass.length < 4) {
+      return { success: false, message: '✕ Incorrect current password.' };
+    }
+
+    const isValidOtp = await verifyTOTPToken(twoFactorState.secret, totpCode);
+    if (!isValidOtp) {
+      return { success: false, message: '✕ Invalid 2FA verification code.' };
+    }
+
+    const newRawCodes = generateRecoveryCodes(8);
+    const formatted = newRawCodes.map(c => ({ code: c, isUsed: false }));
+
+    setTwoFactorState(prev => ({ ...prev, recoveryCodes: formatted }));
+    addAuditLog('Security Settings', '2FA Recovery Codes Regenerated');
+    return { success: true, message: '✓ New recovery codes generated successfully.', newCodes: newRawCodes };
+  };
+
   return (
     <AppContext.Provider value={{
       isAuthenticated, login, logout,
@@ -1682,6 +1947,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userProfile, orgProfile, userDocuments, profileSubTab, setProfileSubTab,
       updateUserProfile, updateOrgProfile, uploadUserDocument, replaceUserDocument,
       changeUserPassword, openProfileTab,
+      twoFactorState, enable2FA, disable2FA, verify2FAAttempt, useRecoveryCode, regenerateRecoveryCodes,
+      shipmentConnectors, gstConnectors, saveShipmentConnector, disconnectShipmentConnector, saveGSTConnector, disconnectGSTConnector,
       moduleFilters, setModuleFilter, navigateWithFilter, openManufacturerProfile,
       mfgProfileInitialTab, setMfgProfileInitialTab
     }}>

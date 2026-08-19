@@ -95,15 +95,10 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
 
   // Quotes Calculator & Revision Sync with Delivery Terms
   // Priority: (1) Real submitted quotes from context, (2) Static demo fallback
-  const getQuotesForLine = (lineId: string, lineTargetPrice: number, lineQty: number, lineProductName: string) => {
+    const getQuotesForLine = (lineId: string, lineTargetPrice: number, lineQty: number, lineProductName: string) => {
     if (!activeRfq) return [];
 
     const rfqDeclined = (declinedRfqs && declinedRfqs[activeRfq.id]) || [];
-
-    // ── STEP 1: Check for real manufacturer quotes in context state ──
-    const realSubmittedQuotes = quotes.filter(
-      q => q.rfqId === activeRfq.id || q.rfqNumber === activeRfq.rfqNumber
-    );
 
     type SupplierEntry = {
       id: string; name: string; code: string; baseP: number;
@@ -111,59 +106,82 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
       preferred: boolean; deliveryTerms: string;
     };
 
-    let activeSuppliers: SupplierEntry[] = [];
+    // Baseline 3 competing manufacturer quotes per RFQ line with realistic distinct values
+    const baselineList: SupplierEntry[] = [
+      {
+        id: 'm1',
+        name: 'SunBio LifeSciences Ltd.',
+        code: 'SUN-PHARM',
+        baseP: Math.round(lineTargetPrice * 0.95 * 100) / 100,
+        tax: 12,
+        disc: 5,
+        lead: 14,
+        moq: 1000,
+        preferred: true,
+        deliveryTerms: 'Ex-Factory Hyderabad'
+      },
+      {
+        id: 'm2',
+        name: 'Cipla Partner Formulations Ltd.',
+        code: 'CIPLA-MFG',
+        baseP: Math.round(lineTargetPrice * 0.89 * 100) / 100,
+        tax: 12,
+        disc: 3,
+        lead: 10,
+        moq: 2000,
+        preferred: false,
+        deliveryTerms: 'Cold-Chain Fleet Vapi'
+      },
+      {
+        id: 'm3',
+        name: 'BioCure Healthcare Labs',
+        code: 'BIOCURE-LABS',
+        baseP: Math.round(lineTargetPrice * 1.02 * 100) / 100,
+        tax: 12,
+        disc: 7,
+        lead: 7,
+        moq: 500,
+        preferred: false,
+        deliveryTerms: 'Door Delivery CIF'
+      }
+    ];
 
-    if (realSubmittedQuotes.length > 0) {
-      // Build supplier list from real submitted quotes
-      realSubmittedQuotes.forEach(q => {
-        // Match the quote line to this specific RFQ line by rfqLineId or product name
-        const matchedLine = q.quoteLines?.find(
-          ql => ql.rfqLineId === lineId || ql.productName === lineProductName
-        );
-        if (!matchedLine || matchedLine.responseType === 'CANNOT_SUPPLY') return;
+    let activeSuppliersMap: Record<string, SupplierEntry> = {};
+    baselineList.forEach(s => { activeSuppliersMap[s.id] = s; });
 
-        // Avoid duplicate entries for the same manufacturer
-        if (activeSuppliers.some(s => s.id === q.manufacturerId)) return;
+    // Overlay any submitted quotes from context state
+    const realSubmittedQuotes = quotes.filter(
+      q => q.rfqId === activeRfq.id || q.rfqNumber === activeRfq.rfqNumber
+    );
 
-        // Check this manufacturer hasn't declined the RFQ
-        const isDec = rfqDeclined.some(
-          d => d.manufacturerId === q.manufacturerId || d.manufacturerName?.includes(q.manufacturerName)
-        );
-        if (isDec) return;
+    realSubmittedQuotes.forEach(q => {
+      const matchedLine = q.quoteLines?.find(
+        ql => ql.rfqLineId === lineId || ql.productName === lineProductName
+      );
+      if (!matchedLine || matchedLine.responseType === 'CANNOT_SUPPLY') return;
 
-        activeSuppliers.push({
-          id: q.manufacturerId,
-          name: q.manufacturerName || 'Contract Manufacturer',
-          code: (q.manufacturerName || q.manufacturerId).substring(0, 8).toUpperCase().replace(/\s/g, '-'),
-          baseP: matchedLine.unitPrice,
-          tax: matchedLine.taxPercent || 12,
-          disc: matchedLine.discountPercent || 0,
-          lead: matchedLine.leadTimeDays || 14,
-          moq: matchedLine.moq || 1000,
-          preferred: q.manufacturerName?.toLowerCase().includes('sunbio') || false,
-          deliveryTerms: (matchedLine as any).deliveryTerms || (q as any).deliveryTerms || 'Ex-Factory / As Per Agreement'
-        });
-      });
-    }
+      const mId = q.manufacturerId || ('m_' + q.manufacturerName?.replace(/[^a-zA-Z0-9]/g, ''));
+      activeSuppliersMap[mId] = {
+        id: mId,
+        name: q.manufacturerName || 'Contract Manufacturer',
+        code: (q.manufacturerName || mId).substring(0, 8).toUpperCase().replace(/\s/g, '-'),
+        baseP: matchedLine.unitPrice,
+        tax: matchedLine.taxPercent || 12,
+        disc: matchedLine.discountPercent || 0,
+        lead: matchedLine.leadTimeDays || 14,
+        moq: matchedLine.moq || 1000,
+        preferred: q.manufacturerName?.toLowerCase().includes('sunbio') || false,
+        deliveryTerms: (matchedLine as any).deliveryTerms || (q as any).deliveryTerms || 'Ex-Factory / As Per Agreement'
+      };
+    });
 
-    // ── STEP 2: Static demo fallback when no real quotes exist ──
-    // Used for seed RFQs (rfq1/rfq2) and for any RFQ where no manufacturer has quoted yet
-    if (activeSuppliers.length === 0) {
-      const staticList: SupplierEntry[] = [
-        { id: 'm1', name: 'SunBio LifeSciences Ltd.', code: 'SUN-PHARM', baseP: lineTargetPrice * 0.92, tax: 12, disc: 5, lead: 14, moq: 1000, preferred: true, deliveryTerms: 'Ex-Factory Hyderabad' },
-        { id: 'm2', name: 'ABC Pharma Formulations Ltd.', code: 'ABC-PHARM', baseP: lineTargetPrice * 0.95, tax: 12, disc: 3, lead: 10, moq: 2000, preferred: false, deliveryTerms: 'Cold-Chain Fleet' },
-        { id: 'm3', name: 'XYZ Pharma Labs Ltd.', code: 'XYZ-LABS', baseP: lineTargetPrice * 1.02, tax: 18, disc: 0, lead: 18, moq: 5000, preferred: false, deliveryTerms: 'CIF / Door Delivery' }
-      ];
-      // Filter declined manufacturers from static list too
-      activeSuppliers = staticList.filter(s => {
-        const isDec = rfqDeclined.some(d => d.manufacturerId === s.id || d.manufacturerName?.includes(s.name));
-        return !isDec;
-      });
-    }
+    let activeSuppliers = Object.values(activeSuppliersMap).filter(s => {
+      const isDec = rfqDeclined.some(d => d.manufacturerId === s.id || d.manufacturerName?.includes(s.name));
+      return !isDec;
+    });
 
     if (activeSuppliers.length === 0) return [];
 
-    // ── STEP 3: Build calculated quote rows with revision support ──
     const calculatedQuotes = activeSuppliers.map(s => {
       const threadKey = `${activeRfq.id}_${lineId}_${s.id}`;
       const rev = revisedQuotes ? revisedQuotes[threadKey] : undefined;
@@ -177,7 +195,6 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
       const origLead = s.lead;
       const origMoq = s.moq;
 
-      // If a revised quote exists use revised values, else original
       const uPrice = rev ? rev.unitPrice : origUnitPrice;
       const taxPerc = rev ? rev.taxPercent : origTax;
       const discPerc = rev ? rev.discountPercent : origDisc;
@@ -210,7 +227,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
       };
     });
 
-    // Identify lowest price & fastest delivery for smart badges
+    // Smart Evaluation Tag Calculations (Strictly 1 lowest price and 1 fastest delivery)
     let lowestPriceVal = Infinity;
     let fastestLeadVal = Infinity;
     calculatedQuotes.forEach(q => {
@@ -700,6 +717,37 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
           );
         })}
 
+        
+        {/* ── VERY BOTTOM PRIMARY ACTION: QUOTE BUTTON ── */}
+        <div style={{ marginTop: 32, paddingTop: 20, borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 24 }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (selectionStats.isComplete) {
+                setViewMode('CONSOLIDATED');
+              } else {
+                alert(`Quote Action:\n\nPlease select a manufacturer quote for all product lines before continuing.\nCurrent progress: ${selectionStats.selectedCount} / ${selectionStats.totalLines} lines selected.`);
+              }
+            }}
+            style={{
+              padding: '12px 28px',
+              borderRadius: 8,
+              background: '#0F766E',
+              color: '#FFFFFF',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: 14,
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(15, 118, 110, 0.25)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8
+            }}
+          >
+            Quote
+          </button>
+        </div>
+
         {/* ── MODAL: MESSAGE MANUFACTURER ───────────────────────────── */}
         {messageModalContext && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 10020, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setMessageModalContext(null)}>
@@ -898,27 +946,29 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
 
               {/* CONTACT & ACTION */}
               <div style={{ paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProfileDrawerMfgId(null);
-                    handleOpenMessageModal(
-                      activeRfq.id,
-                      activeRfq.rfqNumber,
-                      activeRfq.lines[0]?.id || 'l1',
-                      activeRfq.lines[0]?.productName || 'Pharmaceutical Line',
-                      activeRfq.lines[0]?.quantity || 10000,
-                      activeProfileMfg.id,
-                      activeProfileMfg.companyName,
-                      12.00,
-                      14,
-                      1000
-                    );
-                  }}
-                  style={{ width: '100%', padding: '11px', borderRadius: 8, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
-                  <MessageSquare size={16} /> Message Manufacturer 💬
-                </button>
+                {currentRole !== 'ADMIN' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileDrawerMfgId(null);
+                      handleOpenMessageModal(
+                        activeRfq.id,
+                        activeRfq.rfqNumber,
+                        activeRfq.lines[0]?.id || 'l1',
+                        activeRfq.lines[0]?.productName || 'Pharmaceutical Line',
+                        activeRfq.lines[0]?.quantity || 10000,
+                        activeProfileMfg.id,
+                        activeProfileMfg.companyName,
+                        12.00,
+                        14,
+                        1000
+                      );
+                    }}
+                    style={{ width: '100%', padding: '11px', borderRadius: 8, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  >
+                    <MessageSquare size={16} /> Message Manufacturer 💬
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setProfileDrawerMfgId(null)}
@@ -946,10 +996,12 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#0F766E' }}>PROCUREMENT & SOURCING / QUOTE COMPARISON</div>
           <h1 style={{ margin: '2px 0 0 0', fontSize: 22, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-            QUOTE COMPARISON MATRIX
+            {currentRole === 'ADMIN' ? 'QUOTE MONITOR' : 'QUOTE COMPARISON MATRIX'}
           </h1>
           <p style={{ margin: '3px 0 0 0', fontSize: 13, color: '#475569', fontWeight: 500 }}>
-            Review manufacturer submissions, compare pricing & delivery terms, and select optimal suppliers for order fulfillment.
+            {currentRole === 'ADMIN'
+              ? 'Monitor submitted manufacturer quotations, pricing spread and selection status across the platform.'
+              : 'Review manufacturer submissions, compare pricing & delivery terms, and select optimal suppliers for order fulfillment.'}
           </p>
         </div>
       </div>
@@ -1037,7 +1089,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
                     }}
                     style={{ padding: '8px 16px', borderRadius: 6, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    Compare Quotes →
+                    {currentRole === 'ADMIN' ? 'View Details →' : 'Compare Quotes →'}
                   </button>
                 </div>
               </div>
@@ -1045,6 +1097,8 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
           })
         )}
       </div>
+
+    
 
     </div>
   );

@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Building2, Factory, ShieldCheck, ArrowRight, CheckCircle2,
   Lock, KeyRound, Sparkles, FileText, Upload, ChevronRight, ArrowLeft, Users, AlertCircle, HelpCircle,
-  Eye, EyeOff, Mail, Bot, Zap, Truck, BarChart3
-} from 'lucide-react';
+  Eye, EyeOff, Mail, Bot, Zap, Truck, BarChart3, Key, RefreshCw
+} from 'lucide-react';;
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
 import { PharmaFactoryIllustration } from '../components/common/Illustrations';
@@ -12,7 +12,7 @@ import { LogoMark } from '../components/common/LogoMark';
 import { EnterpriseAccessRequestModal } from '../components/common/EnterpriseAccessRequestModal';
 
 interface LoginPageProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, overrideRole?: string) => void;
 }
 
 type CategoryType = 'BUYER_COMPANY' | 'MANUFACTURER_COMPANY' | 'FG_STAFF';
@@ -164,11 +164,12 @@ function EnterpriseIsoIllustration() {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
-  const { setCurrentRole, setActiveTab, login } = useApp();
+  const { setCurrentRole, setActiveTab, login, twoFactorState, verify2FAAttempt, useRecoveryCode } = useApp();
 
   const [activeCategory, setActiveCategory] = useState<CategoryType>('BUYER_COMPANY');
   const [isRegistering, setIsRegistering] = useState(false);
-  const [staffRole, setStaffRole] = useState<UserRole>('COMPLIANCE_OFFICER');
+  const [staffRole, setStaffRole] = useState<UserRole | ''>('');
+  const [roleValidationError, setRoleValidationError] = useState<string | null>(null);
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -198,10 +199,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
     drugLicenseNo: '', trademark: '', docUploaded: false,
   });
 
+  // Two-Factor Authentication (2FA) Intercept State
+  const [step2FA, setStep2FA] = useState<'NONE' | 'TOTP' | 'RECOVERY_CODE'>('NONE');
+  const [pendingRole, setPendingRole] = useState<UserRole | null>(null);
+  const [totpCodeInput, setTotpCodeInput] = useState<string>('');
+  const [recoveryCodeInput, setRecoveryCodeInput] = useState<string>('');
+  const [otpLoginError, setOtpLoginError] = useState<string | null>(null);
+  const [isVerifying2FA, setIsVerifying2FA] = useState<boolean>(false);
+
   // Handle Login & Auto Role-Based Redirection
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setOtpLoginError(null);
 
     let role: UserRole = 'BUYER';
     if (activeCategory === 'BUYER_COMPANY') {
@@ -211,20 +221,82 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
       role = 'SUPPLIER';
       setActiveTab('dashboard');
     } else {
-      role = staffRole;
-      if (staffRole === 'COMPLIANCE_OFFICER') setActiveTab('customer-verification');
-      else if (staffRole === 'ACCOUNTS_MANAGER') setActiveTab('invoices');
-      else if (staffRole === 'SALES_MANAGER') setActiveTab('customers');
-      else if (staffRole === 'ADMIN') setActiveTab('settings');
-      else setActiveTab('dashboard');
+      if (!staffRole) {
+        setLoading(false);
+        setRoleValidationError('Please select a staff role.');
+        return;
+      }
+      setRoleValidationError(null);
+      role = staffRole as UserRole;
+      if (staffRole === 'COMPLIANCE_OFFICER') {
+        setActiveTab('customer-verification');
+      } else if (staffRole === 'ADMIN') {
+        setActiveTab('dashboard');
+      } else {
+        setActiveTab('dashboard');
+      }
+    }
+
+    // Intercept with Two-Factor Authentication if Enabled
+    if (twoFactorState.isEnabled) {
+      setTimeout(() => {
+        setLoading(false);
+        setPendingRole(role);
+        setStep2FA('TOTP');
+        setTotpCodeInput('');
+      }, 300);
+      return;
     }
 
     login(role);
 
     setTimeout(() => {
       setLoading(false);
-      onNavigate('dashboard');
+      onNavigate('dashboard', role);
     }, 200);
+  };
+
+  // Submit TOTP Code
+  const handleVerify2FASubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpLoginError(null);
+
+    if (!totpCodeInput || totpCodeInput.length !== 6) {
+      setOtpLoginError('✕ Please enter a valid 6-digit verification code.');
+      return;
+    }
+
+    setIsVerifying2FA(true);
+    const res = await verify2FAAttempt(totpCodeInput);
+    setIsVerifying2FA(false);
+
+    if (res.success && pendingRole) {
+      login(pendingRole);
+      setStep2FA('NONE');
+      onNavigate('dashboard');
+    } else {
+      setOtpLoginError(res.message);
+    }
+  };
+
+  // Submit Recovery Code
+  const handleVerifyRecoveryCodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpLoginError(null);
+
+    if (!recoveryCodeInput.trim()) {
+      setOtpLoginError('✕ Please enter a valid recovery code.');
+      return;
+    }
+
+    const res = useRecoveryCode(recoveryCodeInput);
+    if (res.success && pendingRole) {
+      login(pendingRole);
+      setStep2FA('NONE');
+      onNavigate('dashboard');
+    } else {
+      setOtpLoginError(res.message);
+    }
   };
 
   // Complete Registration & Auto Login
@@ -285,7 +357,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
   });
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: isMobile ? 'column' : 'row', background: '#07111D', color: '#fff', position: 'relative', fontFamily: 'Inter, -apple-system, sans-serif' }}>
+    <div style={{
+      position: 'relative',
+      minHeight: '100vh',
+      width: '100%',
+      background: '#0B0F19',
+      display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row',
+      overflowX: 'hidden',
+      fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+    }}>
       <LoginBgCanvas />
 
       {/* ── LEFT PANEL ── */}
@@ -397,157 +478,275 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
               </div>
             )}
 
-            {/* LOGIN FORM */}
-            <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* LOGIN FORM OR 2FA VERIFICATION STEP */}
+            {step2FA === 'TOTP' ? (
+              <form onSubmit={handleVerify2FASubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 10, padding: 14, display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <ShieldCheck size={26} style={{ color: '#3B82F6', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: '#FFF' }}>Two-Factor Authentication Required</div>
+                    <div style={{ fontSize: 11.5, color: '#94A3B8', marginTop: 2 }}>Enter the 6-digit verification code from your authenticator app.</div>
+                  </div>
+                </div>
 
-              {/* Staff Role */}
-              {activeCategory === 'FG_STAFF' && (
                 <div>
-                  <label style={{ fontSize: 10.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Select Staff Role</label>
-                  <select value={staffRole} onChange={e => setStaffRole(e.target.value as UserRole)}
-                    style={{ ...inputStyle(false), padding: '0 14px', cursor: 'pointer' }}>
-                    <option value="COMPLIANCE_OFFICER">Compliance Officer</option>
-                    <option value="ACCOUNTS_MANAGER">Accounts Manager</option>
-                    <option value="SALES_MANAGER">Sales Manager</option>
-                    <option value="ADMIN">Platform Admin</option>
-                  </select>
+                  <label style={{ fontSize: 10.5, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>6-Digit Authenticator Code</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    autoFocus
+                    value={totpCodeInput}
+                    onChange={e => setTotpCodeInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="000 000"
+                    style={{ width: '100%', height: 44, textAlign: 'center', fontSize: 20, fontWeight: 900, letterSpacing: '0.25em', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(59,130,246,0.5)', borderRadius: 10, color: '#FFF', fontFamily: 'monospace' }}
+                  />
                 </div>
-              )}
 
-              {/* Email */}
-              <div>
-                <label style={{ fontSize: 10.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Corporate Email</label>
-                <div style={{ position: 'relative' }}>
-                  <Mail size={14} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: emailFocused ? '#3B82F6' : '#374151', transition: 'color 0.2s', pointerEvents: 'none' }} />
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                    onFocus={() => setEmailFocused(true)} onBlur={() => setEmailFocused(false)}
-                    required placeholder="name@company.com" style={inputStyle(emailFocused)} />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <label style={{ fontSize: 10.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Password</label>
-                  <button type="button" onClick={() => alert('Password reset link has been dispatched to your corporate email.')}
-                    style={{ background: 'none', border: 'none', color: '#06B6D4', fontSize: 11, cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-                    Forgot Password?
-                  </button>
-                </div>
-                <div style={{ position: 'relative' }}>
-                  <Lock size={14} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: passwordFocused ? '#3B82F6' : '#374151', transition: 'color 0.2s', pointerEvents: 'none' }} />
-                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                    onFocus={() => setPasswordFocused(true)} onBlur={() => setPasswordFocused(false)}
-                    required placeholder="••••••••••••" style={{ ...inputStyle(passwordFocused), paddingRight: 40 }} />
-                  <button type="button" onClick={() => setShowPassword(v => !v)}
-                    style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
-                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Sign In Button */}
-              <motion.button type="submit" disabled={loading}
-                whileHover={{ scale: 1.01, boxShadow: '0 0 28px rgba(59,130,246,0.4)' }}
-                whileTap={{ scale: 0.99 }}
-                style={{ width: '100%', height: 44, background: loading ? 'rgba(59,130,246,0.4)' : 'linear-gradient(135deg,#3B82F6 0%,#06B6D4 100%)', color: '#fff', fontSize: 13.5, fontWeight: 700, border: 'none', borderRadius: 10, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 2, boxShadow: '0 0 20px rgba(59,130,246,0.25)', letterSpacing: '-0.01em' }}>
-                {loading ? 'Authenticating…' : <> Sign In to Workspace <ArrowRight size={14} /></>}
-              </motion.button>
-
-              {/* SSO Divider */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
-                <span style={{ fontSize: 11, color: '#374151', fontWeight: 600 }}>OR</span>
-                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
-              </div>
-
-              {/* SSO Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[{ label: 'Continue with Microsoft', icon: '⊞' }, { label: 'Continue with Google Workspace', icon: 'G' }].map((sso, i) => (
-                  <button key={i} type="button" onClick={handleLoginSubmit}
-                    style={{ width: '100%', height: 44, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 10, color: '#94A3B8', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.18)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.09)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}>
-                    <span style={{ fontSize: 15, lineHeight: 1 }}>{sso.icon}</span>{sso.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Registration CTA Section BELOW Sign In & SSO Options */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 14, paddingTop: 14, textAlign: 'center' }}>
-                {activeCategory === 'MANUFACTURER_COMPANY' ? (
-                  <>
-                    <div style={{ fontSize: 12, color: '#64748B', fontWeight: 500, marginBottom: 4 }}>
-                      New Manufacturer?
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate('mfg-register')}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#14B8A6',
-                        fontSize: 13.5,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        padding: '4px 8px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        transition: 'color 0.2s',
-                        borderRadius: 6
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.color = '#2DD4BF')}
-                      onMouseLeave={e => (e.currentTarget.style.color = '#14B8A6')}
-                    >
-                      Register your Manufacturing Company →
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ fontSize: 12, color: '#64748B', fontWeight: 500, marginBottom: 4 }}>
-                      New to FactoryGrid?
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate('buyer-register')}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#3B82F6',
-                        fontSize: 13.5,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        padding: '4px 8px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        transition: 'color 0.2s',
-                        borderRadius: 6
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.color = '#60A5FA')}
-                      onMouseLeave={e => (e.currentTarget.style.color = '#3B82F6')}
-                    >
-                      Create a new Buyer Account →
-                    </button>
-                  </>
+                {otpLoginError && (
+                  <div style={{ padding: 10, borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', color: '#FCA5A5', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>
+                    {otpLoginError}
+                  </div>
                 )}
-              </div>
 
-              {/* Secondary Actions */}
-              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'center', gap: 16, fontSize: 11.5 }}>
-                <button type="button" onClick={() => setIsAccessModalOpen(true)}
-                  style={{ background: 'none', border: 'none', color: '#06B6D4', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
-                  Request Demo
+                <button
+                  type="submit"
+                  disabled={isVerifying2FA || totpCodeInput.length !== 6}
+                  style={{ width: '100%', height: 44, background: isVerifying2FA ? 'rgba(59,130,246,0.5)' : '#2563EB', color: '#FFF', fontSize: 13.5, fontWeight: 800, border: 'none', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  {isVerifying2FA ? <RefreshCw size={14} className="spin" /> : <ShieldCheck size={16} />}
+                  {isVerifying2FA ? 'Verifying...' : 'Verify & Sign In →'}
                 </button>
-                <span style={{ color: '#334155' }}>|</span>
-                <button type="button" onClick={() => setIsAccessModalOpen(true)}
-                  style={{ background: 'none', border: 'none', color: '#06B6D4', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
-                  Contact Sales
-                </button>
-              </div>
 
-            </form>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setStep2FA('NONE')}
+                    style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: 11.5, cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    ← Back to Password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setStep2FA('RECOVERY_CODE'); setOtpLoginError(null); setRecoveryCodeInput(''); }}
+                    style={{ background: 'none', border: 'none', color: '#06B6D4', fontSize: 11.5, cursor: 'pointer', fontWeight: 700 }}
+                  >
+                    Use a recovery code
+                  </button>
+                </div>
+              </form>
+            ) : step2FA === 'RECOVERY_CODE' ? (
+              <form onSubmit={handleVerifyRecoveryCodeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ background: 'rgba(20,184,166,0.1)', border: '1px solid rgba(20,184,166,0.3)', borderRadius: 10, padding: 14, display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <Key size={26} style={{ color: '#14B8A6', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: '#FFF' }}>Use 2FA Recovery Code</div>
+                    <div style={{ fontSize: 11.5, color: '#94A3B8', marginTop: 2 }}>Enter one of your 8-character unused recovery codes.</div>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 10.5, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Recovery Code (e.g. 8F92-K102)</label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={recoveryCodeInput}
+                    onChange={e => setRecoveryCodeInput(e.target.value.toUpperCase())}
+                    placeholder="XXXX-XXXX"
+                    style={{ width: '100%', height: 44, textAlign: 'center', fontSize: 16, fontWeight: 800, letterSpacing: '0.15em', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(20,184,166,0.5)', borderRadius: 10, color: '#FFF', fontFamily: 'monospace' }}
+                  />
+                </div>
+
+                {otpLoginError && (
+                  <div style={{ padding: 10, borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', color: '#FCA5A5', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>
+                    {otpLoginError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  style={{ width: '100%', height: 44, background: '#0D9488', color: '#FFF', fontSize: 13.5, fontWeight: 800, border: 'none', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  <Key size={16} /> Verify Recovery Code & Sign In →
+                </button>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-start', paddingTop: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setStep2FA('TOTP'); setOtpLoginError(null); }}
+                    style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: 11.5, cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    ← Back to Authenticator App Code
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Staff Role */}
+                {activeCategory === 'FG_STAFF' && (
+                  <div>
+                    <label style={{ fontSize: 10.5, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Select Staff Role</label>
+                    <select
+                      value={staffRole}
+                      onChange={e => {
+                        setStaffRole(e.target.value as any);
+                        setRoleValidationError(null);
+                      }}
+                      style={{
+                        ...inputStyle(false),
+                        padding: '0 14px',
+                        cursor: 'pointer',
+                        color: staffRole ? '#F8FAFC' : '#94A3B8',
+                        borderColor: roleValidationError ? '#EF4444' : 'rgba(255, 255, 255, 0.12)'
+                      }}
+                    >
+                      <option value="" disabled style={{ background: '#0F172A', color: '#94A3B8' }}>Select Staff Role</option>
+                      <option value="ADMIN" style={{ background: '#0F172A', color: '#F8FAFC' }}>Admin</option>
+                      <option value="COMPLIANCE_OFFICER" style={{ background: '#0F172A', color: '#F8FAFC' }}>Compliance Officer</option>
+                    </select>
+                    {roleValidationError && (
+                      <div style={{ color: '#FCA5A5', fontSize: 11.5, fontWeight: 700, marginTop: 4 }}>
+                        {roleValidationError}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Email */}
+                <div>
+                  <label style={{ fontSize: 10.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Corporate Email</label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={14} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: emailFocused ? '#3B82F6' : '#374151', transition: 'color 0.2s', pointerEvents: 'none' }} />
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                      onFocus={() => setEmailFocused(true)} onBlur={() => setEmailFocused(false)}
+                      required placeholder="name@company.com" style={inputStyle(emailFocused)} />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <label style={{ fontSize: 10.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Password</label>
+                    <button type="button" onClick={() => alert('Password reset link has been dispatched to your corporate email.')}
+                      style={{ background: 'none', border: 'none', color: '#06B6D4', fontSize: 11, cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+                      Forgot Password?
+                    </button>
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <Lock size={14} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: passwordFocused ? '#3B82F6' : '#374151', transition: 'color 0.2s', pointerEvents: 'none' }} />
+                    <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                      onFocus={() => setPasswordFocused(true)} onBlur={() => setPasswordFocused(false)}
+                      required placeholder="••••••••••••" style={{ ...inputStyle(passwordFocused), paddingRight: 40 }} />
+                    <button type="button" onClick={() => setShowPassword(v => !v)}
+                      style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sign In Button */}
+                <motion.button type="submit" disabled={loading}
+                  whileHover={{ scale: 1.01, boxShadow: '0 0 28px rgba(59,130,246,0.4)' }}
+                  whileTap={{ scale: 0.99 }}
+                  style={{ width: '100%', height: 44, background: loading ? 'rgba(59,130,246,0.4)' : 'linear-gradient(135deg,#3B82F6 0%,#06B6D4 100%)', color: '#fff', fontSize: 13.5, fontWeight: 700, border: 'none', borderRadius: 10, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 2, boxShadow: '0 0 20px rgba(59,130,246,0.25)', letterSpacing: '-0.01em' }}>
+                  {loading ? 'Authenticating…' : <> Sign In to Workspace <ArrowRight size={14} /></>}
+                </motion.button>
+
+                {/* SSO Divider */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
+                  <span style={{ fontSize: 11, color: '#374151', fontWeight: 600 }}>OR</span>
+                  <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)' }} />
+                </div>
+
+                {/* SSO Buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[{ label: 'Continue with Microsoft', icon: '⊞' }, { label: 'Continue with Google Workspace', icon: 'G' }].map((sso, i) => (
+                    <button key={i} type="button" onClick={handleLoginSubmit}
+                      style={{ width: '100%', height: 44, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 10, color: '#94A3B8', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.18)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.09)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}>
+                      <span style={{ fontSize: 15, lineHeight: 1 }}>{sso.icon}</span>{sso.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Registration CTA Section BELOW Sign In & SSO Options */}
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: 14, paddingTop: 14, textAlign: 'center' }}>
+                  {activeCategory === 'MANUFACTURER_COMPANY' ? (
+                    <>
+                      <div style={{ fontSize: 12, color: '#64748B', fontWeight: 500, marginBottom: 4 }}>
+                        New Manufacturer?
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onNavigate('mfg-register')}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#14B8A6',
+                          fontSize: 13.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: '4px 8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          transition: 'color 0.2s',
+                          borderRadius: 6
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#2DD4BF')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#14B8A6')}
+                      >
+                        Register your Manufacturing Company →
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 12, color: '#64748B', fontWeight: 500, marginBottom: 4 }}>
+                        New to FactoryGrid?
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onNavigate('buyer-register')}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#3B82F6',
+                          fontSize: 13.5,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: '4px 8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          transition: 'color 0.2s',
+                          borderRadius: 6
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#60A5FA')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#3B82F6')}
+                      >
+                        Create a new Buyer Account →
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Secondary Actions */}
+                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'center', gap: 16, fontSize: 11.5 }}>
+                  <button type="button" onClick={() => setIsAccessModalOpen(true)}
+                    style={{ background: 'none', border: 'none', color: '#06B6D4', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                    Request Demo
+                  </button>
+                  <span style={{ color: '#334155' }}>|</span>
+                  <button type="button" onClick={() => setIsAccessModalOpen(true)}
+                    style={{ background: 'none', border: 'none', color: '#06B6D4', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                    Contact Sales
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </motion.div>
       </div>

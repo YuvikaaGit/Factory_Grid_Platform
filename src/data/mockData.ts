@@ -466,33 +466,131 @@ export const mockManufacturerProductMappings: ManufacturerProductMapping[] = [
 
 export const mockRFQs: RFQ[] = [
   {
-    id: 'rfq1',
-    rfqNumber: 'RFQ-1001',
+    id: 'rfq-8801',
+    rfqNumber: 'RFQ-2026-8801',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-18',
+    deadlineDate: '2026-08-25',
+    status: 'Quoted',
+    remarks: 'Urgent quarterly stock replenishment for Azithromycin 500mg.',
+    priority: 'HIGH',
+    deliveryLocation: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    lines: [
+      { id: 'rl-8801-1', productId: 'p3', productName: 'Azithromycin 500mg Tablets', dosageForm: 'Tablet', packSize: '10 x 3 Strip', quantity: 2000, requiredDate: '2026-09-01', targetPrice: 12.00, remarks: 'Export quality blister packing', eligibleManufacturersCount: 3, eligibleManufacturerIds: ['m1', 'm2', 'm3'] }
+    ]
+  },
+  {
+    id: 'rfq-8802',
+    rfqNumber: 'RFQ-2026-8802',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-19',
+    deadlineDate: '2026-08-30',
+    status: 'Draft',
+    remarks: 'Draft requisition pending final approval from Sourcing Committee.',
+    priority: 'STANDARD',
+    deliveryLocation: 'Apex Central Depot, Off NH-44, Ambala Cantt, Haryana',
+    lines: [
+      { id: 'rl-8802-1', productId: 'p4', productName: 'Pantoprazole 40mg + Domperidone 30mg SR Capsules', dosageForm: 'Capsule', packSize: '10 x 10 Strip', quantity: 3000, requiredDate: '2026-09-10', targetPrice: 14.50, remarks: 'Alu-Alu blister packaging', eligibleManufacturersCount: 2, eligibleManufacturerIds: ['m1', 'm2'] }
+    ]
+  },
+  {
+    id: 'rfq-8803',
+    rfqNumber: 'RFQ-2026-8803',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-17',
+    deadlineDate: '2026-08-28',
+    status: 'Submitted',
+    remarks: 'Requisition floated to qualified CDMO manufacturers for competitive quotes.',
+    priority: 'HIGH',
+    deliveryLocation: 'Baddi Industrial Area, Phase II, Himachal Pradesh - 173205',
+    lines: [
+      { id: 'rl-8803-1', productId: 'p1', productName: 'Amoxicillin 500mg Capsules', dosageForm: 'Capsule', packSize: '10 x 10 Strip', quantity: 5000, requiredDate: '2026-09-15', targetPrice: 24.00, remarks: 'WHO-GMP certified batch required', eligibleManufacturersCount: 3, eligibleManufacturerIds: ['m1', 'm2', 'm3'] }
+    ]
+  },
+  {
+    id: 'rfq-8804',
+    rfqNumber: 'RFQ-2026-8804',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-15',
+    deadlineDate: '2026-08-26',
+    status: 'Pricing In Progress',
+    remarks: 'Manufacturers preparing cost breakup and lead time feasibility.',
+    priority: 'URGENT',
+    deliveryLocation: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    lines: [
+      { id: 'rl-8804-1', productId: 'p5', productName: 'Metformin 500mg SR Tablets', dosageForm: 'Tablet', packSize: '10 x 15 Strip', quantity: 20000, requiredDate: '2026-09-05', targetPrice: 6.50, remarks: 'High volume bulk formulation', eligibleManufacturersCount: 2, eligibleManufacturerIds: ['m2', 'm3'] }
+    ]
+  },
+  {
+    id: 'rfq-8805',
+    rfqNumber: 'RFQ-2026-8805',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-12',
+    deadlineDate: '2026-08-22',
+    status: 'Approved',
+    remarks: 'Approved quote QT-2026-4408. Ready for PO conversion.',
+    priority: 'HIGH',
+    deliveryLocation: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    lines: [
+      { id: 'rl-8805-1', productId: 'p5', productName: 'Cefixime 200mg Tablets', dosageForm: 'Tablet', packSize: '10 x 10 Strip', quantity: 4000, requiredDate: '2026-09-02', targetPrice: 18.00, remarks: 'Selected supplier: Cipla Partner Formulations Ltd', eligibleManufacturersCount: 2, eligibleManufacturerIds: ['m1', 'm2'] }
+    ]
+  },
+  {
+    id: 'rfq-8806',
+    rfqNumber: 'RFQ-2026-8806',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-10',
+    deadlineDate: '2026-08-20',
+    status: 'Rejected',
+    remarks: 'Pricing exceeded approved procurement budget limit.',
+    priority: 'STANDARD',
+    deliveryLocation: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi',
+    lines: [
+      { id: 'rl-8806-1', productId: 'p2', productName: 'Atorvastatin 10mg Tablets', dosageForm: 'Tablet', packSize: '10 x 10 Strip', quantity: 10000, requiredDate: '2026-08-30', targetPrice: 8.50, remarks: 'Supplier unit price too high', eligibleManufacturersCount: 2, eligibleManufacturerIds: ['m1', 'm3'] }
+    ]
+  },
+  {
+    id: 'rfq-8807',
+    rfqNumber: 'RFQ-2026-8807',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-05',
+    deadlineDate: '2026-08-15',
+    status: 'Closed',
+    remarks: 'RFQ lifecycle completed. Master Order MO-2026-5234 fulfilled.',
+    priority: 'STANDARD',
+    deliveryLocation: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    lines: [
+      { id: 'rl-8807-1', productId: 'p6', productName: 'Telmisartan 40mg Tablets', dosageForm: 'Tablet', packSize: '10 x 10 Strip', quantity: 15000, requiredDate: '2026-08-24', targetPrice: 9.20, remarks: 'Order fulfilled & closed', eligibleManufacturersCount: 3, eligibleManufacturerIds: ['m1', 'm2', 'm3'] }
+    ]
+  },
+  {
+    id: 'rfq-8808',
+    rfqNumber: 'RFQ-2026-8808',
     customerId: 'c1',
     customerName: 'Apex Pharma PCD Franchise',
     customerCode: 'CUS000101',
     createdDate: '2026-08-01',
-    deadlineDate: '2026-08-25',
-    status: 'Pricing In Progress',
-    remarks: 'Urgent quarterly stock replenishment. Fast delivery required.',
+    deadlineDate: '2026-08-10',
+    status: 'Closed',
+    remarks: 'Requirement consolidated into bulk rate contract.',
+    priority: 'STANDARD',
+    deliveryLocation: 'Apex Central Depot, Ambala Cantt, Haryana',
     lines: [
-      { id: 'rl1', productId: 'p6', productName: 'Paracetamol 500mg Tablets', dosageForm: 'Tablet', packSize: '10 x 10 Strip', quantity: 10000, requiredDate: '2026-09-15', targetPrice: 10.50, remarks: 'Fast delivery required', eligibleManufacturersCount: 3 },
-      { id: 'rl2', productId: 'p1', productName: 'Amoxicillin 250mg Tablets', dosageForm: 'Tablet', packSize: '10 x 10 Strip', quantity: 5000, requiredDate: '2026-09-15', targetPrice: 25.00, remarks: 'Standard packaging', eligibleManufacturersCount: 2 },
-      { id: 'rl3', productId: 'p3', productName: 'Azithromycin 500mg Tablets', dosageForm: 'Tablet', packSize: '10 x 3 Strip', quantity: 2000, requiredDate: '2026-09-20', targetPrice: 60.00, remarks: 'As per specification', eligibleManufacturersCount: 3 }
-    ]
-  },
-  {
-    id: 'rfq2',
-    rfqNumber: 'RFQ-1002',
-    customerId: 'c2',
-    customerName: 'BioCure Healthcare (TPM)',
-    customerCode: 'CUS000102',
-    createdDate: '2026-08-03',
-    deadlineDate: '2026-08-28',
-    status: 'Submitted',
-    remarks: 'Third-party brand manufacturing for BioCure Gastrolab series.',
-    lines: [
-      { id: 'rl4', productId: 'p4', productName: 'Pantoprazole 40mg + Domperidone 30mg SR Capsules', dosageForm: 'Capsule', packSize: '10 x 10 Strip', quantity: 3000, requiredDate: '2026-09-25', targetPrice: 37.00, remarks: 'Artwork approved in compliance desk', eligibleManufacturersCount: 2 }
+      { id: 'rl-8808-1', productId: 'p2', productName: 'Vitamin D3 60K Capsules', dosageForm: 'Capsule', packSize: '4 x 1 x 10 Softgel', quantity: 8000, requiredDate: '2026-08-20', targetPrice: 35.00, remarks: 'Consolidated into annual rate contract', eligibleManufacturersCount: 2, eligibleManufacturerIds: ['m1', 'm2'] }
     ]
   }
 ];
@@ -513,8 +611,45 @@ export const mockQuotes: ManufacturerQuote[] = [
     totalAmount: 153700,
     remarks: 'WHO-GMP certified unit batch assay included with cold chain fleet.',
     quoteLines: [
-      { rfqLineId: 'rl1', productId: 'p6', productName: 'Paracetamol 500mg Tablets', unitPrice: 9.66, taxPercent: 12, discountPercent: 0, leadTimeDays: 14, moq: 1000, calculatedFinalPrice: 102800 },
-      { rfqLineId: 'rl3', productId: 'p3', productName: 'Azithromycin 500mg Tablets', unitPrice: 15.00, taxPercent: 12, discountPercent: 0, leadTimeDays: 14, moq: 500, calculatedFinalPrice: 50900 }
+      { rfqLineId: 'rl1', productId: 'p6', productName: 'Paracetamol 500mg Tablets', unitPrice: 9.66, taxPercent: 12, discountPercent: 5, leadTimeDays: 14, moq: 1000, calculatedFinalPrice: 102800 },
+      { rfqLineId: 'rl2', productId: 'p1', productName: 'Amoxicillin 250mg Tablets', unitPrice: 24.00, taxPercent: 12, discountPercent: 5, leadTimeDays: 14, moq: 1000, calculatedFinalPrice: 127680 },
+      { rfqLineId: 'rl3', productId: 'p3', productName: 'Azithromycin 500mg Tablets', unitPrice: 58.00, taxPercent: 12, discountPercent: 5, leadTimeDays: 14, moq: 500, calculatedFinalPrice: 61712 }
+    ]
+  },
+  {
+    id: 'QTE-2026-901-B',
+    rfqId: 'rfq1',
+    rfqNumber: 'RFQ-1001',
+    manufacturerId: 'm2',
+    manufacturerName: 'Cipla Partner Formulations Ltd',
+    submissionDate: '2026-08-05',
+    lastUpdated: '2026-08-06',
+    validUntil: '2026-09-30',
+    status: 'BUYER REVIEWING',
+    totalAmount: 142000,
+    remarks: 'EU-GMP certified cleanroom line dispatch. Express 10-day lead time.',
+    quoteLines: [
+      { rfqLineId: 'rl1', productId: 'p6', productName: 'Paracetamol 500mg Tablets', unitPrice: 8.90, taxPercent: 12, discountPercent: 3, leadTimeDays: 10, moq: 2000, calculatedFinalPrice: 96800 },
+      { rfqLineId: 'rl2', productId: 'p1', productName: 'Amoxicillin 250mg Tablets', unitPrice: 22.80, taxPercent: 12, discountPercent: 4, leadTimeDays: 9, moq: 2000, calculatedFinalPrice: 121000 },
+      { rfqLineId: 'rl3', productId: 'p3', productName: 'Azithromycin 500mg Tablets', unitPrice: 54.50, taxPercent: 12, discountPercent: 3, leadTimeDays: 8, moq: 500, calculatedFinalPrice: 58000 }
+    ]
+  },
+  {
+    id: 'QTE-2026-901-C',
+    rfqId: 'rfq1',
+    rfqNumber: 'RFQ-1001',
+    manufacturerId: 'm3',
+    manufacturerName: 'BioCure Healthcare Labs',
+    submissionDate: '2026-08-06',
+    lastUpdated: '2026-08-07',
+    validUntil: '2026-09-30',
+    status: 'BUYER REVIEWING',
+    totalAmount: 161000,
+    remarks: 'Includes Door Delivery CIF shipping & certificate of analysis batch report.',
+    quoteLines: [
+      { rfqLineId: 'rl1', productId: 'p6', productName: 'Paracetamol 500mg Tablets', unitPrice: 10.20, taxPercent: 12, discountPercent: 7, leadTimeDays: 7, moq: 500, calculatedFinalPrice: 106000 },
+      { rfqLineId: 'rl2', productId: 'p1', productName: 'Amoxicillin 250mg Tablets', unitPrice: 25.50, taxPercent: 12, discountPercent: 6, leadTimeDays: 7, moq: 500, calculatedFinalPrice: 133000 },
+      { rfqLineId: 'rl3', productId: 'p3', productName: 'Azithromycin 500mg Tablets', unitPrice: 62.00, taxPercent: 12, discountPercent: 8, leadTimeDays: 6, moq: 250, calculatedFinalPrice: 63800 }
     ]
   },
   {
@@ -618,144 +753,278 @@ export const mockQuotes: ManufacturerQuote[] = [
 
 export const mockMasterOrders: MasterOrder[] = [
   {
-    id: 'mo1',
-    orderNumber: 'MO-2026-1001',
+    id: 'mo-5228',
+    orderNumber: 'MO-2026-5228',
+    poNumber: 'PO-2026-5228',
     customerId: 'c1',
     customerName: 'Apex Pharma PCD Franchise',
     customerCode: 'CUS000101',
-    createdDate: '2026-08-04',
-    expectedDeliveryDate: '2026-08-25',
-    status: 'IN_PRODUCTION',
-    totalAmount: 247850,
-    shippingAddress: 'Plot 42, Okhla Industrial Area Phase III, New Delhi - 110020',
+    createdDate: '2026-08-19',
+    expectedDeliveryDate: '2026-09-01',
+    updatedDate: '2026-08-27',
+    status: 'IN_TRANSIT',
+    totalAmount: 75600,
+    currency: 'INR',
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: 'Net 30',
     subOrders: [
       {
-        id: 'so1',
-        subOrderNumber: 'SO-2026-1001-01',
-        masterOrderId: 'mo1',
-        masterOrderNumber: 'MO-2026-1001',
-        manufacturerId: 'm1',
-        manufacturerName: 'SunBio LifeSciences Ltd',
-        status: 'IN_PRODUCTION',
-        totalAmount: 153700,
-        startDate: '2026-08-04',
-        expectedDeliveryDate: '2026-08-20',
-        transporterName: 'V-Trans Express',
-        awbNumber: 'VT-8812903',
-        lines: [
-          { id: 'sol1', productId: 'p1', productName: 'Amoxyclav 625mg Tablets', dosageForm: 'Tablet', quantity: 2000, unitPrice: 45.00, taxPercent: 12, discountPercent: 4, totalPrice: 96768 },
-          { id: 'sol2', productId: 'p2', productName: 'Paracetamol 650mg ER Tablets', dosageForm: 'Tablet', quantity: 5000, unitPrice: 11.50, taxPercent: 12, discountPercent: 5, totalPrice: 56932 }
-        ]
-      },
-      {
-        id: 'so2',
-        subOrderNumber: 'SO-2026-1001-02',
-        masterOrderId: 'mo1',
-        masterOrderNumber: 'MO-2026-1001',
-        manufacturerId: 'm2',
-        manufacturerName: 'Cipla Partner Formulations Ltd',
-        status: 'READY_TO_DISPATCH',
-        totalAmount: 94150,
-        startDate: '2026-08-04',
-        expectedDeliveryDate: '2026-08-19',
-        transporterName: 'BlueDart Surface',
-        awbNumber: 'BD-9912048',
-        lines: [
-          { id: 'sol3', productId: 'p3', productName: 'Azithromycin 500mg Tablets', dosageForm: 'Tablet', quantity: 1500, unitPrice: 59.00, taxPercent: 12, discountPercent: 5, totalPrice: 94150 }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'mo2',
-    orderNumber: 'MO-2026-0987',
-    customerId: 'c1',
-    customerName: 'Apex Pharma PCD Franchise',
-    customerCode: 'CUS000101',
-    createdDate: '2026-07-15',
-    expectedDeliveryDate: '2026-08-15',
-    status: 'DELIVERED',
-    totalAmount: 185000,
-    shippingAddress: 'Plot 42, Okhla Industrial Area Phase III, New Delhi - 110020',
-    subOrders: [
-      {
-        id: 'so-987-01',
-        subOrderNumber: 'SO-2026-0987-01',
-        masterOrderId: 'mo2',
-        masterOrderNumber: 'MO-2026-0987',
+        id: 'so-5228-01',
+        subOrderNumber: 'SO-2026-5228-01',
+        masterOrderId: 'mo-5228',
+        masterOrderNumber: 'MO-2026-5228',
+        poNumber: 'PO-SO-2026-5228-01',
         manufacturerId: 'm1',
         manufacturerName: 'SunBio LifeSciences Ltd',
         status: 'DELIVERED',
-        totalAmount: 185000,
-        startDate: '2026-07-16',
-        expectedDeliveryDate: '2026-08-15',
-        transporterName: 'Safexpress Cold-Chain',
-        awbNumber: 'SAF-7729104',
+        totalAmount: 26880,
+        startDate: '2026-08-20',
+        expectedDeliveryDate: '2026-08-28',
+        transporterName: 'ColdEx Logistics',
+        awbNumber: 'TRK-COL-88963',
         lines: [
-          { id: 'sol987_1', productId: 'p6', productName: 'Paracetamol 500mg Tablets', dosageForm: 'Tablet', quantity: 15000, unitPrice: 9.50, taxPercent: 12, discountPercent: 0, totalPrice: 159600 },
-          { id: 'sol987_2', productId: 'p4', productName: 'Pantoprazole 40mg Injection', dosageForm: 'Injection', quantity: 500, unitPrice: 45.00, taxPercent: 12, discountPercent: 0, totalPrice: 25400 }
+          { id: 'sol-5228-1', productId: 'p3', productName: 'Azithromycin 500mg Tablets', dosageForm: 'Tablet', quantity: 2000, unitPrice: 12.00, taxPercent: 12, discountPercent: 0, totalPrice: 26880 }
+        ]
+      },
+      {
+        id: 'so-5228-02',
+        subOrderNumber: 'SO-2026-5228-02',
+        masterOrderId: 'mo-5228',
+        masterOrderNumber: 'MO-2026-5228',
+        poNumber: 'PO-SO-2026-5228-02',
+        manufacturerId: 'm2',
+        manufacturerName: 'Cipla Partner Formulations Ltd',
+        status: 'IN_TRANSIT',
+        totalAmount: 48720,
+        startDate: '2026-08-21',
+        expectedDeliveryDate: '2026-09-01',
+        transporterName: 'BlueDart Express',
+        awbNumber: 'TRK-BLU-77421',
+        lines: [
+          { id: 'sol-5228-2', productId: 'p4', productName: 'Pantoprazole 40mg + Domperidone 30mg SR Capsules', dosageForm: 'Capsule', quantity: 3000, unitPrice: 14.50, taxPercent: 12, discountPercent: 0, totalPrice: 48720 }
         ]
       }
     ]
   },
   {
-    id: 'mo3',
-    orderNumber: 'MO-2026-0901',
+    id: 'mo-5229',
+    orderNumber: 'MO-2026-5229',
+    poNumber: 'PO-2026-5229',
     customerId: 'c1',
     customerName: 'Apex Pharma PCD Franchise',
     customerCode: 'CUS000101',
-    createdDate: '2026-06-10',
-    expectedDeliveryDate: '2026-07-10',
-    status: 'CLOSED',
-    totalAmount: 312000,
-    shippingAddress: 'Plot 42, Okhla Industrial Area Phase III, New Delhi - 110020',
+    createdDate: '2026-08-12',
+    expectedDeliveryDate: '2026-08-25',
+    updatedDate: '2026-08-25',
+    status: 'DELIVERED',
+    totalAmount: 128800,
+    currency: 'INR',
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: 'Net 30',
     subOrders: [
       {
-        id: 'so-901-01',
-        subOrderNumber: 'SO-2026-0901-01',
-        masterOrderId: 'mo3',
-        masterOrderNumber: 'MO-2026-0901',
+        id: 'so-5229-01',
+        subOrderNumber: 'SO-2026-5229-01',
+        masterOrderId: 'mo-5229',
+        masterOrderNumber: 'MO-2026-5229',
+        poNumber: 'PO-SO-2026-5229-01',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'DELIVERED',
+        totalAmount: 128800,
+        startDate: '2026-08-14',
+        expectedDeliveryDate: '2026-08-25',
+        transporterName: 'Safexpress Cold Fleet',
+        awbNumber: 'TRK-SAF-99412',
+        lines: [
+          { id: 'sol-5229-1', productId: 'p2', productName: 'Paracetamol 650mg ER Tablets', dosageForm: 'Tablet', quantity: 10000, unitPrice: 11.50, taxPercent: 12, discountPercent: 0, totalPrice: 128800 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'mo-5230',
+    orderNumber: 'MO-2026-5230',
+    poNumber: 'PO-2026-5230',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-15',
+    expectedDeliveryDate: '2026-09-05',
+    updatedDate: '2026-08-22',
+    status: 'IN_PRODUCTION',
+    totalAmount: 252000,
+    currency: 'INR',
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: 'Net 30',
+    subOrders: [
+      {
+        id: 'so-5230-01',
+        subOrderNumber: 'SO-2026-5230-01',
+        masterOrderId: 'mo-5230',
+        masterOrderNumber: 'MO-2026-5230',
+        poNumber: 'PO-SO-2026-5230-01',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'IN_PRODUCTION',
+        totalAmount: 252000,
+        startDate: '2026-08-18',
+        expectedDeliveryDate: '2026-09-05',
+        transporterName: 'V-Trans Express',
+        awbNumber: 'VT-8820194',
+        lines: [
+          { id: 'sol-5230-1', productId: 'p1', productName: 'Amoxyclav 625mg Tablets', dosageForm: 'Tablet', quantity: 5000, unitPrice: 45.00, taxPercent: 12, discountPercent: 0, totalPrice: 252000 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'mo-5231',
+    orderNumber: 'MO-2026-5231',
+    poNumber: 'PO-2026-5231',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-16',
+    expectedDeliveryDate: '2026-08-30',
+    updatedDate: '2026-08-26',
+    status: 'READY_TO_DISPATCH',
+    totalAmount: 161280,
+    currency: 'INR',
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: 'Net 30',
+    subOrders: [
+      {
+        id: 'so-5231-01',
+        subOrderNumber: 'SO-2026-5231-01',
+        masterOrderId: 'mo-5231',
+        masterOrderNumber: 'MO-2026-5231',
+        poNumber: 'PO-SO-2026-5231-01',
+        manufacturerId: 'm2',
+        manufacturerName: 'Cipla Partner Formulations Ltd',
+        status: 'READY_TO_DISPATCH',
+        totalAmount: 161280,
+        startDate: '2026-08-18',
+        expectedDeliveryDate: '2026-08-30',
+        transporterName: 'BlueDart Surface',
+        awbNumber: 'BD-9940128',
+        lines: [
+          { id: 'sol-5231-1', productId: 'p5', productName: 'Ciprofloxacin 500mg Tablets', dosageForm: 'Tablet', quantity: 8000, unitPrice: 18.00, taxPercent: 12, discountPercent: 0, totalPrice: 161280 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'mo-5232',
+    orderNumber: 'MO-2026-5232',
+    poNumber: 'PO-2026-5232',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-14',
+    expectedDeliveryDate: '2026-08-27',
+    updatedDate: '2026-08-27',
+    status: 'PENDING_RECEIPT',
+    totalAmount: 114240,
+    currency: 'INR',
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: 'Net 30',
+    subOrders: [
+      {
+        id: 'so-5232-01',
+        subOrderNumber: 'SO-2026-5232-01',
+        masterOrderId: 'mo-5232',
+        masterOrderNumber: 'MO-2026-5232',
+        poNumber: 'PO-SO-2026-5232-01',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'PENDING_RECEIPT',
+        totalAmount: 114240,
+        startDate: '2026-08-16',
+        expectedDeliveryDate: '2026-08-27',
+        transporterName: 'TCI Express',
+        awbNumber: 'TRK-TCI-88102',
+        lines: [
+          { id: 'sol-5232-1', productId: 'p7', productName: 'Ceftriaxone 1g Injection', dosageForm: 'Injection', quantity: 1200, unitPrice: 85.00, taxPercent: 12, discountPercent: 0, totalPrice: 114240 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'mo-5233',
+    orderNumber: 'MO-2026-5233',
+    poNumber: 'PO-2026-5233',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-10',
+    expectedDeliveryDate: '2026-08-26',
+    updatedDate: '2026-08-26',
+    status: 'GOODS_RECEIVED',
+    totalAmount: 145600,
+    currency: 'INR',
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: 'Net 30',
+    subOrders: [
+      {
+        id: 'so-5233-01',
+        subOrderNumber: 'SO-2026-5233-01',
+        masterOrderId: 'mo-5233',
+        masterOrderNumber: 'MO-2026-5233',
+        poNumber: 'PO-SO-2026-5233-01',
+        manufacturerId: 'm2',
+        manufacturerName: 'Cipla Partner Formulations Ltd',
+        status: 'GOODS_RECEIVED',
+        totalAmount: 145600,
+        startDate: '2026-08-12',
+        expectedDeliveryDate: '2026-08-26',
+        transporterName: 'ColdEx Express Fleet',
+        awbNumber: 'TRK-COL-99012',
+        lines: [
+          { id: 'sol-5233-1', productId: 'p8', productName: 'Metformin 500mg SR Tablets', dosageForm: 'Tablet', quantity: 20000, unitPrice: 6.50, taxPercent: 12, discountPercent: 0, totalPrice: 145600 }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'mo-5234',
+    orderNumber: 'MO-2026-5234',
+    poNumber: 'PO-2026-5234',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    createdDate: '2026-08-05',
+    expectedDeliveryDate: '2026-08-24',
+    updatedDate: '2026-08-28',
+    status: 'CLOSED',
+    totalAmount: 154560,
+    currency: 'INR',
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: 'Net 30',
+    subOrders: [
+      {
+        id: 'so-5234-01',
+        subOrderNumber: 'SO-2026-5234-01',
+        masterOrderId: 'mo-5234',
+        masterOrderNumber: 'MO-2026-5234',
+        poNumber: 'PO-SO-2026-5234-01',
         manufacturerId: 'm1',
         manufacturerName: 'SunBio LifeSciences Ltd',
         status: 'CLOSED',
-        totalAmount: 312000,
-        startDate: '2026-06-12',
-        expectedDeliveryDate: '2026-07-08',
+        totalAmount: 154560,
+        startDate: '2026-08-08',
+        expectedDeliveryDate: '2026-08-24',
         transporterName: 'TCI Express Cold Fleet',
-        awbNumber: 'TCI-6654210',
+        awbNumber: 'TRK-TCI-77129',
         lines: [
-          { id: 'sol901_1', productId: 'p1', productName: 'Amoxicillin 250mg Capsules', dosageForm: 'Capsule', quantity: 25000, unitPrice: 11.20, taxPercent: 12, discountPercent: 5, totalPrice: 312000 }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'mo4',
-    orderNumber: 'MO-2026-1002',
-    customerId: 'c1',
-    customerName: 'Apex Pharma PCD Franchise',
-    customerCode: 'CUS000101',
-    createdDate: '2026-08-17',
-    expectedDeliveryDate: '2026-09-10',
-    status: 'PO_ACCEPTED',
-    totalAmount: 123400,
-    shippingAddress: 'Plot 42, Okhla Industrial Area Phase III, New Delhi - 110020',
-    subOrders: [
-      {
-        id: 'so-1002-01',
-        subOrderNumber: 'SO-2026-1002-01',
-        masterOrderId: 'mo4',
-        masterOrderNumber: 'MO-2026-1002',
-        manufacturerId: 'm1',
-        manufacturerName: 'SunBio LifeSciences Ltd',
-        status: 'PO_ACCEPTED',
-        totalAmount: 123400,
-        startDate: '2026-08-17',
-        expectedDeliveryDate: '2026-09-10',
-        transporterName: 'V-Trans Express',
-        awbNumber: 'VT-9921004',
-        lines: [
-          { id: 'sol1002_1', productId: 'p6', productName: 'Paracetamol 500mg Tablets', dosageForm: 'Tablet', quantity: 10000, unitPrice: 10.28, taxPercent: 12, discountPercent: 0, totalPrice: 123400 }
+          { id: 'sol-5234-1', productId: 'p9', productName: 'Telmisartan 40mg Tablets', dosageForm: 'Tablet', quantity: 15000, unitPrice: 9.20, taxPercent: 12, discountPercent: 0, totalPrice: 154560 }
         ]
       }
     ]
@@ -764,25 +1033,106 @@ export const mockMasterOrders: MasterOrder[] = [
 
 export const mockInvoices: Invoice[] = [
   {
+    id: 'inv-4407',
+    invoiceNumber: 'INV-2026-4407',
+    masterOrderId: 'mo-5228',
+    orderNumber: 'MO-2026-5228',
+    subOrderId: 'so-5228-01',
+    subOrderNumber: 'SO-2026-5228-01',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    manufacturerId: 'm1',
+    manufacturerName: 'SunBio LifeSciences Ltd',
+    invoiceDate: '2026-08-28',
+    dueDate: '2026-09-28',
+    subtotal: 24000,
+    taxTotal: 2880,
+    totalAmount: 26880,
+    paidAmount: 26880,
+    balanceAmount: 0,
+    status: 'PAID',
+    currency: 'INR',
+    lines: [
+      { id: 'il-4407-1', productId: 'p3', productName: 'Azithromycin 500mg Tablets', hsnCode: '30049099', quantity: 2000, unitPrice: 12.00, taxAmount: 2880, totalAmount: 26880 }
+    ],
+    payments: [
+      {
+        id: 'pay-4407-1',
+        invoiceId: 'inv-4407',
+        amount: 26880,
+        currency: 'INR',
+        paymentMethod: 'RTGS / Bank Transfer',
+        paymentDate: '2026-08-28',
+        reference: 'UTR-RTGS-884920',
+        status: 'COMPLETED',
+        remarks: 'Full payment received upon goods delivery'
+      }
+    ]
+  },
+  {
+    id: 'inv-4408',
+    invoiceNumber: 'INV-2026-4408',
+    masterOrderId: 'mo-5228',
+    orderNumber: 'MO-2026-5228',
+    subOrderId: 'so-5228-02',
+    subOrderNumber: 'SO-2026-5228-02',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    manufacturerId: 'm2',
+    manufacturerName: 'Cipla Partner Formulations Ltd',
+    invoiceDate: '2026-08-27',
+    dueDate: '2026-09-28',
+    subtotal: 43500,
+    taxTotal: 5220,
+    totalAmount: 48720,
+    paidAmount: 0,
+    balanceAmount: 48720,
+    status: 'UNPAID',
+    currency: 'INR',
+    lines: [
+      { id: 'il-4408-1', productId: 'p4', productName: 'Pantoprazole 40mg + Domperidone 30mg SR Capsules', hsnCode: '30049099', quantity: 3000, unitPrice: 14.50, taxAmount: 5220, totalAmount: 48720 }
+    ],
+    payments: []
+  },
+  {
     id: 'inv1',
     invoiceNumber: 'INV-2026-4401',
     masterOrderId: 'mo1',
     orderNumber: 'MO-2026-1001',
+    subOrderId: 'so1',
+    subOrderNumber: 'SO-2026-1001-01',
     customerId: 'c1',
     customerName: 'Apex Pharma PCD Franchise',
     customerCode: 'CUS000101',
+    manufacturerId: 'm1',
+    manufacturerName: 'SunBio LifeSciences Ltd',
     invoiceDate: '2026-08-04',
     dueDate: '2026-09-18',
-    subtotal: 221294,
-    taxTotal: 26556,
-    totalAmount: 247850,
-    paidAmount: 100000,
-    balanceAmount: 147850,
+    subtotal: 154199.99,
+    taxTotal: 18504.01,
+    totalAmount: 172704,
+    paidAmount: 70000,
+    balanceAmount: 102704,
     status: 'PARTIAL_PAYMENT',
+    currency: 'INR',
     lines: [
       { id: 'il1', productId: 'p1', productName: 'Amoxyclav 625mg Tablets', hsnCode: '30049099', quantity: 2000, unitPrice: 43.20, taxAmount: 10368, totalAmount: 96768 },
-      { id: 'il2', productId: 'p2', productName: 'Paracetamol 650mg ER Tablets', hsnCode: '30049060', quantity: 5000, unitPrice: 10.925, taxAmount: 6100, totalAmount: 56932 },
-      { id: 'il3', productId: 'p3', productName: 'Azithromycin 500mg Tablets', hsnCode: '30049099', quantity: 1500, unitPrice: 56.05, taxAmount: 10088, totalAmount: 94150 }
+      { id: 'il2', productId: 'p2', productName: 'Paracetamol 650mg ER Tablets', hsnCode: '30049060', quantity: 5000, unitPrice: 10.925, taxAmount: 6100, totalAmount: 56932 }
+    ],
+    payments: [
+      {
+        id: 'pay_demo_1',
+        invoiceId: 'inv1',
+        amount: 70000,
+        currency: 'INR',
+        paymentMethod: 'NEFT',
+        paymentDate: '2026-08-04',
+        reference: 'UTR-458373',
+        status: 'COMPLETED',
+        remarks: 'First partial payment'
+      }
     ]
   },
   {
@@ -790,9 +1140,11 @@ export const mockInvoices: Invoice[] = [
     invoiceNumber: 'INV-2026-4402',
     masterOrderId: 'mo2',
     orderNumber: 'MO-2026-0988',
-    customerId: 'c2',
-    customerName: 'BioCure Healthcare (TPM)',
-    customerCode: 'CUS000102',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    manufacturerId: 'm1',
+    manufacturerName: 'SunBio LifeSciences Ltd',
     invoiceDate: '2026-06-15',
     dueDate: '2026-08-14',
     subtotal: 500000,
@@ -800,9 +1152,49 @@ export const mockInvoices: Invoice[] = [
     totalAmount: 560000,
     paidAmount: 0,
     balanceAmount: 560000,
-    status: 'OPEN',
+    status: 'UNPAID',
+    currency: 'INR',
     lines: [
       { id: 'il4', productId: 'p4', productName: 'Pantoprazole 40mg + Domperidone 30mg SR', hsnCode: '30049099', quantity: 15000, unitPrice: 33.33, taxAmount: 60000, totalAmount: 560000 }
+    ],
+    payments: []
+  },
+  {
+    id: 'inv3',
+    invoiceNumber: 'INV-2026-4819',
+    masterOrderId: 'mo1',
+    orderNumber: 'MO-2026-1001',
+    subOrderId: 'SO-1001-01',
+    subOrderNumber: 'SO-1001-01',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    manufacturerId: 'm1',
+    manufacturerName: 'SunBio LifeSciences Ltd',
+    invoiceDate: '2026-08-10',
+    dueDate: '2026-09-10',
+    subtotal: 25700,
+    taxTotal: 3084,
+    totalAmount: 28784,
+    paidAmount: 23456,
+    balanceAmount: 5328,
+    status: 'PARTIAL_PAYMENT',
+    currency: 'INR',
+    lines: [
+      { id: 'il5', productId: 'p1', productName: 'Paracetamol 500mg & Azithromycin 500mg', hsnCode: '30049099', quantity: 12000, unitPrice: 2.14, taxAmount: 3084, totalAmount: 28784 }
+    ],
+    payments: [
+      {
+        id: 'pay_4819_1',
+        invoiceId: 'inv3',
+        amount: 23456,
+        currency: 'INR',
+        paymentMethod: 'Bank Transfer',
+        paymentDate: '2026-08-12',
+        reference: 'UTR-987412',
+        status: 'COMPLETED',
+        remarks: 'Initial advance payment'
+      }
     ]
   }
 ];

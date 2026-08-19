@@ -146,7 +146,20 @@ export const RFQModule: React.FC = () => {
         rfq.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         rfq.lines.some(l => l.productName.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      const matchStatus = statusFilter === 'ALL' || rfq.status === statusFilter;
+            const matchStatus = statusFilter === 'ALL' || (() => {
+        if (!rfq || !rfq.status) return false;
+        const rSt = rfq.status.toLowerCase();
+        const filterSt = statusFilter.toLowerCase();
+        if (rSt === filterSt) return true;
+        if (statusFilter === 'Draft' && rSt === 'draft') return true;
+        if (statusFilter === 'Submitted' && rSt === 'submitted') return true;
+        if (statusFilter === 'Pricing In Progress' && (rSt === 'pricing in progress' || rSt === 'pricing_in_progress')) return true;
+        if (statusFilter === 'Quoted' && rSt === 'quoted') return true;
+        if (statusFilter === 'Approved' && rSt === 'approved') return true;
+        if (statusFilter === 'Rejected' && rSt === 'rejected') return true;
+        if (statusFilter === 'Closed' && rSt === 'closed') return true;
+        return false;
+      })();
       return matchSearch && matchStatus;
     });
   }, [rfqs, searchTerm, statusFilter]);
@@ -722,16 +735,18 @@ export const RFQModule: React.FC = () => {
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#0F766E' }}>Dashboard / RFQ Center</div>
             <h1 style={{ margin: '2px 0 0 0', fontSize: 24, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-              RFQ Sourcing & Distribution Engine
+              {currentRole === 'ADMIN' ? 'RFQ Sourcing Monitor' : 'RFQ Sourcing & Distribution Engine'}
             </h1>
             <p style={{ margin: '3px 0 0 0', fontSize: 13, color: '#475569', fontWeight: 500 }}>
-              Create multi-product RFQs, execute line-by-line manufacturer matching, review eligible suppliers, and track responses.
+              {currentRole === 'ADMIN' 
+                ? 'Monitor RFQs, manufacturer responses, sourcing progress and procurement status across the platform.'
+                : 'Create multi-product RFQs, execute line-by-line manufacturer matching, review eligible suppliers, and track responses.'}
             </p>
           </div>
         </div>
 
         <div className="ent-command-bar-right" style={{ gap: 12 }}>
-          {(currentRole === 'BUYER' || currentRole === 'ADMIN') && (
+          {(currentRole === 'BUYER' || currentRole === 'SALES_MANAGER') && (
             <button
               onClick={() => {
                 setIsEditingDraftId(null);
@@ -774,10 +789,27 @@ export const RFQModule: React.FC = () => {
             )}
           </div>
 
-          {/* Status Filter Pills */}
+                    {/* Status Filter Pills with Dynamic Counts */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {['ALL', ...supportedStatuses].map(st => {
               const isActive = statusFilter === st;
+              const count = st === 'ALL'
+                ? rfqs.length
+                : rfqs.filter(r => {
+                    if (!r || !r.status) return false;
+                    const rSt = r.status.toLowerCase();
+                    const filterSt = st.toLowerCase();
+                    if (rSt === filterSt) return true;
+                    if (st === 'Draft' && rSt === 'draft') return true;
+                    if (st === 'Submitted' && rSt === 'submitted') return true;
+                    if (st === 'Pricing In Progress' && (rSt === 'pricing in progress' || rSt === 'pricing_in_progress')) return true;
+                    if (st === 'Quoted' && rSt === 'quoted') return true;
+                    if (st === 'Approved' && rSt === 'approved') return true;
+                    if (st === 'Rejected' && rSt === 'rejected') return true;
+                    if (st === 'Closed' && rSt === 'closed') return true;
+                    return false;
+                  }).length;
+
               return (
                 <button
                   key={st}
@@ -790,7 +822,7 @@ export const RFQModule: React.FC = () => {
                     cursor: 'pointer', transition: 'all 150ms'
                   }}
                 >
-                  {st === 'ALL' ? `All (${rfqs.length})` : st}
+                  {st === 'ALL' ? `All (${rfqs.length})` : `${st} (${count})`}
                 </button>
               );
             })}
@@ -1175,7 +1207,7 @@ export const RFQModule: React.FC = () => {
                             onChange={e => handleRowChange(idx, 'productId', e.target.value)}
                             style={{ width: '100%', padding: '9px 12px', background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, color: line.productId ? '#0F172A' : '#94A3B8', fontSize: 13, fontWeight: 600 }}
                           >
-                            <option value="">[ Select Product ▼ ]</option>
+                            <option value="">Select Product ▼</option>
                             {products.map(p => (
                               <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
@@ -1189,7 +1221,7 @@ export const RFQModule: React.FC = () => {
                             <input
                               type="number"
                               min={1}
-                              placeholder="[ Enter Quantity ]"
+                              placeholder="Enter Quantity"
                               value={line.quantity}
                               onChange={e => handleRowChange(idx, 'quantity', e.target.value === '' ? '' : parseInt(e.target.value) || '')}
                               style={{ width: '100%', padding: '8px 12px', background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, color: '#0F172A', fontSize: 13 }}
@@ -1211,7 +1243,7 @@ export const RFQModule: React.FC = () => {
                           <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'block', marginBottom: 4, textTransform: 'uppercase' }}>Remarks</label>
                           <input
                             type="text"
-                            placeholder="[ Enter Remarks ]"
+                            placeholder="Enter Remarks"
                             value={line.remarks}
                             onChange={e => handleRowChange(idx, 'remarks', e.target.value)}
                             style={{ width: '100%', padding: '8px 12px', background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, color: '#0F172A', fontSize: 12.5 }}
@@ -1409,7 +1441,7 @@ export const RFQModule: React.FC = () => {
                     onClick={() => setRfqWizardStep((rfqWizardStep - 1) as any)}
                     style={{ padding: '10px 18px', background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                   >
-                    [ Back ]
+                    Back
                   </button>
                 ) : (
                   <button
@@ -1428,7 +1460,7 @@ export const RFQModule: React.FC = () => {
                     onClick={handleSaveDraft}
                     style={{ padding: '10px 18px', background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, color: '#475569', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
                   >
-                    [ Save Draft ]
+                    Save Draft
                   </button>
                 )}
 
@@ -1438,7 +1470,7 @@ export const RFQModule: React.FC = () => {
                     onClick={handleContinueToGeneralTerms}
                     style={{ padding: '10px 22px', background: '#0F766E', border: 'none', borderRadius: 6, color: '#FFFFFF', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    [ Continue to General & Terms → ]
+                    Continue to General & Terms →
                   </button>
                 )}
 
@@ -1447,7 +1479,7 @@ export const RFQModule: React.FC = () => {
                     onClick={() => setRfqWizardStep(3)}
                     style={{ padding: '10px 22px', background: '#0F766E', border: 'none', borderRadius: 6, color: '#FFFFFF', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    [ Continue to Manufacturer Review → ]
+                    Continue to Manufacturer Review →
                   </button>
                 )}
 
@@ -1456,7 +1488,7 @@ export const RFQModule: React.FC = () => {
                     onClick={() => setRfqWizardStep(4)}
                     style={{ padding: '10px 22px', background: '#0F766E', border: 'none', borderRadius: 6, color: '#FFFFFF', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    [ Continue to RFQ Review → ]
+                    Continue to RFQ Review →
                   </button>
                 )}
 
@@ -1465,7 +1497,7 @@ export const RFQModule: React.FC = () => {
                     onClick={handleExecuteRFQSubmission}
                     style={{ padding: '10px 24px', background: '#0F766E', border: 'none', borderRadius: 6, color: '#FFFFFF', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    <Send size={15} /> [ Submit RFQ ]
+                    <Send size={15} /> Submit RFQ
                   </button>
                 )}
               </div>

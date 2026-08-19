@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { IntegrationsSettingsModule } from './IntegrationsSettingsModule';
+import { Security2FAModule } from './Security2FAModule';
 import {
   Building2, Receipt, ShieldCheck, Upload, Image as ImageIcon,
   CheckCircle2, AlertCircle, Eye, RefreshCw, X, Lock, Server,
@@ -369,29 +371,33 @@ export const ManufacturerSettingsModule: React.FC = () => {
     showToast('API Integration disconnected.');
   };
 
-  // 5. SECURITY / PASSWORD HANDLERS
+    // 5. SECURITY / PASSWORD HANDLERS
   const [passForm, setPassForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
-  const [passError, setPassError] = useState<string | null>(null);
+  const [passChangeError, setPassChangeError] = useState<string | null>(null);
+  const [passChangeSuccess, setPassChangeSuccess] = useState<string | null>(null);
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handlePasswordChangeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setPassError(null);
+    setPassChangeError(null);
+    setPassChangeSuccess(null);
 
     if (!passForm.currentPassword) {
-      setPassError('Current password is required.');
+      setPassChangeError('✕ Current password is required.');
       return;
     }
     if (!passForm.newPassword || passForm.newPassword.length < 8) {
-      setPassError('New password must be at least 8 characters long.');
+      setPassChangeError('✕ New password must be at least 8 characters long.');
       return;
     }
     if (passForm.newPassword !== passForm.confirmPassword) {
-      setPassError('New password and Confirm password do not match.');
+      setPassChangeError('✕ New password and Confirm password do not match.');
       return;
     }
 
+    setPassChangeSuccess('✓ Password updated successfully.');
     showToast('✓ Password updated successfully.');
     setPassForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    addAuditLog('Security Settings', `Updated account password for ${mfgName}`);
   };
 
   return (
@@ -877,163 +883,40 @@ export const ManufacturerSettingsModule: React.FC = () => {
       )}
 
       {/* ════════════════════════════════════════════════════════════════
-          SECTION 2: API INTEGRATIONS (GENERIC & EXTENSIBLE)
+          SECTION 2: API INTEGRATIONS (RESTORED CONNECTOR CATALOGUE)
       ════════════════════════════════════════════════════════════════ */}
       {activeTab === 'INTEGRATIONS' && (
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          
-          {/* Header Row with Add Integration Button */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
-            <div>
-              <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: 0 }}>API Integrations</h2>
-              <div style={{ fontSize: 13, color: '#475569', marginTop: 3 }}>
-                Connect FactoryGrid with your existing business systems and external services.
-              </div>
-            </div>
-
-            <button
-              onClick={handleOpenAddIntegModal}
-              style={{
-                padding: '9px 18px',
-                borderRadius: 8,
-                background: '#0F766E',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 800,
-                fontSize: 13,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                boxShadow: '0 2px 6px rgba(15,118,110,0.2)'
-              }}
-            >
-              <Plus size={16} /> Add Integration
-            </button>
-          </div>
-
-          {/* EMPTY STATE */}
-          {settings.apiIntegrations.length === 0 ? (
-            <div style={{ border: '2px dashed #E2E8F0', borderRadius: 12, padding: 40, textAlign: 'center', background: '#F8FAFC', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B' }}>
-                <Server size={26} />
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>No integrations connected</div>
-              <div style={{ fontSize: 13, color: '#64748B', maxWidth: 360 }}>
-                Connect an external system using its API credentials.
-              </div>
-              <button
-                onClick={handleOpenAddIntegModal}
-                style={{
-                  marginTop: 6,
-                  padding: '9px 20px',
-                  borderRadius: 8,
-                  background: '#0F766E',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  fontWeight: 800,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
-              >
-                <Plus size={16} /> Add Integration
-              </button>
-            </div>
-          ) : (
-            /* CONNECTED INTEGRATIONS LIST CARDS */
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-              {settings.apiIntegrations.map(integ => (
-                <div
-                  key={integ.id}
-                  style={{
-                    background: '#FFFFFF',
-                    border: '1px solid #CBD5E1',
-                    borderRadius: 12,
-                    padding: 20,
-                    boxShadow: '0 1px 3px rgba(15,23,42,0.04)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justify: 'space-between',
-                    gap: 16
-                  }}
-                >
-                  <div>
-                    {/* Header Row */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>{integ.name}</div>
-                      <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: integ.status === 'Connected' ? '#DCFCE7' : '#F1F5F9', color: integ.status === 'Connected' ? '#15803D' : '#64748B', border: `1px solid ${integ.status === 'Connected' ? '#86EFAC' : '#CBD5E1'}` }}>
-                        ● {integ.status}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: '#64748B', marginBottom: 12 }}>
-                      <span style={{ fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: integ.environment === 'Production' ? '#FEF3C7' : '#E0F2FE', color: integ.environment === 'Production' ? '#B45309' : '#0369A1' }}>
-                        {integ.environment}
-                      </span>
-                      <span>•</span>
-                      <span>Last checked: {integ.lastChecked}</span>
-                    </div>
-
-                    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 10, fontSize: 12, color: '#475569', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <div>Base URL: <strong style={{ fontFamily: 'monospace', color: '#0F172A' }}>{integ.baseUrl}</strong></div>
-                      <div>API Key: <strong style={{ fontFamily: 'monospace', color: '#64748B' }}>{integ.apiKeyMasked}</strong></div>
-                    </div>
-                  </div>
-
-                  {/* Actions Row */}
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid #F1F5F9', paddingTop: 12 }}>
-                    <button
-                      onClick={() => handleTestConnectionCard(integ.id)}
-                      style={{ padding: '6px 12px', borderRadius: 6, background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1D4ED8', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                    >
-                      <RefreshCw size={13} /> Test Connection
-                    </button>
-
-                    <button
-                      onClick={() => handleOpenEditIntegModal(integ)}
-                      style={{ padding: '6px 12px', borderRadius: 6, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#334155', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                    >
-                      <Edit2 size={13} /> Edit
-                    </button>
-
-                    <button
-                      onClick={() => handleDisconnectInteg(integ.id)}
-                      style={{ padding: '6px 12px', borderRadius: 6, background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                    >
-                      <Power size={13} /> Disconnect
-                    </button>
-                  </div>
-
-                </div>
-              ))}
-            </div>
-          )}
-
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <IntegrationsSettingsModule />
         </div>
       )}
 
       {/* ════════════════════════════════════════════════════════════════
-          SECTION 3: SECURITY
+          SECTION 3: SECURITY & 2FA ACCESS (RESTORED 2FA MODULE)
       ════════════════════════════════════════════════════════════════ */}
       {activeTab === 'SECURITY' && (
-        <form onSubmit={handleChangePassword} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 500 }}>
-          <div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: 0 }}>SECURITY</h2>
-            <div style={{ fontSize: 13, color: '#475569', marginTop: 3 }}>
-              Update security password for your manufacturer user account.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* 1. PASSWORD / ACCOUNT SECURITY FORM */}
+          <form onSubmit={handlePasswordChangeSubmit} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div>
+              <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: 0 }}>Password & Account Security</h2>
+              <div style={{ fontSize: 13, color: '#475569', marginTop: 3 }}>
+                Update your account login password. Password must be at least 8 characters with letters, numbers, and symbols.
+              </div>
             </div>
-          </div>
 
-          {passError && (
-            <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', padding: 12, borderRadius: 8, fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <AlertCircle size={16} /> {passError}
-            </div>
-          )}
+            {passChangeSuccess && (
+              <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', color: '#166534', padding: 12, borderRadius: 8, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle2 size={16} /> {passChangeSuccess}
+              </div>
+            )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {passChangeError && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', padding: 12, borderRadius: 8, fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={16} /> {passChangeError}
+              </div>
+            )}
+
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Current Password *</label>
               <input
@@ -1046,40 +929,45 @@ export const ManufacturerSettingsModule: React.FC = () => {
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>New Password (Min 8 characters) *</label>
-              <input
-                type="password"
-                placeholder="Enter new password"
-                value={passForm.newPassword}
-                onChange={e => setPassForm({ ...passForm, newPassword: e.target.value })}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 13 }}
-                required
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>New Password *</label>
+                <input
+                  type="password"
+                  placeholder="Enter new password"
+                  value={passForm.newPassword}
+                  onChange={e => setPassForm({ ...passForm, newPassword: e.target.value })}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 13 }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Confirm New Password *</label>
+                <input
+                  type="password"
+                  placeholder="Re-enter new password"
+                  value={passForm.confirmPassword}
+                  onChange={e => setPassForm({ ...passForm, confirmPassword: e.target.value })}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 13 }}
+                  required
+                />
+              </div>
             </div>
 
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#334155', display: 'block', marginBottom: 4 }}>Confirm New Password *</label>
-              <input
-                type="password"
-                placeholder="Re-enter new password"
-                value={passForm.confirmPassword}
-                onChange={e => setPassForm({ ...passForm, confirmPassword: e.target.value })}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 13 }}
-                required
-              />
+            <div style={{ display: 'flex', justifyContent: 'flex-start', paddingTop: 10 }}>
+              <button
+                type="submit"
+                style={{ padding: '10px 24px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+              >
+                <Lock size={15} /> Change Password
+              </button>
             </div>
-          </div>
+          </form>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-start', paddingTop: 10 }}>
-            <button
-              type="submit"
-              style={{ padding: '10px 24px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
-            >
-              <Lock size={15} /> Change Password
-            </button>
-          </div>
-        </form>
+          {/* 2. TWO-FACTOR AUTHENTICATION (2FA) RESTORED MODULE */}
+          <Security2FAModule />
+        </div>
       )}
 
       {/* ── MODAL: ADD / EDIT API INTEGRATION ───────────────────────── */}

@@ -623,21 +623,12 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
                 }
 
                 return (
-                  <>
                     <button
                       onClick={(e) => handleOpenDeclineModal(selectedRfqForDetail, e)}
                       style={{ padding: '8px 14px', borderRadius: 6, background: '#FFF', color: '#DC2626', border: '1px solid #FCA5A5', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                     >
                       <ThumbsDown size={14} /> Decline RFQ
                     </button>
-
-                    <button
-                      onClick={handleSingleConsolidatedQuoteSubmit}
-                      style={{ padding: '8px 20px', borderRadius: 6, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.2)' }}
-                    >
-                      <Send size={15} /> Submit Quote
-                    </button>
-                  </>
                 );
               })()}
             </div>
@@ -1042,7 +1033,7 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 12.5, color: '#334155', marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, fontSize: 12.5, color: '#334155', marginBottom: 14 }}>
               <div>Quoted Lines: <strong style={{ color: '#15803D' }}>{consolidatedSummary.quotedLinesCount} of {consolidatedSummary.totalLines}</strong></div>
               <div>Cannot Supply: <strong style={{ color: '#B91C1C' }}>{consolidatedSummary.cannotSupplyLinesCount} lines</strong></div>
               <div>Subtotal Base Amount: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>₹{consolidatedSummary.subtotal.toLocaleString('en-IN')}</strong></div>
@@ -1052,40 +1043,40 @@ export const ManufacturerAssignedRFQsModule: React.FC = () => {
               <div>Delivery Terms: <strong style={{ color: '#0F172A' }}>{consolidatedSummary.overallDeliveryTerms}</strong></div>
             </div>
 
-            {/* SINGLE SUBMIT QUOTE PRIMARY ACTION BUTTON */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, borderTop: '1px solid #99F6E4' }}>
-              <div style={{ fontSize: 12.5, color: '#0F766E', fontWeight: 600 }}>
-                All requested line items will be transmitted together as <strong>ONE consolidated commercial quote</strong>.
-              </div>
+            <div style={{ fontSize: 12.5, color: '#0F766E', fontWeight: 600, borderTop: '1px solid #99F6E4', paddingTop: 12 }}>
+              All requested line items will be transmitted together as <strong>ONE consolidated commercial quote</strong>.
+            </div>
+          </div>
 
-              {(() => {
-                const myQuote = quotes.find(q => q.rfqId === selectedRfqForDetail.id && (q.manufacturerId === myMfgId || q.manufacturerName?.includes('SunBio')));
-                const isSubmitted = myQuote && (myQuote.status === 'SUBMITTED' || myQuote.status === 'ACCEPTED' || myQuote.status === 'SUB-ORDER CREATED');
+          {/* ── SINGLE SUBMIT COMPLETE QUOTATION BUTTON (OUTSIDE CARD, RIGHT-ALIGNED BELOW) ── */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+            {(() => {
+              const myQuote = quotes.find(q => q.rfqId === selectedRfqForDetail.id && (q.manufacturerId === myMfgId || q.manufacturerName?.includes('SunBio')));
+              const isSubmitted = myQuote && (myQuote.status === 'SUBMITTED' || myQuote.status === 'ACCEPTED' || myQuote.status === 'SUB-ORDER CREATED');
 
-                if (isSubmitted) {
-                  return (
-                    <button
-                      onClick={() => {
-                        setSelectedRfqForDetail(null);
-                        setActiveTab('quotes');
-                      }}
-                      style={{ padding: '10px 20px', borderRadius: 8, background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}
-                    >
-                      ✓ Quote Submitted — View Submissions →
-                    </button>
-                  );
-                }
-
+              if (isSubmitted) {
                 return (
                   <button
-                    onClick={handleSingleConsolidatedQuoteSubmit}
-                    style={{ padding: '11px 28px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 12px rgba(15,118,110,0.3)' }}
+                    onClick={() => {
+                      setSelectedRfqForDetail(null);
+                      setActiveTab('quotes');
+                    }}
+                    style={{ padding: '10px 20px', borderRadius: 8, background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}
                   >
-                    <Send size={16} /> Submit Complete Quotation →
+                    ✓ Quote Submitted — View Submissions →
                   </button>
                 );
-              })()}
-            </div>
+              }
+
+              return (
+                <button
+                  onClick={handleSingleConsolidatedQuoteSubmit}
+                  style={{ padding: '11px 28px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 12px rgba(15,118,110,0.3)' }}
+                >
+                  <Send size={16} /> Submit Complete Quotation →
+                </button>
+              );
+            })()}
           </div>
 
         </div>

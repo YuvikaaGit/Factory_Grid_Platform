@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { 
+import {
   ShoppingBag, CheckCircle2, Clock, Truck, FileText, Download, 
   Package, ChevronRight, Eye, AlertCircle, ShieldCheck, X, Search, Filter,
-  ArrowLeft, ArrowRight, Building2, Calendar, DollarSign, Receipt, Check, FileCheck, Layers, AlertTriangle
-} from 'lucide-react';
+  ArrowLeft, ArrowRight, Building2, Calendar, DollarSign, Receipt, Check, FileCheck, Layers, AlertTriangle, Upload, File
+} from 'lucide-react';;
 import { MasterOrder, Invoice } from '../../types';
 import { UNIFIED_STORAGE_KEY } from './ProductionExecutionModule';
 
@@ -141,19 +141,437 @@ export const BuyerOrderTrackingModule: React.FC<BuyerOrderTrackingModuleProps> =
   const syncSubOrdersWithContext = (saved: any) => {
     const store: Record<string, any> = { ...(saved || {}) };
 
-    if (!store['SO-1001-01']) {
-      store['SO-1001-01'] = {
-        subOrderNumber: 'SO-1001-01',
-        poNumber: 'PO-2026-1001-01',
-        masterOrderNumber: 'MO-2026-1001',
+    store['SO-2026-5228-01'] = {
+      subOrderNumber: 'SO-2026-5228-01',
+      poNumber: 'PO-SO-2026-5228-01',
+      masterOrderNumber: 'MO-2026-5228',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Azithromycin 500mg Tablets',
+      totalQuantity: 2000,
+      orderValue: 26880,
+      requiredDeliveryDate: '2026-08-28',
+      productionStatus: 'COMPLETED',
+      category: 'DELIVERED',
+      batchNumber: 'BATCH-2026-8801',
+      manufacturingLine: 'Line A - Solid Oral Dosages',
+      plannedStartDate: '2026-08-20',
+      expectedCompletionDate: '2026-08-24',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5228-01',
+        trackingNumber: 'TRK-COL-88963',
+        subOrderNumber: 'SO-2026-5228-01',
+        masterOrderNumber: 'MO-2026-5228',
+        poNumber: 'PO-SO-2026-5228-01',
         customerName: 'Apex Pharma PCD Franchise',
-        manufacturerName: 'SunBio LifeSciences Ltd.',
-        productName: 'Paracetamol 500mg & Azithromycin 500mg',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        productName: 'Azithromycin 500mg Tablets',
+        totalQuantity: 2000,
+        transporterName: 'ColdEx Logistics',
+        vehicleNumber: 'HP 12 B 8801',
+        driverName: 'Gurpreet Singh',
+        driverPhone: '+91 98765 00112',
+        dispatchDate: '2026-08-25',
+        expectedDeliveryDate: '2026-08-28',
+        actualDeliveryDate: '2026-08-28',
+        shipmentStatus: 'DELIVERED',
+        podStatus: 'CONFIRMED',
+        temperatureStatus: 'Normal / Compliant (2°C - 8°C)',
+        currentTemp: '4.2°C',
+        demoGpsLocation: 'Consignee Warehouse - New Delhi',
+        podReceiverName: 'Buyer Warehouse Manager',
+        podDeliveryDate: '2026-08-28',
+        podRemarks: 'All cartons received in good condition and verified at warehouse.',
+        podDocName: 'POD_STAMP_SIGNED_SO-2026-5228-01.pdf',
+        goodsReceipt: {
+          status: 'FULLY_RECEIVED',
+          receivedQuantity: 2000,
+          damagedQuantity: 0,
+          missingQuantity: 0,
+          condition: 'Good / Accepted',
+          receivingRemarks: 'All cartons received in good condition and verified at warehouse.',
+          receivedDate: '2026-08-28',
+          receivedBy: 'Buyer Warehouse Manager'
+        },
+        activityHistory: [
+          { id: 'act_5228_1_3', timestamp: '28 Aug 04:30 PM', eventTitle: 'POD Verified & Delivered', actor: 'Buyer Warehouse Manager', details: 'Confirmed 2,000 units received in pristine cold chain condition.' },
+          { id: 'act_5228_1_2', timestamp: '27 Aug 11:00 AM', eventTitle: 'Arrived at Destination Hub', actor: 'ColdEx Logistics', details: 'Arrived at New Delhi Distribution Hub.' },
+          { id: 'act_5228_1_1', timestamp: '25 Aug 09:30 AM', eventTitle: 'Shipment Dispatched', actor: 'SunBio LifeSciences Ltd', details: 'Dispatched via ColdEx Logistics (Vehicle: HP 12 B 8801, AWB: TRK-COL-88963)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5228-02'] = {
+      subOrderNumber: 'SO-2026-5228-02',
+      poNumber: 'PO-SO-2026-5228-02',
+      masterOrderNumber: 'MO-2026-5228',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'Cipla Partner Formulations Ltd',
+      productName: 'Pantoprazole 40mg + Domperidone 30mg SR Capsules',
+      totalQuantity: 3000,
+      orderValue: 48720,
+      requiredDeliveryDate: '2026-09-01',
+      productionStatus: 'COMPLETED',
+      category: 'IN_TRANSIT',
+      batchNumber: 'BATCH-2026-8802',
+      manufacturingLine: 'Line B - Capsule Encapsulation',
+      plannedStartDate: '2026-08-21',
+      expectedCompletionDate: '2026-08-26',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5228-02',
+        trackingNumber: 'TRK-BLU-77421',
+        subOrderNumber: 'SO-2026-5228-02',
+        masterOrderNumber: 'MO-2026-5228',
+        poNumber: 'PO-SO-2026-5228-02',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'Cipla Partner Formulations Ltd',
+        productName: 'Pantoprazole 40mg + Domperidone 30mg SR Capsules',
+        totalQuantity: 3000,
+        transporterName: 'BlueDart Express',
+        vehicleNumber: 'DL 01 CD 7742',
+        driverName: 'Vikram Singh',
+        driverPhone: '+91 98112 77421',
+        dispatchDate: '2026-08-27',
+        expectedDeliveryDate: '2026-09-01',
+        shipmentStatus: 'IN_TRANSIT',
+        podStatus: 'PENDING',
+        temperatureStatus: 'Normal / Compliant (15°C - 25°C)',
+        currentTemp: '21.5°C',
+        demoGpsLocation: 'Delhi Distribution Hub - En Route',
+        activityHistory: [
+          { id: 'act_5228_2_2', timestamp: '27 Aug 02:15 PM', eventTitle: 'In Transit - En Route', actor: 'BlueDart Express', details: 'Shipment departed Delhi Distribution Hub.' },
+          { id: 'act_5228_2_1', timestamp: '27 Aug 09:00 AM', eventTitle: 'Shipment Dispatched', actor: 'Cipla Partner Formulations Ltd', details: 'Dispatched via BlueDart Express (Vehicle: DL 01 CD 7742, AWB: TRK-BLU-77421)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5229-01'] = {
+      subOrderNumber: 'SO-2026-5229-01',
+      poNumber: 'PO-SO-2026-5229-01',
+      masterOrderNumber: 'MO-2026-5229',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Paracetamol 650mg ER Tablets',
+      totalQuantity: 10000,
+      orderValue: 128800,
+      requiredDeliveryDate: '2026-08-25',
+      productionStatus: 'COMPLETED',
+      category: 'DELIVERED',
+      batchNumber: 'BATCH-2026-5229',
+      manufacturingLine: 'Line A - Solid Oral Dosages',
+      plannedStartDate: '2026-08-14',
+      expectedCompletionDate: '2026-08-20',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5229-01',
+        trackingNumber: 'TRK-SAF-99412',
+        subOrderNumber: 'SO-2026-5229-01',
+        masterOrderNumber: 'MO-2026-5229',
+        poNumber: 'PO-SO-2026-5229-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        productName: 'Paracetamol 650mg ER Tablets',
+        totalQuantity: 10000,
+        transporterName: 'Safexpress Cold Fleet',
+        vehicleNumber: 'HP 12 B 9941',
+        driverName: 'Ramesh Verma',
+        driverPhone: '+91 98765 99412',
+        dispatchDate: '2026-08-20',
+        expectedDeliveryDate: '2026-08-25',
+        actualDeliveryDate: '2026-08-25',
+        shipmentStatus: 'DELIVERED',
+        podStatus: 'CONFIRMED',
+        temperatureStatus: 'Normal / Compliant (15°C - 25°C)',
+        currentTemp: '20.1°C',
+        demoGpsLocation: 'Apex Central Warehouse New Delhi',
+        podReceiverName: 'Warehouse Stores Manager',
+        podDeliveryDate: '2026-08-25',
+        podRemarks: 'Delivered in good condition and stock logged.',
+        podDocName: 'POD_STAMP_SIGNED_SO-2026-5229-01.pdf',
+        activityHistory: [
+          { id: 'act_5229_1_2', timestamp: '25 Aug 03:00 PM', eventTitle: 'Delivered & Verified', actor: 'Safexpress Cold Fleet', details: 'Delivered to Apex Central Warehouse.' },
+          { id: 'act_5229_1_1', timestamp: '20 Aug 10:00 AM', eventTitle: 'Shipment Dispatched', actor: 'SunBio LifeSciences Ltd', details: 'Dispatched via Safexpress Cold Fleet (Vehicle: HP 12 B 9941, AWB: TRK-SAF-99412)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5230-01'] = {
+      subOrderNumber: 'SO-2026-5230-01',
+      poNumber: 'PO-SO-2026-5230-01',
+      masterOrderNumber: 'MO-2026-5230',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Amoxyclav 625mg Tablets',
+      totalQuantity: 5000,
+      orderValue: 252000,
+      requiredDeliveryDate: '2026-09-05',
+      productionStatus: 'IN_PRODUCTION',
+      category: 'IN_PRODUCTION',
+      batchNumber: 'BATCH-2026-5230',
+      manufacturingLine: 'Line A - Solid Oral Dosages',
+      plannedStartDate: '2026-08-18',
+      expectedCompletionDate: '2026-09-05',
+      progressPercent: 70,
+      shipment: null
+    };
+
+    store['SO-2026-5231-01'] = {
+      subOrderNumber: 'SO-2026-5231-01',
+      poNumber: 'PO-SO-2026-5231-01',
+      masterOrderNumber: 'MO-2026-5231',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'Cipla Partner Formulations Ltd',
+      productName: 'Ciprofloxacin 500mg Tablets',
+      totalQuantity: 8000,
+      orderValue: 161280,
+      requiredDeliveryDate: '2026-08-30',
+      productionStatus: 'READY_TO_DISPATCH',
+      category: 'READY_TO_DISPATCH',
+      batchNumber: 'BATCH-2026-5231',
+      manufacturingLine: 'Line B - High Speed Tablet Press',
+      plannedStartDate: '2026-08-18',
+      expectedCompletionDate: '2026-08-26',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5231-01',
+        trackingNumber: 'TRK-BD-9940128',
+        subOrderNumber: 'SO-2026-5231-01',
+        masterOrderNumber: 'MO-2026-5231',
+        poNumber: 'PO-SO-2026-5231-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'Cipla Partner Formulations Ltd',
+        productName: 'Ciprofloxacin 500mg Tablets',
+        totalQuantity: 8000,
+        transporterName: 'BlueDart Surface',
+        vehicleNumber: 'DL 01 CD 9940',
+        driverName: 'Sanjay Kumar',
+        driverPhone: '+91 98112 99401',
+        dispatchDate: '2026-08-26',
+        expectedDeliveryDate: '2026-08-30',
+        shipmentStatus: 'DISPATCHED',
+        podStatus: 'PENDING',
+        temperatureStatus: 'Normal / Compliant (15°C - 25°C)',
+        currentTemp: '22.0°C',
+        demoGpsLocation: 'Cipla Logistics Bay - Baddi',
+        activityHistory: [
+          { id: 'act_5231_1_1', timestamp: '26 Aug 05:00 PM', eventTitle: 'Shipment Dispatched', actor: 'Cipla Partner Formulations Ltd', details: 'Dispatched via BlueDart Surface (Vehicle: DL 01 CD 9940, AWB: TRK-BD-9940128)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5232-01'] = {
+      subOrderNumber: 'SO-2026-5232-01',
+      poNumber: 'PO-SO-2026-5232-01',
+      masterOrderNumber: 'MO-2026-5232',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Ceftriaxone 1g Injection',
+      totalQuantity: 1200,
+      orderValue: 114240,
+      requiredDeliveryDate: '2026-08-27',
+      productionStatus: 'COMPLETED',
+      category: 'PENDING_RECEIPT',
+      batchNumber: 'BATCH-2026-5232',
+      manufacturingLine: 'Line C - Sterile Liquid Injectables',
+      plannedStartDate: '2026-08-16',
+      expectedCompletionDate: '2026-08-22',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5232-01',
+        trackingNumber: 'TRK-TCI-88102',
+        subOrderNumber: 'SO-2026-5232-01',
+        masterOrderNumber: 'MO-2026-5232',
+        poNumber: 'PO-SO-2026-5232-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        productName: 'Ceftriaxone 1g Injection',
+        totalQuantity: 1200,
+        transporterName: 'TCI Express',
+        vehicleNumber: 'HP 12 B 8810',
+        driverName: 'Harpreet Singh',
+        driverPhone: '+91 98765 88102',
+        dispatchDate: '2026-08-23',
+        expectedDeliveryDate: '2026-08-27',
+        actualDeliveryDate: '2026-08-27',
+        shipmentStatus: 'POD_CONFIRMED',
+        podStatus: 'CONFIRMED',
+        temperatureStatus: 'Normal / Compliant (2°C - 8°C)',
+        currentTemp: '4.5°C',
+        demoGpsLocation: 'Consignee Receiving Bay - New Delhi',
+        podReceiverName: 'Receiving Dock Officer',
+        podDeliveryDate: '2026-08-27',
+        podRemarks: 'Delivered. Awaiting buyer GRN log entry.',
+        podDocName: 'POD_STAMP_SIGNED_SO-2026-5232-01.pdf',
+        activityHistory: [
+          { id: 'act_5232_1_2', timestamp: '27 Aug 02:00 PM', eventTitle: 'POD Confirmed', actor: 'TCI Express', details: 'Delivered at Consignee Receiving Bay.' },
+          { id: 'act_5232_1_1', timestamp: '23 Aug 11:00 AM', eventTitle: 'Shipment Dispatched', actor: 'SunBio LifeSciences Ltd', details: 'Dispatched via TCI Express (Vehicle: HP 12 B 8810, AWB: TRK-TCI-88102)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5233-01'] = {
+      subOrderNumber: 'SO-2026-5233-01',
+      poNumber: 'PO-SO-2026-5233-01',
+      masterOrderNumber: 'MO-2026-5233',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'Cipla Partner Formulations Ltd',
+      productName: 'Metformin 500mg SR Tablets',
+      totalQuantity: 20000,
+      orderValue: 145600,
+      requiredDeliveryDate: '2026-08-26',
+      productionStatus: 'COMPLETED',
+      category: 'GOODS_RECEIVED',
+      batchNumber: 'BATCH-2026-5233',
+      manufacturingLine: 'Line B - High Speed Tablet Press',
+      plannedStartDate: '2026-08-12',
+      expectedCompletionDate: '2026-08-20',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5233-01',
+        trackingNumber: 'TRK-COL-99012',
+        subOrderNumber: 'SO-2026-5233-01',
+        masterOrderNumber: 'MO-2026-5233',
+        poNumber: 'PO-SO-2026-5233-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'Cipla Partner Formulations Ltd',
+        productName: 'Metformin 500mg SR Tablets',
+        totalQuantity: 20000,
+        transporterName: 'ColdEx Express Fleet',
+        vehicleNumber: 'DL 01 CD 9901',
+        driverName: 'Amit Kumar',
+        driverPhone: '+91 98112 99012',
+        dispatchDate: '2026-08-22',
+        expectedDeliveryDate: '2026-08-26',
+        actualDeliveryDate: '2026-08-26',
+        shipmentStatus: 'CLOSED',
+        podStatus: 'CONFIRMED',
+        temperatureStatus: 'Normal / Compliant (15°C - 25°C)',
+        currentTemp: '19.8°C',
+        demoGpsLocation: 'Apex Central Warehouse New Delhi',
+        podReceiverName: 'Apex Warehouse Lead',
+        podDeliveryDate: '2026-08-26',
+        podRemarks: 'Full shipment received and stock logged into ERP.',
+        podDocName: 'POD_STAMP_SIGNED_SO-2026-5233-01.pdf',
+        goodsReceipt: {
+          status: 'FULLY_RECEIVED',
+          receivedQuantity: 20000,
+          damagedQuantity: 0,
+          missingQuantity: 0,
+          condition: 'Good / Accepted',
+          receivingRemarks: 'Full shipment received and stock logged into ERP.',
+          receivedDate: '2026-08-26',
+          receivedBy: 'Apex Warehouse Lead'
+        },
+        activityHistory: [
+          { id: 'act_5233_1_3', timestamp: '26 Aug 04:00 PM', eventTitle: 'Shipment Closed & Archived', actor: 'System', details: 'Goods receipt verified. Shipment closed.' },
+          { id: 'act_5233_1_2', timestamp: '26 Aug 11:30 AM', eventTitle: 'Delivered', actor: 'ColdEx Express Fleet', details: 'Delivered at Apex Central Warehouse.' },
+          { id: 'act_5233_1_1', timestamp: '22 Aug 09:00 AM', eventTitle: 'Shipment Dispatched', actor: 'Cipla Partner Formulations Ltd', details: 'Dispatched via ColdEx Express Fleet (Vehicle: DL 01 CD 9901, AWB: TRK-COL-99012)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5234-01'] = {
+      subOrderNumber: 'SO-2026-5234-01',
+      poNumber: 'PO-SO-2026-5234-01',
+      masterOrderNumber: 'MO-2026-5234',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Telmisartan 40mg Tablets',
+      totalQuantity: 15000,
+      orderValue: 154560,
+      requiredDeliveryDate: '2026-08-24',
+      productionStatus: 'COMPLETED',
+      category: 'CLOSED',
+      batchNumber: 'BATCH-2026-5234',
+      manufacturingLine: 'Line A - Solid Oral Dosages',
+      plannedStartDate: '2026-08-08',
+      expectedCompletionDate: '2026-08-18',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5234-01',
+        trackingNumber: 'TRK-TCI-77129',
+        subOrderNumber: 'SO-2026-5234-01',
+        masterOrderNumber: 'MO-2026-5234',
+        poNumber: 'PO-SO-2026-5234-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        productName: 'Telmisartan 40mg Tablets',
+        totalQuantity: 15000,
+        transporterName: 'TCI Express Cold Fleet',
+        vehicleNumber: 'HP 12 B 7712',
+        driverName: 'Kuldeep Singh',
+        driverPhone: '+91 98765 77129',
+        dispatchDate: '2026-08-20',
+        expectedDeliveryDate: '2026-08-24',
+        actualDeliveryDate: '2026-08-24',
+        shipmentStatus: 'CLOSED',
+        podStatus: 'CONFIRMED',
+        temperatureStatus: 'Normal / Compliant (15°C - 25°C)',
+        currentTemp: '21.0°C',
+        demoGpsLocation: 'Apex Central Warehouse New Delhi',
+        podReceiverName: 'Apex Warehouse Manager',
+        podDeliveryDate: '2026-08-24',
+        podRemarks: 'Verified full quantity 15,000 units. Invoice paid.',
+        podDocName: 'POD_STAMP_SIGNED_SO-2026-5234-01.pdf',
+        goodsReceipt: {
+          status: 'FULLY_RECEIVED',
+          receivedQuantity: 15000,
+          damagedQuantity: 0,
+          missingQuantity: 0,
+          condition: 'Good / Accepted',
+          receivingRemarks: 'Verified full quantity 15,000 units. Invoice paid.',
+          receivedDate: '2026-08-24',
+          receivedBy: 'Apex Warehouse Manager'
+        },
+        activityHistory: [
+          { id: 'act_5234_1_3', timestamp: '24 Aug 05:00 PM', eventTitle: 'Shipment Closed & Archived', actor: 'System', details: 'Lifecycle completed and archived.' },
+          { id: 'act_5234_1_2', timestamp: '24 Aug 02:00 PM', eventTitle: 'Delivered', actor: 'TCI Express Cold Fleet', details: 'Delivered to Apex Central Warehouse.' },
+          { id: 'act_5234_1_1', timestamp: '20 Aug 10:00 AM', eventTitle: 'Shipment Dispatched', actor: 'SunBio LifeSciences Ltd', details: 'Dispatched via TCI Express Cold Fleet (Vehicle: HP 12 B 7712, AWB: TRK-TCI-77129)' }
+        ]
+      }
+    };
+
+    store['SO-1001-01'] = {
+      subOrderNumber: 'SO-1001-01',
+      poNumber: 'PO-2026-1001-01',
+      masterOrderNumber: 'MO-2026-1001',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Paracetamol 500mg & Azithromycin 500mg Tablets',
+      totalQuantity: 12000,
+      orderValue: 195300,
+      productionStatus: 'READY_TO_DISPATCH',
+      category: 'IN_TRANSIT',
+      shipment: {
+        id: 'SHP-COLD-5027',
+        trackingNumber: 'BD502730757IN',
+        subOrderNumber: 'SO-1001-01',
+        masterOrderNumber: 'MO-2026-1001',
+        poNumber: 'PO-2026-1001-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        productName: 'Paracetamol 500mg & Azithromycin 500mg Tablets',
         totalQuantity: 12000,
-        productionStatus: 'PO_ACCEPTED',
-        shipment: null
-      };
-    }
+        transporterName: 'ColdEx Logistics Telemetry Fleet',
+        vehicleNumber: 'HP 12 B 9021',
+        driverName: 'Gurpreet Singh',
+        driverPhone: '+91 98765 00112',
+        dispatchDate: '2026-08-18',
+        expectedDeliveryDate: '2026-08-28',
+        shipmentStatus: 'IN_TRANSIT',
+        temperatureStatus: 'Normal / Compliant (2°C - 8°C)',
+        currentTemp: '4.1°C',
+        demoGpsLocation: 'NH44 Highway — En route to Consignee (Hyderabad Hub)',
+        podStatus: 'PENDING',
+        pickupRefNumber: 'PU-BD-88912',
+        activityHistory: [
+          { id: 'act_1', timestamp: '18 Aug 10:00 AM', eventTitle: 'Shipment Entered In Transit', actor: 'ColdEx Logistics Telemetry Fleet', details: 'Shipment BD502730757IN entered transit route via vehicle HP 12 B 9021' },
+          { id: 'act_0', timestamp: '18 Aug 08:30 AM', eventTitle: 'Shipment Dispatched', actor: 'SunBio LifeSciences Ltd', details: 'Dispatched via ColdEx Logistics Telemetry Fleet (Vehicle: HP 12 B 9021, AWB: BD502730757IN)' }
+        ]
+      }
+    };
 
     if (Array.isArray(orders)) {
       orders.forEach(mo => {
@@ -215,12 +633,37 @@ export const BuyerOrderTrackingModule: React.FC<BuyerOrderTrackingModuleProps> =
     };
   }, [orders]);
 
-  // Centralized Sub-Order Status Categorization
+    // Centralized Sub-Order Status Categorization
   const getSubOrderDetailedStatus = (sub: any) => {
     const subCode = sub.subOrderNumber === 'SO-2026-1001-01' ? 'SO-1001-01' : sub.subOrderNumber;
     const storeRec = subOrdersStore[subCode] || sub;
     const shp = storeRec?.shipment;
     const prodSt = storeRec?.productionStatus || sub.status || 'PO_ACCEPTED';
+    const explicitCat = storeRec?.category || sub?.category;
+
+    if (explicitCat) {
+      if (explicitCat === 'CLOSED' || explicitCat === 'COMPLETED') {
+        return { subCode, category: 'CLOSED', displayStatus: 'Completed', badgeStyle: { bg: '#F1F5F9', border: '#CBD5E1', color: '#475569' } };
+      }
+      if (explicitCat === 'GOODS_RECEIVED') {
+        return { subCode, category: 'GOODS_RECEIVED', displayStatus: 'Goods Received ✓', badgeStyle: { bg: '#DCFCE7', border: '#86EFAC', color: '#15803D' } };
+      }
+      if (explicitCat === 'PENDING_RECEIPT' || explicitCat === 'PENDING_GOODS_RECEIPT') {
+        return { subCode, category: 'PENDING_RECEIPT', displayStatus: 'Pending Goods Receipt', badgeStyle: { bg: '#FEF3C7', border: '#FDE68A', color: '#B45309' } };
+      }
+      if (explicitCat === 'DELIVERED') {
+        return { subCode, category: 'DELIVERED', displayStatus: 'Delivered', badgeStyle: { bg: '#DCFCE7', border: '#86EFAC', color: '#15803D' } };
+      }
+      if (explicitCat === 'IN_TRANSIT') {
+        return { subCode, category: 'IN_TRANSIT', displayStatus: 'In Transit', badgeStyle: { bg: '#E0F2FE', border: '#BAE6FD', color: '#0369A1' } };
+      }
+      if (explicitCat === 'READY_TO_DISPATCH') {
+        return { subCode, category: 'READY_TO_DISPATCH', displayStatus: 'Ready To Dispatch', badgeStyle: { bg: '#F3E8FF', border: '#E9D5FF', color: '#6B21A8' } };
+      }
+      if (explicitCat === 'IN_PRODUCTION') {
+        return { subCode, category: 'IN_PRODUCTION', displayStatus: 'In Production', badgeStyle: { bg: '#FEF3C7', border: '#FDE68A', color: '#B45309' } };
+      }
+    }
 
     if (shp) {
       const shpSt = shp.shipmentStatus;
@@ -235,7 +678,7 @@ export const BuyerOrderTrackingModule: React.FC<BuyerOrderTrackingModuleProps> =
       }
 
       if (shpSt === 'DELIVERED' || shpSt === 'POD_CONFIRMED') {
-        if (podSt === 'CONFIRMED' || shpSt === 'POD_CONFIRMED' || shpSt === 'DELIVERED') {
+        if (podSt === 'CONFIRMED' || shpSt === 'POD_CONFIRMED') {
           return { subCode, category: 'PENDING_RECEIPT', displayStatus: 'Pending Goods Receipt', badgeStyle: { bg: '#FEF3C7', border: '#FDE68A', color: '#B45309' } };
         }
         return { subCode, category: 'DELIVERED', displayStatus: 'Delivered', badgeStyle: { bg: '#DCFCE7', border: '#86EFAC', color: '#15803D' } };
@@ -252,6 +695,16 @@ export const BuyerOrderTrackingModule: React.FC<BuyerOrderTrackingModuleProps> =
 
     if (prodSt === 'SCHEDULED' || prodSt === 'IN_PRODUCTION' || prodSt === 'IN PRODUCTION' || prodSt === 'QUALITY_INSPECTION' || prodSt === 'PACKAGING') {
       return { subCode, category: 'IN_PRODUCTION', displayStatus: 'In Production', badgeStyle: { bg: '#FEF3C7', border: '#FDE68A', color: '#B45309' } };
+    }
+
+    if (prodSt === 'DELIVERED') {
+      return { subCode, category: 'DELIVERED', displayStatus: 'Delivered', badgeStyle: { bg: '#DCFCE7', border: '#86EFAC', color: '#15803D' } };
+    }
+    if (prodSt === 'CLOSED' || prodSt === 'COMPLETED') {
+      return { subCode, category: 'CLOSED', displayStatus: 'Completed', badgeStyle: { bg: '#F1F5F9', border: '#CBD5E1', color: '#475569' } };
+    }
+    if (prodSt === 'GOODS_RECEIVED') {
+      return { subCode, category: 'GOODS_RECEIVED', displayStatus: 'Goods Received ✓', badgeStyle: { bg: '#DCFCE7', border: '#86EFAC', color: '#15803D' } };
     }
 
     return { subCode, category: 'ACTIVE', displayStatus: 'PO Accepted', badgeStyle: { bg: '#EFF6FF', border: '#BFDBFE', color: '#1D4ED8' } };
@@ -582,12 +1035,25 @@ export const BuyerOrderTrackingModule: React.FC<BuyerOrderTrackingModuleProps> =
                       </div>
                     </div>
 
-                    {/* Sub-Orders Breakdown Summary Row */}
-                    <div style={{ background: '#F8FAFC', border: '1px solid #F1F5F9', borderRadius: 8, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                      <div style={{ fontSize: 12, color: '#334155', display: 'flex', alignItems: 'center', gap: 14 }}>
-                        <div><strong>{ord.subOrders.length}</strong> Manufacturer Sub-Orders</div>
-                        <div>•</div>
-                        <div>Address: <span style={{ color: '#64748B' }}>{ord.shippingAddress}</span></div>
+                                        {/* Sub-Orders Breakdown Summary Row */}
+                    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                      <div style={{ fontSize: 12, color: '#334155', display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          <div>PO #: <strong style={{ fontFamily: 'monospace', color: '#0F766E' }}>{ord.poNumber || `PO-${ord.orderNumber}`}</strong></div>
+                          <div>•</div>
+                          <div>Sub-Orders: <strong>{ord.subOrders.length}</strong></div>
+                          <div>•</div>
+                          <div>Payment Terms: <strong>{ord.paymentTerms || 'Net 30'}</strong></div>
+                          <div>•</div>
+                          <div>Currency: <strong>{ord.currency || 'INR (₹)'}</strong></div>
+                          <div>•</div>
+                          <div>Updated: <strong>{ord.updatedDate || ord.createdDate}</strong></div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 12, fontSize: 11.5, color: '#64748B', flexWrap: 'wrap' }}>
+                          <div>Delivery: <span style={{ color: '#334155' }}>{ord.shippingAddress}</span></div>
+                          <div>•</div>
+                          <div>Billing: <span style={{ color: '#334155' }}>{ord.billingAddress || 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001'}</span></div>
+                        </div>
                       </div>
 
                       <button
@@ -596,7 +1062,7 @@ export const BuyerOrderTrackingModule: React.FC<BuyerOrderTrackingModuleProps> =
                           setViewMode('TRACKING_DETAIL');
                         }}
                         style={{
-                          padding: '7px 16px',
+                          padding: '8px 18px',
                           borderRadius: 6,
                           background: '#0F766E',
                           color: '#FFFFFF',
@@ -771,12 +1237,12 @@ export const BuyerOrderTrackingModule: React.FC<BuyerOrderTrackingModuleProps> =
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               {activeMasterOrder.subOrders.map(sub => {
                 const subCode = sub.subOrderNumber === 'SO-2026-1001-01' ? 'SO-1001-01' : sub.subOrderNumber;
-                const storeRec = subOrdersStore[subCode] || subOrdersStore['SO-1001-01'];
+                const storeRec = subOrdersStore[subCode] || null;
                 const prodStatus = storeRec?.productionStatus || 'PO_ACCEPTED';
                 const shpObj = storeRec?.shipment;
 
                 // Find Invoice if generated
-                const connectedInvoice: Invoice | undefined = storeRec?.invoice || invoices.find(inv => inv.subOrderNumber === subCode || inv.orderNumber === activeMasterOrder.orderNumber);
+                const connectedInvoice: Invoice | undefined = storeRec?.invoice || invoices.find(inv => inv.subOrderNumber === subCode);
 
                 return (
                   <div key={sub.id} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, boxShadow: '0 2px 4px rgba(15,23,42,0.03)' }}>

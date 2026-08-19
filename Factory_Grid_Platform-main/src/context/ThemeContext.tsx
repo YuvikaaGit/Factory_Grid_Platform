@@ -11,25 +11,28 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<Theme>('light');
-
-  useEffect(() => {
-    const saved = localStorage.getItem('fg_theme') as Theme;
-    if (saved && (saved === 'light' || saved === 'dark')) {
-      setThemeState(saved);
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('fg_theme') as Theme;
+      if (saved && (saved === 'light' || saved === 'dark')) return saved;
     }
-  }, []);
+    return 'light';
+  });
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     localStorage.setItem('fg_theme', theme);
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
+
     if (theme === 'light') {
-      document.documentElement.classList.add('light-theme');
-      document.documentElement.classList.remove('dark-theme');
+      root.classList.add('light-theme');
+      root.classList.remove('dark-theme');
       document.body.classList.add('light-theme');
       document.body.classList.remove('dark-theme');
     } else {
-      document.documentElement.classList.add('dark-theme');
-      document.documentElement.classList.remove('light-theme');
+      root.classList.add('dark-theme');
+      root.classList.remove('light-theme');
       document.body.classList.add('dark-theme');
       document.body.classList.remove('light-theme');
     }

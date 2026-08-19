@@ -54,14 +54,27 @@ const auditLogs = [
   { action: 'Payment Recorded', user: 'Finance Controller', dept: 'Finance', entity: 'INV-2026-4401 — ₹7,20,000', time: '4 hours ago', ip: '192.168.2.14' },
 ];
 
+import { IntegrationsSettingsModule } from './IntegrationsSettingsModule';
+import { Security2FAModule } from './Security2FAModule';
+import { NotificationsModule } from './NotificationsModule';
+
 export const SettingsModule: React.FC = () => {
   const { 
+    currentRole,
     auditLogs: contextAuditLogs, buyerOnboardings, manufacturerOnboardings,
     approveBuyerOnboarding, approveManufacturerOnboarding, addAuditLog 
   } = useApp();
-  const [activeTab, setActiveTab] = useState<'USERS' | 'RBAC' | 'SYSTEM' | 'AUDIT' | 'ORGANIZATIONS' | 'API_HEALTH'>('USERS');
+
+  // Guard: BUYER and SUPPLIER must not see the admin System Control Center
+  if (currentRole === 'BUYER' || currentRole === 'SUPPLIER') {
+    return <NotificationsModule />;
+  }
+
+  const [activeTab, setActiveTab] = useState<'INTEGRATIONS' | 'SECURITY' | 'USERS' | 'RBAC' | 'SYSTEM' | 'AUDIT' | 'ORGANIZATIONS' | 'API_HEALTH'>(() => currentRole === 'ADMIN' ? 'SECURITY' : 'INTEGRATIONS');
 
   const tabs = [
+    ...(currentRole === 'ADMIN' ? [] : [{ id: 'INTEGRATIONS', label: 'Integrations', icon: Server }]),
+    { id: 'SECURITY', label: 'Security & 2FA', icon: ShieldCheck },
     { id: 'USERS', label: 'User Directory', icon: Users },
     { id: 'ORGANIZATIONS', label: 'Organizations', icon: Building2 },
     { id: 'RBAC', label: 'RBAC Permissions', icon: Shield },
@@ -170,6 +183,12 @@ export const SettingsModule: React.FC = () => {
           );
         })}
       </div>
+
+      {/* ── INTEGRATIONS TAB ────────────────────────────── */}
+      {activeTab === 'INTEGRATIONS' && <IntegrationsSettingsModule />}
+
+      {/* ── SECURITY & 2FA TAB ───────────────────────────── */}
+      {activeTab === 'SECURITY' && <Security2FAModule />}
 
       {/* ── ORGANIZATIONS TAB ────────────────────────────── */}
       {activeTab === 'ORGANIZATIONS' && (

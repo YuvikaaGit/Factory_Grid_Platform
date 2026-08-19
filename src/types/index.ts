@@ -321,6 +321,16 @@ export interface SubOrder {
   expectedDeliveryDate: string;
   awbNumber?: string;
   transporterName?: string;
+  poNumber?: string;
+  deliveredQuantity?: number;
+  trackingNumber?: string;
+  carrier?: string;
+  dispatchDate?: string;
+  deliveryDate?: string;
+  currentLocation?: string;
+  trackingStatus?: string;
+  lastTrackingUpdate?: string;
+  productionOrderId?: string;
 }
 
 export interface MasterOrder {
@@ -335,6 +345,11 @@ export interface MasterOrder {
   totalAmount: number;
   subOrders: SubOrder[];
   shippingAddress: string;
+  billingAddress?: string;
+  poNumber?: string;
+  paymentTerms?: string;
+  currency?: string;
+  updatedDate?: string;
 }
 
 export interface InvoiceLine {
@@ -346,10 +361,28 @@ export interface InvoiceLine {
   unitPrice: number;
   taxAmount: number;
   totalAmount: number;
+  discountPercent?: number;
+  taxPercent?: number;
 }
 
 export interface Invoice {
   id: string;
+  logoDataUrl?: string;
+  customerAddress?: string;
+  customerGstin?: string;
+  customerPan?: string;
+  manufacturerAddress?: string;
+  manufacturerGstin?: string;
+  manufacturerPan?: string;
+  manufacturerLicense?: string;
+  paymentTerms?: string;
+  creationMethod?: 'TEXT' | 'UPLOAD';
+  uploadedFileName?: string;
+  uploadedFileUrl?: string;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  freightAmount?: number;
   invoiceNumber: string;
   masterOrderId: string;
   orderNumber: string;
@@ -642,6 +675,11 @@ export interface CustomerVerificationRequest {
   // 3. Address Information
   billingAddress: string;
   shippingAddress: string;
+  billingAddress?: string;
+  poNumber?: string;
+  paymentTerms?: string;
+  currency?: string;
+  updatedDate?: string;
   state: string;
   country: string;
   pincode: string;

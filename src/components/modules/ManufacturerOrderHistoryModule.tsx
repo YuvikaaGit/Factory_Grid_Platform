@@ -82,10 +82,10 @@ export const ManufacturerOrderHistoryModule: React.FC<ManufacturerOrderHistoryMo
         const subCode = sub.subOrderNumber === 'SO-2026-1001-01' ? 'SO-1001-01' : sub.subOrderNumber;
         processedCodes.add(subCode);
 
-        const storeRec = subOrdersStore[subCode] || subOrdersStore['SO-1001-01'];
+        const storeRec = subOrdersStore[subCode] || null;
         const prodStatus = storeRec?.productionStatus || sub.status || 'PO_ACCEPTED';
         const shpObj = storeRec?.shipment;
-        const invObj = storeRec?.invoice || invoices.find(inv => inv.subOrderNumber === subCode || inv.orderNumber === masterOrd.orderNumber);
+        const invObj = storeRec?.invoice || invoices.find(inv => inv.subOrderNumber === subCode);
 
         let overallStatus = 'PO ACCEPTED';
         if (shpObj) {

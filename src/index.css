@@ -1317,3 +1317,236 @@ body.dark-theme .ent-table tbody tr:nth-child(even) td { background: transparent
 }
 
 
+
+
+
+/* =========================================================
+   FACTORYGRID — BULLETPROOF ENTERPRISE DARK THEME ENGINE
+   ========================================================= */
+
+:root, [data-theme="light"], .light-theme {
+  --background: #F7F9FC;
+  --surface: #FFFFFF;
+  --surface-secondary: #F1F5F9;
+  --surface-tertiary: #E2E8F0;
+  --border: #E2E8F0;
+  --border-subtle: #F1F5F9;
+  --primary-text: #0F172A;
+  --secondary-text: #64748B;
+  --muted-text: #94A3B8;
+  --primary: #2563EB;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+}
+
+[data-theme="dark"], .dark-theme, body.dark-theme {
+  --background: #0B1220 !important;
+  --surface: #111827 !important;
+  --surface-secondary: #172033 !important;
+  --surface-tertiary: #1E293B !important;
+  --border: #263449 !important;
+  --border-subtle: #1F2A3A !important;
+  --primary-text: #F8FAFC !important;
+  --secondary-text: #94A3B8 !important;
+  --muted-text: #64748B !important;
+  --primary: #2563EB !important;
+  --success: #10B981 !important;
+  --warning: #F59E0B !important;
+  --danger: #EF4444 !important;
+  color-scheme: dark !important;
+}
+
+/* Page Root Dark Mode */
+body.dark-theme, [data-theme="dark"],
+body.dark-theme body, [data-theme="dark"] body,
+body.dark-theme #root, [data-theme="dark"] #root {
+  background-color: #0B1220 !important;
+  color: #F8FAFC !important;
+}
+
+/* Structural Layout Elements in Dark Mode */
+body.dark-theme div, body.dark-theme main, body.dark-theme section, body.dark-theme article,
+body.dark-theme nav, body.dark-theme header, body.dark-theme form, body.dark-theme aside,
+[data-theme="dark"] div, [data-theme="dark"] main, [data-theme="dark"] section, [data-theme="dark"] article,
+[data-theme="dark"] nav, [data-theme="dark"] header, [data-theme="dark"] form, [data-theme="dark"] aside {
+  border-color: #263449;
+}
+
+/* Universal White/Light Surface Override (ALL HTML Tags & Tailwind Classes) */
+body.dark-theme *[style*="background: #FFFFFF"],
+body.dark-theme *[style*="background: #ffffff"],
+body.dark-theme *[style*="background: #FFF"],
+body.dark-theme *[style*="background: #fff"],
+body.dark-theme *[style*="background: rgb(255, 255, 255)"],
+body.dark-theme *[style*="background-color: #FFFFFF"],
+body.dark-theme *[style*="background-color: #ffffff"],
+body.dark-theme *[style*="background-color: #FFF"],
+body.dark-theme *[style*="background-color: #fff"],
+body.dark-theme *[style*="background-color: rgb(255, 255, 255)"],
+[data-theme="dark"] *[style*="background: #FFFFFF"],
+[data-theme="dark"] *[style*="background: #ffffff"],
+[data-theme="dark"] *[style*="background: #FFF"],
+[data-theme="dark"] *[style*="background: #fff"],
+[data-theme="dark"] *[style*="background: rgb(255, 255, 255)"],
+[data-theme="dark"] *[style*="background-color: #FFFFFF"],
+[data-theme="dark"] *[style*="background-color: #ffffff"],
+[data-theme="dark"] *[style*="background-color: #FFF"],
+[data-theme="dark"] *[style*="background-color: #fff"],
+[data-theme="dark"] *[style*="background-color: rgb(255, 255, 255)"],
+body.dark-theme .bg-white, [data-theme="dark"] .bg-white,
+body.dark-theme .bg-slate-50, [data-theme="dark"] .bg-slate-50,
+body.dark-theme .bg-gray-50, [data-theme="dark"] .bg-gray-50,
+body.dark-theme .bg-zinc-50, [data-theme="dark"] .bg-zinc-50 {
+  background-color: #111827 !important;
+  color: #F8FAFC !important;
+  border-color: #263449 !important;
+}
+
+/* Universal Page Container Light Grey Background Override */
+body.dark-theme *[style*="background: #F8FAFC"],
+body.dark-theme *[style*="background: #f8fafc"],
+body.dark-theme *[style*="background-color: #F8FAFC"],
+body.dark-theme *[style*="background-color: #f8fafc"],
+body.dark-theme *[style*="background: #FAFAFA"],
+body.dark-theme *[style*="background: #fafafa"],
+body.dark-theme *[style*="background-color: #FAFAFA"],
+body.dark-theme *[style*="background-color: #fafafa"],
+body.dark-theme *[style*="background: #F1F5F9"],
+body.dark-theme *[style*="background: #f1f5f9"],
+body.dark-theme *[style*="background-color: #F1F5F9"],
+body.dark-theme *[style*="background-color: #f1f5f9"],
+[data-theme="dark"] *[style*="background: #F8FAFC"],
+[data-theme="dark"] *[style*="background: #f8fafc"],
+[data-theme="dark"] *[style*="background-color: #F8FAFC"],
+[data-theme="dark"] *[style*="background-color: #f8fafc"],
+[data-theme="dark"] *[style*="background: #FAFAFA"],
+[data-theme="dark"] *[style*="background: #fafafa"],
+[data-theme="dark"] *[style*="background-color: #FAFAFA"],
+[data-theme="dark"] *[style*="background-color: #fafafa"],
+[data-theme="dark"] *[style*="background: #F1F5F9"],
+[data-theme="dark"] *[style*="background: #f1f5f9"],
+[data-theme="dark"] *[style*="background-color: #F1F5F9"],
+[data-theme="dark"] *[style*="background-color: #f1f5f9"] {
+  background-color: #0B1220 !important;
+  color: #F8FAFC !important;
+  border-color: #263449 !important;
+}
+
+/* Light Tint Backgrounds Override (Tabs, Cards, Alerts) */
+body.dark-theme *[style*="background: #EEF2FF"],
+body.dark-theme *[style*="background-color: #EEF2FF"],
+body.dark-theme *[style*="background: #EFF6FF"],
+body.dark-theme *[style*="background-color: #EFF6FF"],
+body.dark-theme *[style*="background: #F0FDFA"],
+body.dark-theme *[style*="background-color: #F0FDFA"],
+[data-theme="dark"] *[style*="background: #EEF2FF"],
+[data-theme="dark"] *[style*="background-color: #EEF2FF"],
+[data-theme="dark"] *[style*="background: #EFF6FF"],
+[data-theme="dark"] *[style*="background-color: #EFF6FF"],
+[data-theme="dark"] *[style*="background: #F0FDFA"],
+[data-theme="dark"] *[style*="background-color: #F0FDFA"] {
+  background-color: #172033 !important;
+  color: #F8FAFC !important;
+  border-color: #263449 !important;
+}
+
+/* Dark Mode Navigation & Sidebar Header */
+body.dark-theme header, [data-theme="dark"] header,
+body.dark-theme nav, [data-theme="dark"] nav {
+  background-color: #0F172A !important;
+  border-color: #1E293B !important;
+  color: #F8FAFC !important;
+}
+
+body.dark-theme aside, [data-theme="dark"] aside {
+  background-color: #0F172A !important;
+  border-right: 1px solid #1E293B !important;
+  color: #CBD5E1 !important;
+}
+
+/* Dark Mode Tables & Rows */
+body.dark-theme table, [data-theme="dark"] table {
+  background-color: #111827 !important;
+  color: #F8FAFC !important;
+  border-color: #263449 !important;
+}
+
+body.dark-theme thead, [data-theme="dark"] thead,
+body.dark-theme th, [data-theme="dark"] th {
+  background-color: #172033 !important;
+  color: #94A3B8 !important;
+  border-bottom: 1px solid #263449 !important;
+}
+
+body.dark-theme tbody tr, [data-theme="dark"] tbody tr {
+  background-color: #111827 !important;
+  border-bottom: 1px solid #263449 !important;
+}
+
+body.dark-theme tbody tr:hover, [data-theme="dark"] tbody tr:hover {
+  background-color: #172033 !important;
+}
+
+body.dark-theme td, [data-theme="dark"] td {
+  color: #F8FAFC !important;
+  border-bottom: 1px solid #263449 !important;
+}
+
+/* Dark Mode Typography High-Contrast */
+body.dark-theme h1, body.dark-theme h2, body.dark-theme h3, body.dark-theme h4, body.dark-theme h5, body.dark-theme h6,
+[data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3, [data-theme="dark"] h4, [data-theme="dark"] h5, [data-theme="dark"] h6 {
+  color: #F8FAFC !important;
+}
+
+body.dark-theme *[style*="color: #0F172A"],
+body.dark-theme *[style*="color: #1E293B"],
+body.dark-theme *[style*="color: #334155"],
+body.dark-theme *[style*="color: #111827"],
+body.dark-theme *[style*="color: rgb(15, 23, 42)"],
+[data-theme="dark"] *[style*="color: #0F172A"],
+[data-theme="dark"] *[style*="color: #1E293B"],
+[data-theme="dark"] *[style*="color: #334155"],
+[data-theme="dark"] *[style*="color: #111827"],
+[data-theme="dark"] *[style*="color: rgb(15, 23, 42)"] {
+  color: #F8FAFC !important;
+}
+
+body.dark-theme *[style*="color: #64748B"],
+body.dark-theme *[style*="color: #475569"],
+body.dark-theme *[style*="color: #6B7280"],
+[data-theme="dark"] *[style*="color: #64748B"],
+[data-theme="dark"] *[style*="color: #475569"],
+[data-theme="dark"] *[style*="color: #6B7280"] {
+  color: #94A3B8 !important;
+}
+
+/* Inputs, Controls & Modals in Dark Mode */
+body.dark-theme input, body.dark-theme select, body.dark-theme textarea,
+[data-theme="dark"] input, [data-theme="dark"] select, [data-theme="dark"] textarea {
+  background-color: #111827 !important;
+  color: #F8FAFC !important;
+  border-color: #334155 !important;
+}
+
+body.dark-theme input::placeholder, body.dark-theme textarea::placeholder,
+[data-theme="dark"] input::placeholder, [data-theme="dark"] textarea::placeholder {
+  color: #64748B !important;
+}
+
+/* Dark Scrollbars */
+body.dark-theme ::-webkit-scrollbar-track,
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #0B1220 !important;
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb,
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #334155 !important;
+  border-radius: 999px;
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #475569 !important;
+}

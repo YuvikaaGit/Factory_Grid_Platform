@@ -8,8 +8,8 @@ import {
   Factory, Search, ShieldCheck, Star, X, ChevronRight,
   MapPin, Award, CheckCircle2, Clock, Globe, AlertTriangle, Zap, FileText, Package,
   ArrowRight, Sparkles, Send, Check, SlidersHorizontal, ArrowUpDown, Filter, RotateCcw,
-  CheckSquare, Square
-} from 'lucide-react';
+  CheckSquare, Square, AlertCircle
+} from 'lucide-react';;
 
 export const ManufacturerModule: React.FC = () => {
   const {

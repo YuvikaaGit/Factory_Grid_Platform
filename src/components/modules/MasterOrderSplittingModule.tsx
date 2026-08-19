@@ -1440,37 +1440,7 @@ export const MasterOrderSplittingModule: React.FC = () => {
           </div>
         </div>
 
-        {/* Master Order Enterprise Timeline */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <div style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.05em', marginBottom: 14 }}>
-            ORDER STAGE TIMELINE
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, fontSize: 12, fontWeight: 700 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#15803D' }}>
-              <CheckCircle2 size={16} /> Quote Approved
-            </div>
-            <span style={{ color: '#CBD5E1' }}>→</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#15803D' }}>
-              <CheckCircle2 size={16} /> Master Order Created
-            </div>
-            <span style={{ color: '#CBD5E1' }}>→</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#15803D' }}>
-              <CheckCircle2 size={16} /> Order Split
-            </div>
-            <span style={{ color: '#CBD5E1' }}>→</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#15803D' }}>
-              <CheckCircle2 size={16} /> Sub-Orders Created
-            </div>
-            <span style={{ color: '#CBD5E1' }}>→</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: poCreatedCount > 0 ? '#15803D' : '#64748B' }}>
-              {poCreatedCount > 0 ? <CheckCircle2 size={16} /> : <Clock size={16} />} Purchase Orders Created ({poCreatedCount}/2)
-            </div>
-            <span style={{ color: '#CBD5E1' }}>→</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: poCreatedCount > 0 ? '#15803D' : '#64748B' }}>
-              {poCreatedCount > 0 ? <CheckCircle2 size={16} /> : <Clock size={16} />} Manufacturer Notified
-            </div>
-          </div>
-        </div>
+
 
       </div>
     );

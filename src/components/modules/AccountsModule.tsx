@@ -23,7 +23,7 @@ export const AccountsModule: React.FC = () => {
   const { invoices, paymentTransactions, customers, recordInvoicePayment, addAuditLog, currentRole } = useApp();
   const [activeSubTab, setActiveSubTab] = useState<'RECEIVABLES' | 'TRANSACTIONS' | 'CREDIT_LIMITS' | 'AGING'>('RECEIVABLES');
 
-  const isFinanceUser = currentRole === 'ACCOUNTS_MANAGER' || currentRole === 'ADMIN';
+  const isFinanceUser = currentRole === 'ACCOUNTS_MANAGER';
   const isBuyerUser = currentRole === 'BUYER';
 
   const totalOutstanding = invoices.reduce((acc, inv) => acc + inv.balanceAmount, 0);
@@ -76,8 +76,8 @@ export const AccountsModule: React.FC = () => {
       <div className="ent-command-bar">
         <div className="ent-command-bar-left">
           <div>
-            <div className="ent-label">Finance & Accounts / Treasury Management</div>
-            <div className="ent-page-title" style={{ margin: 0 }}>Accounts Receivable & Ledger Control</div>
+            <div className="ent-label">Finance & Accounts / Treasury Oversight</div>
+            <div className="ent-page-title" style={{ margin: 0 }}>{currentRole === 'ADMIN' ? 'Payments & AR Governance Monitor' : 'Accounts Receivable & Ledger Control'}</div>
           </div>
         </div>
         <div className="ent-command-bar-right">

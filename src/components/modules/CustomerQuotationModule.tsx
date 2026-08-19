@@ -70,24 +70,14 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
   const otherCharges = 0;
   const grandTotal = Math.round(subtotal + gstTotal + freightTotal + otherCharges);
 
-  // Component Workflow States: PENDING_APPROVAL | APPROVED | REVISION_REQUESTED | REJECTED | ORDER_CREATED
-  const [quotationStatus, setQuotationStatus] = useState<'PENDING_APPROVAL' | 'APPROVED' | 'REVISION_REQUESTED' | 'REJECTED' | 'ORDER_CREATED'>('PENDING_APPROVAL');
+  // Component Workflow States: PENDING_APPROVAL | APPROVED | REJECTED | ORDER_CREATED
+  const [quotationStatus, setQuotationStatus] = useState<'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'ORDER_CREATED'>('PENDING_APPROVAL');
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showCreateMasterOrderModal, setShowCreateMasterOrderModal] = useState(false);
-  const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
 
   // Approved Metadata
   const [approvedDetails, setApprovedDetails] = useState<{ approvedDate?: string; approvedBy?: string } | null>(null);
-
-  // Revision Form State
-  const [revisionReasons, setRevisionReasons] = useState<{ pricing: boolean; leadTime: boolean; terms: boolean; quantity: boolean }>({
-    pricing: true,
-    leadTime: false,
-    terms: false,
-    quantity: false
-  });
-  const [revisionRemarks, setRevisionRemarks] = useState('Target price for Paracetamol 500mg is ₹8.50/unit based on bulk volume.');
 
   // Access Check: Buyer / Admin
   const isBuyer = currentRole === 'BUYER' || currentRole === 'ADMIN';
@@ -142,14 +132,6 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
     else setActiveTab('orders');
   };
 
-  // 3. Handle Request Revision
-  const handleConfirmRevision = () => {
-    setQuotationStatus('REVISION_REQUESTED');
-    addAuditLog('Customer Quotation Desk', `Requested revision for CQUO-2026-9001. Remarks: ${revisionRemarks}`);
-    alert(`Revision request transmitted to selected manufacturers. Remarks: ${revisionRemarks}`);
-    setShowRevisionModal(false);
-  };
-
   // 4. Handle Reject Quotation
   const handleConfirmRejection = () => {
     setQuotationStatus('REJECTED');
@@ -183,9 +165,9 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
             <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Quotation Status</div>
             <span style={{
               fontSize: 12, fontWeight: 800, padding: '3px 10px', borderRadius: 4, display: 'inline-block', marginTop: 2,
-              background: quotationStatus === 'APPROVED' || quotationStatus === 'ORDER_CREATED' ? '#DCFCE7' : quotationStatus === 'REVISION_REQUESTED' ? '#FEF3C7' : quotationStatus === 'REJECTED' ? '#FEE2E2' : '#EFF6FF',
-              color: quotationStatus === 'APPROVED' || quotationStatus === 'ORDER_CREATED' ? '#15803D' : quotationStatus === 'REVISION_REQUESTED' ? '#B45309' : quotationStatus === 'REJECTED' ? '#B91C1C' : '#1D4ED8',
-              border: quotationStatus === 'APPROVED' || quotationStatus === 'ORDER_CREATED' ? '1px solid #86EFAC' : quotationStatus === 'REVISION_REQUESTED' ? '1px solid #FCD34D' : quotationStatus === 'REJECTED' ? '1px solid #FCA5A5' : '1px solid #BFDBFE'
+              background: quotationStatus === 'APPROVED' || quotationStatus === 'ORDER_CREATED' ? '#DCFCE7' : quotationStatus === 'REJECTED' ? '#FEE2E2' : '#EFF6FF',
+              color: quotationStatus === 'APPROVED' || quotationStatus === 'ORDER_CREATED' ? '#15803D' : quotationStatus === 'REJECTED' ? '#B91C1C' : '#1D4ED8',
+              border: quotationStatus === 'APPROVED' || quotationStatus === 'ORDER_CREATED' ? '1px solid #86EFAC' : quotationStatus === 'REJECTED' ? '1px solid #FCA5A5' : '1px solid #BFDBFE'
             }}>
               {quotationStatus === 'PENDING_APPROVAL' ? 'PENDING CUSTOMER APPROVAL' : quotationStatus.replace(/_/g, ' ')}
             </span>
@@ -207,10 +189,6 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {quotationStatus === 'PENDING_APPROVAL' && (
             <>
-              <button onClick={() => setShowRevisionModal(true)} style={{ padding: '9px 16px', fontSize: 12.5, fontWeight: 700, background: '#FFFBEB', color: '#B45309', border: '1px solid #FCD34D', borderRadius: 6, cursor: 'pointer' }}>
-                Request Revision
-              </button>
-
               <button onClick={() => setShowRejectionModal(true)} style={{ padding: '9px 16px', fontSize: 12.5, fontWeight: 700, background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FCA5A5', borderRadius: 6, cursor: 'pointer' }}>
                 Reject Quote
               </button>
@@ -261,17 +239,6 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
           >
             Create Master Order →
           </button>
-        </div>
-      )}
-
-      {quotationStatus === 'REVISION_REQUESTED' && (
-        <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 10, padding: 16, color: '#92400E' }}>
-          <div style={{ fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <AlertCircle size={18} style={{ color: '#D97706' }} /> Revision Requested
-          </div>
-          <div style={{ fontSize: 12.5, marginTop: 4 }}>
-            Remarks: {revisionRemarks} · Master Order / PO creation is <strong>BLOCKED</strong> until revision is completed and approved.
-          </div>
         </div>
       )}
 
@@ -473,40 +440,7 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
         </div>
       )}
 
-      {/* ── REVISION REQUEST MODAL ──────────────────────────────── */}
-      {showRevisionModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10005, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setShowRevisionModal(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 500, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 14, padding: 24, boxShadow: '0 20px 48px rgba(15, 23, 42, 0.2)', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
-              <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: 0 }}>Request Quotation Revision</h3>
-              <button onClick={() => setShowRevisionModal(false)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
-                <X size={18} />
-              </button>
-            </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Revision Remarks *</label>
-                <textarea
-                  rows={3}
-                  value={revisionRemarks}
-                  onChange={e => setRevisionRemarks(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none', resize: 'none' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 12, borderTop: '1px solid #E2E8F0' }}>
-                <button onClick={() => setShowRevisionModal(false)} style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  Cancel
-                </button>
-                <button onClick={handleConfirmRevision} style={{ padding: '9px 18px', borderRadius: 6, border: 'none', background: '#D97706', color: '#FFF', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                  Transmit Revision Request
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── REJECTION MODAL ────────────────────────────────────── */}
       {showRejectionModal && (

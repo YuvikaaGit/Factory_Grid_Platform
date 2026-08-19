@@ -28,6 +28,9 @@ export const ProductCatalogModule: React.FC = () => {
 
   // ── ADMIN / PLATFORM CENTRAL PRODUCT MASTER CATALOG ────────────────
 
+  // Buyers may only view products — cannot edit or change status
+  const canEditProducts = currentRole !== 'BUYER';
+
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -279,12 +282,14 @@ export const ProductCatalogModule: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={handleOpenAddModal}
-          style={{ padding: '10px 20px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(15,118,110,0.2)' }}
-        >
-          <Plus size={16} /> + Add Product
-        </button>
+        {canEditProducts && (
+          <button
+            onClick={handleOpenAddModal}
+            style={{ padding: '10px 20px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 1px 2px rgba(15,118,110,0.2)' }}
+          >
+            <Plus size={16} /> + Add Product
+          </button>
+        )}
       </div>
 
       {/* ── Search & Multi-Filter Controls Bar ──────────────────────── */}
@@ -505,20 +510,24 @@ export const ProductCatalogModule: React.FC = () => {
                         >
                           <Eye size={12} /> View
                         </button>
-                        <button
-                          onClick={(e) => handleOpenEditModal(prd, e)}
-                          style={{ padding: '4px 7px', fontSize: 11, fontWeight: 600, borderRadius: 6, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                          title="Edit Product Master"
-                        >
-                          <Edit3 size={12} />
-                        </button>
-                        <button
-                          onClick={(e) => handleToggleStatus(prd, e)}
-                          style={{ padding: '4px 7px', fontSize: 11, fontWeight: 600, borderRadius: 6, background: statusStr === 'Active' ? '#FEE2E2' : '#DCFCE7', border: statusStr === 'Active' ? '1px solid #FCA5A5' : '1px solid #86EFAC', color: statusStr === 'Active' ? '#B91C1C' : '#15803D', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
-                          title={statusStr === 'Active' ? 'Deactivate Product' : 'Activate Product'}
-                        >
-                          <Power size={12} />
-                        </button>
+                        {canEditProducts && (
+                          <button
+                            onClick={(e) => handleOpenEditModal(prd, e)}
+                            style={{ padding: '4px 7px', fontSize: 11, fontWeight: 600, borderRadius: 6, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                            title="Edit Product Master"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                        )}
+                        {canEditProducts && (
+                          <button
+                            onClick={(e) => handleToggleStatus(prd, e)}
+                            style={{ padding: '4px 7px', fontSize: 11, fontWeight: 600, borderRadius: 6, background: statusStr === 'Active' ? '#FEE2E2' : '#DCFCE7', border: statusStr === 'Active' ? '1px solid #FCA5A5' : '1px solid #86EFAC', color: statusStr === 'Active' ? '#B91C1C' : '#15803D', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                            title={statusStr === 'Active' ? 'Deactivate Product' : 'Activate Product'}
+                          >
+                            <Power size={12} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -652,19 +661,27 @@ export const ProductCatalogModule: React.FC = () => {
 
             {/* Drawer Footer Actions */}
             <div style={{ padding: 16, background: '#F8FAFC', borderTop: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button
-                onClick={() => handleOpenEditModal(selectedProduct)}
-                style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#0F172A', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <Edit3 size={14} /> Edit Product Master
-              </button>
+              {canEditProducts ? (
+                <>
+                  <button
+                    onClick={() => handleOpenEditModal(selectedProduct)}
+                    style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#0F172A', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Edit3 size={14} /> Edit Product Master
+                  </button>
 
-              <button
-                onClick={() => handleToggleStatus(selectedProduct)}
-                style={{ padding: '9px 16px', borderRadius: 6, border: selectedProduct.status === 'Inactive' ? '1px solid #86EFAC' : '1px solid #FCA5A5', background: selectedProduct.status === 'Inactive' ? '#DCFCE7' : '#FEE2E2', color: selectedProduct.status === 'Inactive' ? '#15803D' : '#B91C1C', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <Power size={14} /> {selectedProduct.status === 'Inactive' ? 'Activate Product' : 'Deactivate Product'}
-              </button>
+                  <button
+                    onClick={() => handleToggleStatus(selectedProduct)}
+                    style={{ padding: '9px 16px', borderRadius: 6, border: selectedProduct.status === 'Inactive' ? '1px solid #86EFAC' : '1px solid #FCA5A5', background: selectedProduct.status === 'Inactive' ? '#DCFCE7' : '#FEE2E2', color: selectedProduct.status === 'Inactive' ? '#15803D' : '#B91C1C', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Power size={14} /> {selectedProduct.status === 'Inactive' ? 'Activate Product' : 'Deactivate Product'}
+                  </button>
+                </>
+              ) : (
+                <div style={{ fontSize: 11.5, color: '#94A3B8', fontStyle: 'italic' }}>
+                  View only — product management is restricted to manufacturers.
+                </div>
+              )}
             </div>
 
           </div>

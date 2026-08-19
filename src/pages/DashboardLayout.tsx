@@ -1,11 +1,22 @@
+import { AdminRfqMonitor } from '../components/modules/AdminRfqMonitor';
+import { AdminQuoteMonitor } from '../components/modules/AdminQuoteMonitor';
+import { AdminOrderMonitor } from '../components/modules/AdminOrderMonitor';
+import { AdminComplianceVerification } from '../components/modules/AdminComplianceVerification';
+import { AdminManufacturerVerification } from '../components/modules/AdminManufacturerVerification';
+import { AdminTrademarkVerification } from '../components/modules/AdminTrademarkVerification';
+import { AdminBrandVerification } from '../components/modules/AdminBrandVerification';
+import { AdminComplianceVerificationMonitor } from '../components/modules/AdminComplianceVerificationMonitor';
+import { AdminManufacturerVerificationMonitor } from '../components/modules/AdminManufacturerVerificationMonitor';
+import { AdminTrademarkVerificationMonitor } from '../components/modules/AdminTrademarkVerificationMonitor';
+import { AdminBrandVerificationMonitor } from '../components/modules/AdminBrandVerificationMonitor';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, Factory, Package, FileText, Tag, Award,
-  ShoppingBag, Receipt, ShieldAlert, BarChart3, Bell, Settings,
+  ShoppingBag, Receipt, ShieldAlert, ShieldCheck, BarChart3, Bell, Settings,
   Search, ChevronDown, ChevronRight, Home, Menu, X, Sun, Moon, Sparkles, Command,
-  ChevronLeft, PanelLeftClose, PanelLeftOpen, Pin, Clock, Star, LogOut, Cpu, Truck, Landmark, UserCheck, PieChart, FileCheck, Key
-} from 'lucide-react';
+  ChevronLeft, PanelLeftClose, PanelLeftOpen, Pin, Clock, Star, LogOut, Cpu, Truck, Landmark, UserCheck, PieChart, FileCheck, Key, Activity
+} from 'lucide-react';;
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { UserRole } from '../types';
@@ -62,13 +73,13 @@ export interface ManufacturerNavGroup {
 
 export const MANUFACTURER_NAV_GROUPS: ManufacturerNavGroup[] = [
   {
-    key: 'WORKSPACE',
-    label: 'WORKSPACE',
+    key: 'FACTORYGRID',
+    label: 'FACTORYGRID',
     defaultExpanded: true,
     items: [
-      { id: 'dashboard', label: 'Operations Dashboard', icon: LayoutDashboard },
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'analytics', label: 'Analytics', icon: BarChart3 },
       { id: 'products', label: 'My Product Catalog', icon: Package },
-      { id: 'mfg-workspace', label: 'Manufacturing Workspace', icon: Cpu },
     ],
   },
   {
@@ -96,21 +107,30 @@ export const MANUFACTURER_NAV_GROUPS: ManufacturerNavGroup[] = [
     items: [
       { id: 'production-planning', label: 'Production Planning', icon: Cpu },
       { id: 'shipments', label: 'Dispatch & Tracking', icon: Truck },
-      { id: 'goods-received', label: 'Goods Received', icon: FileCheck },
     ],
   },
   {
     key: 'FINANCE',
     label: 'FINANCE',
-    defaultExpanded: false,
+    defaultExpanded: true,
     items: [
       { id: 'invoices', label: 'Invoices & Payments', icon: Receipt },
     ],
   },
   {
-    key: 'ACCOUNT',
-    label: 'ACCOUNT',
-    defaultExpanded: false,
+    key: 'PROFILE',
+    label: 'PROFILE',
+    defaultExpanded: true,
+    items: [
+      { id: 'profile-personal', label: 'My Profile', icon: Users },
+      { id: 'profile-organization', label: 'Organization Profile', icon: Factory },
+      { id: 'profile-documents', label: 'Documents & Verification', icon: FileCheck },
+    ],
+  },
+  {
+    key: 'SETTINGS',
+    label: 'SETTINGS',
+    defaultExpanded: true,
     items: [
       { id: 'notifications', label: 'Notifications', icon: Bell, badge: 'notif' },
       { id: 'settings', label: 'Settings', icon: Settings },
@@ -132,12 +152,13 @@ export interface BuyerNavGroup {
 
 export const BUYER_NAV_GROUPS: BuyerNavGroup[] = [
   {
-    key: 'WORKSPACE',
-    label: 'WORKSPACE',
+    key: 'FACTORYGRID',
+    label: 'FACTORYGRID',
     defaultExpanded: true,
     items: [
-      { id: 'dashboard', label: 'Executive Workspace', icon: LayoutDashboard },
-      { id: 'analytics', label: 'Analytics & BI', icon: BarChart3 },
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+      { id: 'products', label: 'Product Catalog', icon: Package },
     ],
   },
   {
@@ -145,42 +166,50 @@ export const BUYER_NAV_GROUPS: BuyerNavGroup[] = [
     label: 'PROCUREMENT',
     defaultExpanded: true,
     items: [
-      { id: 'my-orders', label: 'My Orders & History', icon: ShoppingBag, badge: 'order' },
       { id: 'rfqs', label: 'RFQ Center', icon: FileText, badge: 'rfq' },
       { id: 'quotes', label: 'Quote Comparison', icon: Tag },
     ],
   },
   {
-    key: 'ORDER_MANAGEMENT',
-    label: 'ORDER MANAGEMENT',
+    key: 'ORDERS',
+    label: 'ORDERS',
     defaultExpanded: true,
     items: [
-      { id: 'orders', label: 'Master Order & PO Splitting', icon: ShoppingBag, badge: 'order' },
-      { id: 'products', label: 'Product Catalog', icon: Package },
+      { id: 'orders', label: 'Order Management', icon: ShoppingBag, badge: 'order' },
+      { id: 'my-orders', label: 'Order History', icon: Clock },
     ],
   },
   {
-    key: 'OPERATIONS_DIRECTORY',
-    label: 'OPERATIONS & DIRECTORY',
-    defaultExpanded: false,
+    key: 'FULFILLMENT',
+    label: 'FULFILLMENT',
+    defaultExpanded: true,
     items: [
-      { id: 'manufacturers', label: 'Verified Manufacturers', icon: Factory },
-      { id: 'shipments', label: 'Cold-Chain Telemetry', icon: Truck },
+      { id: 'shipments', label: 'Dispatch & Tracking', icon: Truck },
       { id: 'buyer-tracking', label: 'Live Order Tracking', icon: FileCheck },
     ],
   },
   {
     key: 'FINANCE',
     label: 'FINANCE',
-    defaultExpanded: false,
+    defaultExpanded: true,
     items: [
-      { id: 'invoices', label: 'Invoices & AR', icon: Receipt },
+      { id: 'invoices', label: 'Invoices & Payments', icon: Receipt },
     ],
   },
   {
-    key: 'ACCOUNT',
-    label: 'ACCOUNT',
-    defaultExpanded: false,
+    key: 'PROFILE',
+    label: 'PROFILE',
+    defaultExpanded: true,
+    items: [
+      { id: 'profile-personal', label: 'My Profile', icon: Users },
+      { id: 'profile-organization', label: 'Organization Profile', icon: Factory },
+      { id: 'profile-documents', label: 'Documents & Verification', icon: FileCheck },
+    ],
+  },
+  {
+    key: 'SETTINGS',
+    label: 'SETTINGS',
+    defaultExpanded: true,
     items: [
       { id: 'notifications', label: 'Notifications', icon: Bell, badge: 'notif' },
       { id: 'settings', label: 'Settings', icon: Settings },
@@ -190,79 +219,42 @@ export const BUYER_NAV_GROUPS: BuyerNavGroup[] = [
 
 const navGroups = [
   {
-    label: 'Workspace',
+    label: 'MONITORING',
     items: [
-      { id: 'dashboard', label: 'Executive Workspace', icon: LayoutDashboard, roles: ['BUYER', 'COMPLIANCE_OFFICER', 'ADMIN', 'SALES_MANAGER', 'ACCOUNTS_MANAGER'] },
-      { id: 'sales-qualification', label: 'Sales Qualification Desk', icon: UserCheck, roles: ['SALES_MANAGER', 'ADMIN'] },
-      { id: 'dashboard', label: 'Operations Dashboard', icon: LayoutDashboard, roles: ['SUPPLIER'] },
-      { id: 'analytics', label: 'Analytics & BI', icon: BarChart3, roles: ['BUYER', 'ADMIN', 'SALES_MANAGER', 'ACCOUNTS_MANAGER'] },
+      { id: 'dashboard', label: 'Monitoring Dashboard', icon: LayoutDashboard, roles: ['BUYER', 'COMPLIANCE_OFFICER', 'ADMIN', 'SALES_MANAGER', 'ACCOUNTS_MANAGER'] },
+      { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3, roles: ['BUYER', 'ADMIN', 'SALES_MANAGER', 'ACCOUNTS_MANAGER', 'SUPPLIER'] },
     ],
   },
   {
-    label: 'Manufacturing Operations',
+    label: 'PROCUREMENT MONITORING',
     items: [
-      { id: 'products', label: 'My Product Catalog', icon: Package, roles: ['SUPPLIER'] },
-      { id: 'mfg-workspace', label: 'Manufacturing Workspace', icon: Cpu, roles: ['SUPPLIER'] },
-      { id: 'production-planning', label: 'Production Planning', icon: Cpu, roles: ['SUPPLIER'] },
-      { id: 'rfqs', label: 'Assigned RFQs', icon: FileText, badge: 'rfq', roles: ['SUPPLIER'] },
-      { id: 'quotes', label: 'Quote Submissions', icon: Tag, roles: ['SUPPLIER'] },
-      { id: 'orders', label: 'Order Management', icon: ShoppingBag, badge: 'order', roles: ['SUPPLIER'] },
-      { id: 'mfg-order-history', label: 'Order History', icon: Clock, roles: ['SUPPLIER'] },
-      { id: 'shipments', label: 'Dispatch & Tracking', icon: Truck, roles: ['SUPPLIER'] },
-      { id: 'invoices', label: 'Invoices & Payments', icon: Receipt, roles: ['SUPPLIER'] },
-      { id: 'notifications', label: 'Notifications', icon: Bell, badge: 'notif', roles: ['SUPPLIER'] },
-      { id: 'settings', label: 'Settings', icon: Settings, roles: ['SUPPLIER'] },
+      { id: 'rfqs', label: 'RFQ Monitor', icon: FileText, badge: 'rfq', roles: ['BUYER', 'SALES_MANAGER', 'ADMIN'] },
+      { id: 'quotes', label: 'Quote Monitor', icon: Tag, roles: ['BUYER', 'ADMIN'] },
+      { id: 'orders', label: 'Master Orders & PO Monitor', icon: ShoppingBag, badge: 'order', roles: ['BUYER', 'ADMIN'] },
     ],
   },
   {
-    label: 'Procurement & Sourcing',
+    label: 'COMPLIANCE & VERIFICATION',
     items: [
-      { id: 'my-orders', label: 'My Orders & History', icon: ShoppingBag, badge: 'order', roles: ['BUYER'] },
-      { id: 'rfqs', label: 'RFQ Center', icon: FileText, badge: 'rfq', roles: ['BUYER', 'SALES_MANAGER', 'ADMIN'] },
-      { id: 'quotes', label: 'Quote Comparison', icon: Tag, roles: ['BUYER', 'ADMIN'] },
-      { id: 'orders', label: 'Master Order & PO Splitting', icon: ShoppingBag, badge: 'order', roles: ['BUYER', 'ADMIN'] },
-      { id: 'products', label: 'Product Catalog', icon: Package, roles: ['BUYER', 'ADMIN'] },
+      { id: 'compliance-verification', label: 'Compliance Verification', icon: ShieldCheck, badge: 'compliance', roles: ['COMPLIANCE_OFFICER', 'ADMIN'] },
+      { id: 'manufacturer-verification', label: 'Manufacturer Verification', icon: Factory, roles: ['COMPLIANCE_OFFICER', 'ADMIN'] },
+      { id: 'trademark-verification', label: 'Trademark Verification', icon: Award, roles: ['COMPLIANCE_OFFICER', 'ADMIN'] },
+      { id: 'brand-verification', label: 'Brand Verification', icon: Tag, roles: ['COMPLIANCE_OFFICER', 'ADMIN'] },
     ],
   },
   {
-    label: 'Operations & Directory',
+    label: 'FINANCE MONITORING',
     items: [
-      { id: 'customers', label: 'Customer Directory', icon: Users, roles: ['SALES_MANAGER', 'ACCOUNTS_MANAGER', 'ADMIN'] },
-      { id: 'manufacturers', label: 'Verified Manufacturers', icon: Factory, roles: ['BUYER', 'SALES_MANAGER', 'ADMIN'] },
-      { id: 'shipments', label: 'Cold-Chain Telemetry', icon: Truck, roles: ['BUYER', 'ADMIN'] },
-      { id: 'buyer-tracking', label: 'Live Order Tracking', icon: FileCheck, roles: ['BUYER'] },
+      { id: 'invoices', label: 'Invoice Monitor', icon: Receipt, roles: ['BUYER', 'ACCOUNTS_MANAGER', 'ADMIN'] },
+      { id: 'accounts', label: 'Payments & AR', icon: Landmark, roles: ['ACCOUNTS_MANAGER', 'ADMIN'] },
     ],
   },
   {
-    label: 'Finance',
+    label: 'SYSTEM ADMINISTRATION',
     items: [
-      { id: 'invoices', label: 'Invoices & AR', icon: Receipt, roles: ['BUYER', 'ACCOUNTS_MANAGER', 'ADMIN'] },
-      { id: 'accounts', label: 'Treasury & Accounts Ledger', icon: Landmark, roles: ['ACCOUNTS_MANAGER', 'ADMIN'] },
-    ],
-  },
-  {
-    label: 'Compliance',
-    items: [
-      { id: 'customer-verification', label: 'Customer Verification', icon: UserCheck, badge: 'customer-verification', roles: ['COMPLIANCE_OFFICER', 'ADMIN', 'SALES_MANAGER', 'BUYER'] },
-      { id: 'manufacturer-verification', label: 'Manufacturer Verification', icon: Factory, badge: 'manufacturer-verification', roles: ['COMPLIANCE_OFFICER', 'ADMIN', 'SALES_MANAGER', 'BUYER'] },
-      { id: 'trademark-verification', label: 'Trademark Verification', icon: Tag, roles: ['COMPLIANCE_OFFICER', 'ADMIN', 'SALES_MANAGER', 'BUYER'] },
-      { id: 'brand-verification', label: 'Brand Verification', icon: Award, roles: ['COMPLIANCE_OFFICER', 'ADMIN', 'SALES_MANAGER', 'BUYER'] },
-      { id: 'compliance', label: 'Compliance Verification', icon: ShieldAlert, badge: 'compliance', roles: ['COMPLIANCE_OFFICER', 'ADMIN', 'SALES_MANAGER', 'BUYER'] },
-      { id: 'reports', label: 'Executive Reports', icon: PieChart, roles: ['BUYER', 'ADMIN', 'SALES_MANAGER', 'ACCOUNTS_MANAGER', 'COMPLIANCE_OFFICER'] },
-    ],
-  },
-  {
-    label: 'Master Data',
-    items: [
-      { id: 'products', label: 'Product Catalog', icon: Package, roles: ['ADMIN'] },
-    ],
-  },
-  {
-    label: 'System Admin',
-    items: [
-      { id: 'admin-approval', label: 'Platform Admin Approval', icon: Key, roles: ['ADMIN'] },
-      { id: 'notifications', label: 'Notifications', icon: Bell, badge: 'notif', roles: ['BUYER', 'SUPPLIER', 'COMPLIANCE_OFFICER', 'ADMIN', 'SALES_MANAGER', 'ACCOUNTS_MANAGER'] },
-      { id: 'settings', label: 'System Control Center', icon: Settings, roles: ['ADMIN'] },
+      { id: 'reports', label: 'Audit Logs', icon: FileCheck, roles: ['ADMIN', 'SALES_MANAGER', 'ACCOUNTS_MANAGER'] },
+      { id: 'admin-approval', label: 'System Health', icon: Activity, roles: ['ADMIN'] },
+      { id: 'settings', label: 'Settings', icon: Settings, roles: ['ADMIN'] },
     ],
   },
 ];
@@ -302,7 +294,7 @@ class WorkspaceErrorBoundary extends React.Component<
             <ShieldAlert size={24} />
           </div>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: 0 }}>
-            Something went wrong while loading the manufacturer workspace.
+            Something went wrong while loading this workspace.
           </h2>
           <p style={{ fontSize: 13, color: '#64748B', margin: 0, maxWidth: 450 }}>
             {this.state.error?.message || 'An unexpected rendering error occurred in this module.'}
@@ -321,7 +313,7 @@ class WorkspaceErrorBoundary extends React.Component<
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) => {
-  const { currentRole, setCurrentRole, activeTab, setActiveTab, complianceCases, rfqs, orders, notifications, isCreateRfqDrawerOpen, customerVerifications, logout, userProfile, orgProfile } = useApp();
+  const { currentRole, setCurrentRole, activeTab, setActiveTab, complianceCases, rfqs, orders, notifications, isCreateRfqDrawerOpen, customerVerifications, logout, userProfile, orgProfile, openProfileTab } = useApp();
   const { theme, toggleTheme } = useTheme();
 
   const [cmdOpen, setCmdOpen] = useState(false);
@@ -344,11 +336,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
-      if ((path === '/buyer' || path.startsWith('/buyer')) && currentRole !== 'BUYER') {
-        setCurrentRole('BUYER');
-      } else if ((path === '/supplier' || path.startsWith('/supplier')) && currentRole !== 'SUPPLIER') {
-        setCurrentRole('SUPPLIER');
-      } else if ((path === '/compliance' || path.startsWith('/compliance')) && currentRole !== 'COMPLIANCE_OFFICER') {
+      const savedRole = localStorage.getItem('fg_role') as UserRole;
+      const activeRole = savedRole || currentRole;
+
+      if ((path === '/compliance' || path.startsWith('/compliance')) && currentRole !== 'COMPLIANCE_OFFICER') {
         setCurrentRole('COMPLIANCE_OFFICER');
       } else if ((path === '/sales' || path.startsWith('/sales')) && currentRole !== 'SALES_MANAGER') {
         setCurrentRole('SALES_MANAGER');
@@ -356,6 +347,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
         setCurrentRole('ACCOUNTS_MANAGER');
       } else if ((path === '/admin' || path.startsWith('/admin')) && currentRole !== 'ADMIN') {
         setCurrentRole('ADMIN');
+      } else if ((path === '/supplier' || path.startsWith('/supplier')) && currentRole !== 'SUPPLIER') {
+        setCurrentRole('SUPPLIER');
+      } else if ((path === '/buyer' || path.startsWith('/buyer')) && currentRole !== 'BUYER') {
+        if (!['COMPLIANCE_OFFICER', 'SALES_MANAGER', 'ACCOUNTS_MANAGER', 'ADMIN', 'SUPPLIER'].includes(activeRole)) {
+          setCurrentRole('BUYER');
+        }
       }
     }
   }, []);
@@ -377,19 +374,22 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
 
   // Manufacturer Section Group Expansion State
   const [mfgGroupExpanded, setMfgGroupExpanded] = useState<Record<string, boolean>>({
-    WORKSPACE: true,
+    FACTORYGRID: true,
     PROCUREMENT: true,
     ORDERS: true,
     FULFILLMENT: true,
-    FINANCE: false,
-    ACCOUNT: false
+    FINANCE: true,
+    PROFILE: true,
+    SETTINGS: true,
   });
 
-  // Auto-expand group containing activeTab if currently collapsed
+  // Auto-expand mfg group containing activeTab if currently collapsed
   useEffect(() => {
     if (currentRole === 'SUPPLIER' && activeTab) {
+      // 'profile' tab maps to the PROFILE group (profile-* items call openProfileTab which sets activeTab='profile')
+      const effectiveId = activeTab === 'profile' ? 'profile-personal' : activeTab;
       const parentGroup = MANUFACTURER_NAV_GROUPS.find(group =>
-        group.items.some(item => item.id === activeTab)
+        group.items.some(item => item.id === effectiveId || item.id === activeTab)
       );
       if (parentGroup && !mfgGroupExpanded[parentGroup.key]) {
         setMfgGroupExpanded(prev => ({
@@ -409,12 +409,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
 
   // Buyer Section Group Expansion State
   const [buyerGroupExpanded, setBuyerGroupExpanded] = useState<Record<string, boolean>>({
-    WORKSPACE: true,
+    FACTORYGRID: true,
     PROCUREMENT: true,
-    ORDER_MANAGEMENT: true,
-    OPERATIONS_DIRECTORY: false,
-    FINANCE: false,
-    ACCOUNT: false
+    ORDERS: true,
+    FULFILLMENT: true,
+    FINANCE: true,
+    PROFILE: true,
+    SETTINGS: true,
   });
 
   // Auto-expand buyer group containing activeTab if currently collapsed
@@ -439,15 +440,41 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
     }));
   };
 
+  // Track which profile sub-item was last clicked for active-state highlighting
+  const [lastProfileItem, setLastProfileItem] = useState<string>('profile-personal');
+
+  // Compute whether a nav item should be highlighted as active
+  const isNavItemActive = (itemId: string): boolean => {
+    if (itemId === 'profile-personal' || itemId === 'profile-organization' || itemId === 'profile-documents') {
+      return activeTab === 'profile' && lastProfileItem === itemId;
+    }
+    return activeTab === itemId;
+  };
+
   const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId);
+    // Profile sub-items: route to ProfileModule with the correct sub-tab
+    if (tabId === 'profile-personal') {
+      setLastProfileItem('profile-personal');
+      openProfileTab('personal');
+    } else if (tabId === 'profile-organization') {
+      setLastProfileItem('profile-organization');
+      openProfileTab('organization');
+    } else if (tabId === 'profile-documents') {
+      setLastProfileItem('profile-documents');
+      openProfileTab('documents');
+    } else {
+      setActiveTab(tabId);
+    }
     if (isMobile) setMobileMenuOpen(false);
   };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return currentRole === 'BUYER' ? <BuyerWorkspaceModule /> : currentRole === 'SUPPLIER' ? <ManufacturerDashboardModule /> : currentRole === 'COMPLIANCE_OFFICER' ? <CustomerVerificationModule /> : <Dashboards />;
-      case 'profile': return <ProfileModule />;
+      case 'profile':
+      case 'profile-personal':
+      case 'profile-organization':
+      case 'profile-documents': return <ProfileModule />;
       case 'buyer-workspace': return <BuyerWorkspaceModule />;
       case 'buyer-onboarding': return <BuyerOnboardingWizard />;
       case 'mfg-onboarding': return <ManufacturerOnboardingWizard />;
@@ -457,9 +484,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
       case 'customers': return <CustomerModule />;
       case 'manufacturers': return <ManufacturerModule />;
       case 'products': return <ProductCatalogModule />;
-      case 'rfqs': return <RFQModule />;
-      case 'quotes': return <QuoteModule />;
-      case 'orders': return <OrderModule />;
+      case 'rfqs': return currentRole === 'ADMIN' ? <AdminRfqMonitor /> : <RFQModule />;
+      case 'quotes': return currentRole === 'ADMIN' ? <AdminQuoteMonitor /> : <QuoteModule />;
+      case 'orders': return currentRole === 'ADMIN' ? <AdminOrderMonitor /> : <OrderModule />;
       case 'sub-orders': return <OrderModule />;
       case 'mfg-order-history': return <ManufacturerOrderHistoryModule onNavigateTab={handleTabClick} />;
       case 'my-orders': return <BuyerOrderTrackingModule initialViewMode="ORDERS_LIST" />;
@@ -468,6 +495,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
       case 'buyer-tracking': return <BuyerOrderTrackingModule initialViewMode="TRACKING_DETAIL" />;
       case 'invoices': return <InvoiceModule />;
       case 'accounts': return <AccountsModule />;
+      case 'compliance-verification':
       case 'customer-verification': return <CustomerVerificationModule />;
       case 'manufacturer-verification': return <ManufacturerVerificationModule />;
       case 'trademark-verification': return <TrademarkVerificationModule />;
@@ -479,6 +507,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
       case 'settings':
         if (currentRole === 'SUPPLIER') {
           return <ManufacturerSettingsModule />;
+        }
+        if (currentRole === 'BUYER') {
+          return <NotificationsModule />;
         }
         return <SettingsModule />;
       case 'admin-approval': return <AdminApprovalModule />;
@@ -569,7 +600,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
           {currentRole === 'SUPPLIER' ? (
             MANUFACTURER_NAV_GROUPS.map(group => {
               const isExpanded = mfgGroupExpanded[group.key] ?? group.defaultExpanded;
-              const hasActiveChild = group.items.some(item => item.id === activeTab);
+              const hasActiveChild = group.items.some(item => isNavItemActive(item.id));
               const hasPendingBadge = group.items.some(item => getBadgeCount(item.badge) > 0);
 
               return (
@@ -614,7 +645,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
                       {group.items.map(item => {
                         const Icon = item.icon;
                         const count = getBadgeCount(item.badge);
-                        const isActive = activeTab === item.id;
+                        const isActive = isNavItemActive(item.id);
                         return (
                           <button
                             key={item.id}
@@ -671,7 +702,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
           ) : currentRole === 'BUYER' ? (
             BUYER_NAV_GROUPS.map(group => {
               const isExpanded = buyerGroupExpanded[group.key] ?? group.defaultExpanded;
-              const hasActiveChild = group.items.some(item => item.id === activeTab);
+              const hasActiveChild = group.items.some(item => isNavItemActive(item.id));
               const hasPendingBadge = group.items.some(item => getBadgeCount(item.badge) > 0);
 
               return (
@@ -716,7 +747,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
                       {group.items.map(item => {
                         const Icon = item.icon;
                         const count = getBadgeCount(item.badge);
-                        const isActive = activeTab === item.id;
+                        const isActive = isNavItemActive(item.id);
                         return (
                           <button
                             key={item.id}
@@ -841,12 +872,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
         </nav>
 
         {/* Sidebar User Footer */}
-        <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 6, position: 'relative' }}>
+        <div style={{ padding: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', position: 'relative' }}>
           {/* Account Menu Popover */}
           <AccountMenuPopover
             isOpen={accountMenuOpen}
             onClose={() => setAccountMenuOpen(false)}
             anchorPosition="bottom-left"
+            onNavigate={onNavigate}
           />
 
           <div
@@ -858,7 +890,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
               display: 'flex',
               alignItems: 'center',
               gap: 10,
-              padding: '8px 10px',
+              padding: '10px 12px',
               borderRadius: 8,
               background: accountMenuOpen ? 'rgba(20, 184, 166, 0.18)' : 'rgba(255,255,255,0.05)',
               border: accountMenuOpen ? '1px solid rgba(20, 184, 166, 0.4)' : '1px solid rgba(255,255,255,0.08)',
@@ -869,58 +901,38 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
             title="Click to open Account Menu"
           >
             <div style={{
-              width: 32,
-              height: 32,
+              width: 34,
+              height: 34,
               borderRadius: '50%',
               background: roleAvatarColors[currentRole] || '#0D9488',
               color: '#FFFFFF',
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 800,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0
             }}>
-              {userProfile.fullName ? userProfile.fullName.split(' ').map(n => n[0]).join('').slice(0, 2) : currentRole.slice(0, 2)}
+              {userProfile.fullName ? userProfile.fullName.split(' ').map(n => n[0]).join('').slice(0, 2) : (currentRole === 'SUPPLIER' ? 'RS' : 'AP')}
             </div>
             {(!sidebarCollapsed || isMobile) && (
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {orgProfile.companyName || userProfile.fullName || 'Executive User'}
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {userProfile.fullName || (currentRole === 'SUPPLIER' ? 'Rajesh Sharma' : 'Apex Pharma')}
                 </div>
-                <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 1 }}>
+                  {orgProfile.companyName || (currentRole === 'SUPPLIER' ? 'SunBio Labs Pvt Ltd' : 'Apex Pharma PCD Franchise')}
+                </div>
+                <div style={{ fontSize: 9.5, fontWeight: 800, color: '#14B8A6', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <span>{currentRole.replace(/_/g, ' ')}</span>
-                  <span style={{ fontSize: 8, color: '#14B8A6' }}>▲ Menu</span>
+                  <span style={{ fontSize: 9, opacity: 0.8 }}>▾</span>
                 </div>
               </div>
             )}
-            {(!sidebarCollapsed || isMobile) && <ChevronDown size={14} style={{ color: accountMenuOpen ? '#14B8A6' : 'rgba(255,255,255,0.4)', transition: 'transform 200ms ease', transform: accountMenuOpen ? 'rotate(180deg)' : 'none' }} />}
+            {(!sidebarCollapsed || isMobile) && (
+              <ChevronDown size={14} style={{ color: accountMenuOpen ? '#14B8A6' : 'rgba(255,255,255,0.4)', transition: 'transform 200ms ease', transform: accountMenuOpen ? 'rotate(180deg)' : 'none', flexShrink: 0 }} />
+            )}
           </div>
-
-          <button
-            onClick={() => {
-              logout();
-              onNavigate('landing');
-            }}
-            style={{
-              width: '100%',
-              padding: '7px 12px',
-              borderRadius: 6,
-              background: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              color: '#EF4444',
-              fontSize: 11.5,
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: (sidebarCollapsed && !isMobile) ? 'center' : 'flex-start',
-              gap: 8
-            }}
-          >
-            <LogOut size={13} />
-            {(!sidebarCollapsed || isMobile) && <span>Sign Out</span>}
-          </button>
         </div>
       </aside>
 

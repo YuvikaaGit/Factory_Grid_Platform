@@ -1,3 +1,4 @@
+import { InvoiceModule } from './InvoiceModule';
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { formatNumber, UNIFIED_STORAGE_KEY } from './ProductionExecutionModule';
@@ -32,20 +33,437 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
   const syncSubOrdersWithContext = (saved: any) => {
     const store: Record<string, any> = { ...(saved || {}) };
 
-    if (!store['SO-1001-01']) {
-      store['SO-1001-01'] = {
-        subOrderNumber: 'SO-1001-01',
-        poNumber: 'PO-2026-1001-01',
-        masterOrderNumber: 'MO-2026-1001',
+    store['SO-2026-5228-01'] = {
+      subOrderNumber: 'SO-2026-5228-01',
+      poNumber: 'PO-SO-2026-5228-01',
+      masterOrderNumber: 'MO-2026-5228',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Azithromycin 500mg Tablets',
+      totalQuantity: 2000,
+      orderValue: 26880,
+      requiredDeliveryDate: '2026-08-28',
+      productionStatus: 'COMPLETED',
+      category: 'DELIVERED',
+      batchNumber: 'BATCH-2026-8801',
+      manufacturingLine: 'Line A - Solid Oral Dosages',
+      plannedStartDate: '2026-08-20',
+      expectedCompletionDate: '2026-08-24',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5228-01',
+        trackingNumber: 'TRK-COL-88963',
+        subOrderNumber: 'SO-2026-5228-01',
+        masterOrderNumber: 'MO-2026-5228',
+        poNumber: 'PO-SO-2026-5228-01',
         customerName: 'Apex Pharma PCD Franchise',
-        manufacturerName: 'SunBio LifeSciences Ltd.',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        productName: 'Azithromycin 500mg Tablets',
+        totalQuantity: 2000,
+        transporterName: 'ColdEx Logistics',
+        vehicleNumber: 'HP 12 B 8801',
+        driverName: 'Gurpreet Singh',
+        driverPhone: '+91 98765 00112',
+        dispatchDate: '2026-08-25',
+        expectedDeliveryDate: '2026-08-28',
+        actualDeliveryDate: '2026-08-28',
+        shipmentStatus: 'DELIVERED',
+        podStatus: 'CONFIRMED',
+        temperatureStatus: 'Normal / Compliant (2°C - 8°C)',
+        currentTemp: '4.2°C',
+        demoGpsLocation: 'Consignee Warehouse - New Delhi',
+        podReceiverName: 'Buyer Warehouse Manager',
+        podDeliveryDate: '2026-08-28',
+        podRemarks: 'All cartons received in good condition and verified at warehouse.',
+        podDocName: 'POD_STAMP_SIGNED_SO-2026-5228-01.pdf',
+        goodsReceipt: {
+          status: 'FULLY_RECEIVED',
+          receivedQuantity: 2000,
+          damagedQuantity: 0,
+          missingQuantity: 0,
+          condition: 'Good / Accepted',
+          receivingRemarks: 'All cartons received in good condition and verified at warehouse.',
+          receivedDate: '2026-08-28',
+          receivedBy: 'Buyer Warehouse Manager'
+        },
+        activityHistory: [
+          { id: 'act_5228_1_3', timestamp: '28 Aug 04:30 PM', eventTitle: 'POD Verified & Delivered', actor: 'Buyer Warehouse Manager', details: 'Confirmed 2,000 units received in pristine cold chain condition.' },
+          { id: 'act_5228_1_2', timestamp: '27 Aug 11:00 AM', eventTitle: 'Arrived at Destination Hub', actor: 'ColdEx Logistics', details: 'Arrived at New Delhi Distribution Hub.' },
+          { id: 'act_5228_1_1', timestamp: '25 Aug 09:30 AM', eventTitle: 'Shipment Dispatched', actor: 'SunBio LifeSciences Ltd', details: 'Dispatched via ColdEx Logistics (Vehicle: HP 12 B 8801, AWB: TRK-COL-88963)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5228-02'] = {
+      subOrderNumber: 'SO-2026-5228-02',
+      poNumber: 'PO-SO-2026-5228-02',
+      masterOrderNumber: 'MO-2026-5228',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'Cipla Partner Formulations Ltd',
+      productName: 'Pantoprazole 40mg + Domperidone 30mg SR Capsules',
+      totalQuantity: 3000,
+      orderValue: 48720,
+      requiredDeliveryDate: '2026-09-01',
+      productionStatus: 'COMPLETED',
+      category: 'IN_TRANSIT',
+      batchNumber: 'BATCH-2026-8802',
+      manufacturingLine: 'Line B - Capsule Encapsulation',
+      plannedStartDate: '2026-08-21',
+      expectedCompletionDate: '2026-08-26',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5228-02',
+        trackingNumber: 'TRK-BLU-77421',
+        subOrderNumber: 'SO-2026-5228-02',
+        masterOrderNumber: 'MO-2026-5228',
+        poNumber: 'PO-SO-2026-5228-02',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'Cipla Partner Formulations Ltd',
+        productName: 'Pantoprazole 40mg + Domperidone 30mg SR Capsules',
+        totalQuantity: 3000,
+        transporterName: 'BlueDart Express',
+        vehicleNumber: 'DL 01 CD 7742',
+        driverName: 'Vikram Singh',
+        driverPhone: '+91 98112 77421',
+        dispatchDate: '2026-08-27',
+        expectedDeliveryDate: '2026-09-01',
+        shipmentStatus: 'IN_TRANSIT',
+        podStatus: 'PENDING',
+        temperatureStatus: 'Normal / Compliant (15°C - 25°C)',
+        currentTemp: '21.5°C',
+        demoGpsLocation: 'Delhi Distribution Hub - En Route',
+        activityHistory: [
+          { id: 'act_5228_2_2', timestamp: '27 Aug 02:15 PM', eventTitle: 'In Transit - En Route', actor: 'BlueDart Express', details: 'Shipment departed Delhi Distribution Hub.' },
+          { id: 'act_5228_2_1', timestamp: '27 Aug 09:00 AM', eventTitle: 'Shipment Dispatched', actor: 'Cipla Partner Formulations Ltd', details: 'Dispatched via BlueDart Express (Vehicle: DL 01 CD 7742, AWB: TRK-BLU-77421)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5229-01'] = {
+      subOrderNumber: 'SO-2026-5229-01',
+      poNumber: 'PO-SO-2026-5229-01',
+      masterOrderNumber: 'MO-2026-5229',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Paracetamol 650mg ER Tablets',
+      totalQuantity: 10000,
+      orderValue: 128800,
+      requiredDeliveryDate: '2026-08-25',
+      productionStatus: 'COMPLETED',
+      category: 'DELIVERED',
+      batchNumber: 'BATCH-2026-5229',
+      manufacturingLine: 'Line A - Solid Oral Dosages',
+      plannedStartDate: '2026-08-14',
+      expectedCompletionDate: '2026-08-20',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5229-01',
+        trackingNumber: 'TRK-SAF-99412',
+        subOrderNumber: 'SO-2026-5229-01',
+        masterOrderNumber: 'MO-2026-5229',
+        poNumber: 'PO-SO-2026-5229-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        productName: 'Paracetamol 650mg ER Tablets',
+        totalQuantity: 10000,
+        transporterName: 'Safexpress Cold Fleet',
+        vehicleNumber: 'HP 12 B 9941',
+        driverName: 'Ramesh Verma',
+        driverPhone: '+91 98765 99412',
+        dispatchDate: '2026-08-20',
+        expectedDeliveryDate: '2026-08-25',
+        actualDeliveryDate: '2026-08-25',
+        shipmentStatus: 'DELIVERED',
+        podStatus: 'CONFIRMED',
+        temperatureStatus: 'Normal / Compliant (15°C - 25°C)',
+        currentTemp: '20.1°C',
+        demoGpsLocation: 'Apex Central Warehouse New Delhi',
+        podReceiverName: 'Warehouse Stores Manager',
+        podDeliveryDate: '2026-08-25',
+        podRemarks: 'Delivered in good condition and stock logged.',
+        podDocName: 'POD_STAMP_SIGNED_SO-2026-5229-01.pdf',
+        activityHistory: [
+          { id: 'act_5229_1_2', timestamp: '25 Aug 03:00 PM', eventTitle: 'Delivered & Verified', actor: 'Safexpress Cold Fleet', details: 'Delivered to Apex Central Warehouse.' },
+          { id: 'act_5229_1_1', timestamp: '20 Aug 10:00 AM', eventTitle: 'Shipment Dispatched', actor: 'SunBio LifeSciences Ltd', details: 'Dispatched via Safexpress Cold Fleet (Vehicle: HP 12 B 9941, AWB: TRK-SAF-99412)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5230-01'] = {
+      subOrderNumber: 'SO-2026-5230-01',
+      poNumber: 'PO-SO-2026-5230-01',
+      masterOrderNumber: 'MO-2026-5230',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Amoxyclav 625mg Tablets',
+      totalQuantity: 5000,
+      orderValue: 252000,
+      requiredDeliveryDate: '2026-09-05',
+      productionStatus: 'IN_PRODUCTION',
+      category: 'IN_PRODUCTION',
+      batchNumber: 'BATCH-2026-5230',
+      manufacturingLine: 'Line A - Solid Oral Dosages',
+      plannedStartDate: '2026-08-18',
+      expectedCompletionDate: '2026-09-05',
+      progressPercent: 70,
+      shipment: null
+    };
+
+    store['SO-2026-5231-01'] = {
+      subOrderNumber: 'SO-2026-5231-01',
+      poNumber: 'PO-SO-2026-5231-01',
+      masterOrderNumber: 'MO-2026-5231',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'Cipla Partner Formulations Ltd',
+      productName: 'Ciprofloxacin 500mg Tablets',
+      totalQuantity: 8000,
+      orderValue: 161280,
+      requiredDeliveryDate: '2026-08-30',
+      productionStatus: 'READY_TO_DISPATCH',
+      category: 'READY_TO_DISPATCH',
+      batchNumber: 'BATCH-2026-5231',
+      manufacturingLine: 'Line B - High Speed Tablet Press',
+      plannedStartDate: '2026-08-18',
+      expectedCompletionDate: '2026-08-26',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5231-01',
+        trackingNumber: 'TRK-BD-9940128',
+        subOrderNumber: 'SO-2026-5231-01',
+        masterOrderNumber: 'MO-2026-5231',
+        poNumber: 'PO-SO-2026-5231-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'Cipla Partner Formulations Ltd',
+        productName: 'Ciprofloxacin 500mg Tablets',
+        totalQuantity: 8000,
+        transporterName: 'BlueDart Surface',
+        vehicleNumber: 'DL 01 CD 9940',
+        driverName: 'Sanjay Kumar',
+        driverPhone: '+91 98112 99401',
+        dispatchDate: '2026-08-26',
+        expectedDeliveryDate: '2026-08-30',
+        shipmentStatus: 'DISPATCHED',
+        podStatus: 'PENDING',
+        temperatureStatus: 'Normal / Compliant (15°C - 25°C)',
+        currentTemp: '22.0°C',
+        demoGpsLocation: 'Cipla Logistics Bay - Baddi',
+        activityHistory: [
+          { id: 'act_5231_1_1', timestamp: '26 Aug 05:00 PM', eventTitle: 'Shipment Dispatched', actor: 'Cipla Partner Formulations Ltd', details: 'Dispatched via BlueDart Surface (Vehicle: DL 01 CD 9940, AWB: TRK-BD-9940128)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5232-01'] = {
+      subOrderNumber: 'SO-2026-5232-01',
+      poNumber: 'PO-SO-2026-5232-01',
+      masterOrderNumber: 'MO-2026-5232',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Ceftriaxone 1g Injection',
+      totalQuantity: 1200,
+      orderValue: 114240,
+      requiredDeliveryDate: '2026-08-27',
+      productionStatus: 'COMPLETED',
+      category: 'PENDING_RECEIPT',
+      batchNumber: 'BATCH-2026-5232',
+      manufacturingLine: 'Line C - Sterile Liquid Injectables',
+      plannedStartDate: '2026-08-16',
+      expectedCompletionDate: '2026-08-22',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5232-01',
+        trackingNumber: 'TRK-TCI-88102',
+        subOrderNumber: 'SO-2026-5232-01',
+        masterOrderNumber: 'MO-2026-5232',
+        poNumber: 'PO-SO-2026-5232-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        productName: 'Ceftriaxone 1g Injection',
+        totalQuantity: 1200,
+        transporterName: 'TCI Express',
+        vehicleNumber: 'HP 12 B 8810',
+        driverName: 'Harpreet Singh',
+        driverPhone: '+91 98765 88102',
+        dispatchDate: '2026-08-23',
+        expectedDeliveryDate: '2026-08-27',
+        actualDeliveryDate: '2026-08-27',
+        shipmentStatus: 'POD_CONFIRMED',
+        podStatus: 'CONFIRMED',
+        temperatureStatus: 'Normal / Compliant (2°C - 8°C)',
+        currentTemp: '4.5°C',
+        demoGpsLocation: 'Consignee Receiving Bay - New Delhi',
+        podReceiverName: 'Receiving Dock Officer',
+        podDeliveryDate: '2026-08-27',
+        podRemarks: 'Delivered. Awaiting buyer GRN log entry.',
+        podDocName: 'POD_STAMP_SIGNED_SO-2026-5232-01.pdf',
+        activityHistory: [
+          { id: 'act_5232_1_2', timestamp: '27 Aug 02:00 PM', eventTitle: 'POD Confirmed', actor: 'TCI Express', details: 'Delivered at Consignee Receiving Bay.' },
+          { id: 'act_5232_1_1', timestamp: '23 Aug 11:00 AM', eventTitle: 'Shipment Dispatched', actor: 'SunBio LifeSciences Ltd', details: 'Dispatched via TCI Express (Vehicle: HP 12 B 8810, AWB: TRK-TCI-88102)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5233-01'] = {
+      subOrderNumber: 'SO-2026-5233-01',
+      poNumber: 'PO-SO-2026-5233-01',
+      masterOrderNumber: 'MO-2026-5233',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'Cipla Partner Formulations Ltd',
+      productName: 'Metformin 500mg SR Tablets',
+      totalQuantity: 20000,
+      orderValue: 145600,
+      requiredDeliveryDate: '2026-08-26',
+      productionStatus: 'COMPLETED',
+      category: 'GOODS_RECEIVED',
+      batchNumber: 'BATCH-2026-5233',
+      manufacturingLine: 'Line B - High Speed Tablet Press',
+      plannedStartDate: '2026-08-12',
+      expectedCompletionDate: '2026-08-20',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5233-01',
+        trackingNumber: 'TRK-COL-99012',
+        subOrderNumber: 'SO-2026-5233-01',
+        masterOrderNumber: 'MO-2026-5233',
+        poNumber: 'PO-SO-2026-5233-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'Cipla Partner Formulations Ltd',
+        productName: 'Metformin 500mg SR Tablets',
+        totalQuantity: 20000,
+        transporterName: 'ColdEx Express Fleet',
+        vehicleNumber: 'DL 01 CD 9901',
+        driverName: 'Amit Kumar',
+        driverPhone: '+91 98112 99012',
+        dispatchDate: '2026-08-22',
+        expectedDeliveryDate: '2026-08-26',
+        actualDeliveryDate: '2026-08-26',
+        shipmentStatus: 'CLOSED',
+        podStatus: 'CONFIRMED',
+        temperatureStatus: 'Normal / Compliant (15°C - 25°C)',
+        currentTemp: '19.8°C',
+        demoGpsLocation: 'Apex Central Warehouse New Delhi',
+        podReceiverName: 'Apex Warehouse Lead',
+        podDeliveryDate: '2026-08-26',
+        podRemarks: 'Full shipment received and stock logged into ERP.',
+        podDocName: 'POD_STAMP_SIGNED_SO-2026-5233-01.pdf',
+        goodsReceipt: {
+          status: 'FULLY_RECEIVED',
+          receivedQuantity: 20000,
+          damagedQuantity: 0,
+          missingQuantity: 0,
+          condition: 'Good / Accepted',
+          receivingRemarks: 'Full shipment received and stock logged into ERP.',
+          receivedDate: '2026-08-26',
+          receivedBy: 'Apex Warehouse Lead'
+        },
+        activityHistory: [
+          { id: 'act_5233_1_3', timestamp: '26 Aug 04:00 PM', eventTitle: 'Shipment Closed & Archived', actor: 'System', details: 'Goods receipt verified. Shipment closed.' },
+          { id: 'act_5233_1_2', timestamp: '26 Aug 11:30 AM', eventTitle: 'Delivered', actor: 'ColdEx Express Fleet', details: 'Delivered at Apex Central Warehouse.' },
+          { id: 'act_5233_1_1', timestamp: '22 Aug 09:00 AM', eventTitle: 'Shipment Dispatched', actor: 'Cipla Partner Formulations Ltd', details: 'Dispatched via ColdEx Express Fleet (Vehicle: DL 01 CD 9901, AWB: TRK-COL-99012)' }
+        ]
+      }
+    };
+
+    store['SO-2026-5234-01'] = {
+      subOrderNumber: 'SO-2026-5234-01',
+      poNumber: 'PO-SO-2026-5234-01',
+      masterOrderNumber: 'MO-2026-5234',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Telmisartan 40mg Tablets',
+      totalQuantity: 15000,
+      orderValue: 154560,
+      requiredDeliveryDate: '2026-08-24',
+      productionStatus: 'COMPLETED',
+      category: 'CLOSED',
+      batchNumber: 'BATCH-2026-5234',
+      manufacturingLine: 'Line A - Solid Oral Dosages',
+      plannedStartDate: '2026-08-08',
+      expectedCompletionDate: '2026-08-18',
+      progressPercent: 100,
+      shipment: {
+        id: 'SHP-5234-01',
+        trackingNumber: 'TRK-TCI-77129',
+        subOrderNumber: 'SO-2026-5234-01',
+        masterOrderNumber: 'MO-2026-5234',
+        poNumber: 'PO-SO-2026-5234-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        productName: 'Telmisartan 40mg Tablets',
+        totalQuantity: 15000,
+        transporterName: 'TCI Express Cold Fleet',
+        vehicleNumber: 'HP 12 B 7712',
+        driverName: 'Kuldeep Singh',
+        driverPhone: '+91 98765 77129',
+        dispatchDate: '2026-08-20',
+        expectedDeliveryDate: '2026-08-24',
+        actualDeliveryDate: '2026-08-24',
+        shipmentStatus: 'CLOSED',
+        podStatus: 'CONFIRMED',
+        temperatureStatus: 'Normal / Compliant (15°C - 25°C)',
+        currentTemp: '21.0°C',
+        demoGpsLocation: 'Apex Central Warehouse New Delhi',
+        podReceiverName: 'Apex Warehouse Manager',
+        podDeliveryDate: '2026-08-24',
+        podRemarks: 'Verified full quantity 15,000 units. Invoice paid.',
+        podDocName: 'POD_STAMP_SIGNED_SO-2026-5234-01.pdf',
+        goodsReceipt: {
+          status: 'FULLY_RECEIVED',
+          receivedQuantity: 15000,
+          damagedQuantity: 0,
+          missingQuantity: 0,
+          condition: 'Good / Accepted',
+          receivingRemarks: 'Verified full quantity 15,000 units. Invoice paid.',
+          receivedDate: '2026-08-24',
+          receivedBy: 'Apex Warehouse Manager'
+        },
+        activityHistory: [
+          { id: 'act_5234_1_3', timestamp: '24 Aug 05:00 PM', eventTitle: 'Shipment Closed & Archived', actor: 'System', details: 'Lifecycle completed and archived.' },
+          { id: 'act_5234_1_2', timestamp: '24 Aug 02:00 PM', eventTitle: 'Delivered', actor: 'TCI Express Cold Fleet', details: 'Delivered to Apex Central Warehouse.' },
+          { id: 'act_5234_1_1', timestamp: '20 Aug 10:00 AM', eventTitle: 'Shipment Dispatched', actor: 'SunBio LifeSciences Ltd', details: 'Dispatched via TCI Express Cold Fleet (Vehicle: HP 12 B 7712, AWB: TRK-TCI-77129)' }
+        ]
+      }
+    };
+
+    store['SO-1001-01'] = {
+      subOrderNumber: 'SO-1001-01',
+      poNumber: 'PO-2026-1001-01',
+      masterOrderNumber: 'MO-2026-1001',
+      customerName: 'Apex Pharma PCD Franchise',
+      manufacturerName: 'SunBio LifeSciences Ltd',
+      productName: 'Paracetamol 500mg & Azithromycin 500mg Tablets',
+      totalQuantity: 12000,
+      orderValue: 195300,
+      productionStatus: 'READY_TO_DISPATCH',
+      category: 'IN_TRANSIT',
+      shipment: {
+        id: 'SHP-COLD-5027',
+        trackingNumber: 'BD502730757IN',
+        subOrderNumber: 'SO-1001-01',
+        masterOrderNumber: 'MO-2026-1001',
+        poNumber: 'PO-2026-1001-01',
+        customerName: 'Apex Pharma PCD Franchise',
+        manufacturerName: 'SunBio LifeSciences Ltd',
         productName: 'Paracetamol 500mg & Azithromycin 500mg Tablets',
         totalQuantity: 12000,
-        orderValue: 195300,
-        productionStatus: 'PO_ACCEPTED',
-        shipment: null
-      };
-    }
+        transporterName: 'ColdEx Logistics Telemetry Fleet',
+        vehicleNumber: 'HP 12 B 9021',
+        driverName: 'Gurpreet Singh',
+        driverPhone: '+91 98765 00112',
+        dispatchDate: '2026-08-18',
+        expectedDeliveryDate: '2026-08-28',
+        shipmentStatus: 'IN_TRANSIT',
+        temperatureStatus: 'Normal / Compliant (2°C - 8°C)',
+        currentTemp: '4.1°C',
+        demoGpsLocation: 'NH44 Highway — En route to Consignee (Hyderabad Hub)',
+        podStatus: 'PENDING',
+        pickupRefNumber: 'PU-BD-88912',
+        activityHistory: [
+          { id: 'act_1', timestamp: '18 Aug 10:00 AM', eventTitle: 'Shipment Entered In Transit', actor: 'ColdEx Logistics Telemetry Fleet', details: 'Shipment BD502730757IN entered transit route via vehicle HP 12 B 9021' },
+          { id: 'act_0', timestamp: '18 Aug 08:30 AM', eventTitle: 'Shipment Dispatched', actor: 'SunBio LifeSciences Ltd', details: 'Dispatched via ColdEx Logistics Telemetry Fleet (Vehicle: HP 12 B 9021, AWB: BD502730757IN)' }
+        ]
+      }
+    };
 
     if (Array.isArray(orders)) {
       orders.forEach(mo => {
@@ -291,10 +709,12 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
   };
   const activeShipment = activeSubOrder?.shipment;
 
-  const activeInvoice: Invoice | null = activeSubOrder?.invoice || invoices.find((inv: Invoice) => 
-    inv.subOrderNumber === activeSubOrder?.subOrderNumber || 
-    (inv.orderNumber === activeSubOrder?.masterOrderNumber && inv.subOrderId === activeSubOrder?.id)
-  ) || null;
+    const liveInvoiceFromContext = invoices.find((inv: Invoice) => 
+    (inv.subOrderNumber && inv.subOrderNumber === activeSubOrder?.subOrderNumber) || 
+    (inv.subOrderId && inv.subOrderId === activeSubOrder?.id) ||
+    (activeSubOrder?.invoice && (inv.id === activeSubOrder.invoice.id || inv.invoiceNumber === activeSubOrder.invoice.invoiceNumber))
+  );
+  const activeInvoice: Invoice | null = liveInvoiceFromContext || activeSubOrder?.invoice || null;
 
   // Invoice Modal Controls State
   const [showGenerateInvoiceModal, setShowGenerateInvoiceModal] = useState<boolean>(false);
@@ -323,11 +743,17 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
   const [paymentRefInput, setPaymentRefInput] = useState<string>('');
 
   const getEffectiveInvoiceStatus = (inv: Invoice): InvoiceStatus => {
-    if (inv.balanceAmount <= 0) return 'PAID';
-    if (inv.paidAmount > 0) return 'PARTIAL_PAYMENT';
+    const paid = Math.round((inv.paidAmount || 0) * 100) / 100;
+    const total = Math.round((inv.totalAmount || 0) * 100) / 100;
+    const bal = typeof inv.balanceAmount === 'number'
+      ? Math.round(inv.balanceAmount * 100) / 100
+      : Math.max(0, Math.round((total - paid) * 100) / 100);
+
+    if ((bal <= 0 || paid >= total) && total > 0) return 'PAID';
+    if (paid > 0 && bal > 0) return 'PARTIAL_PAYMENT';
     const today = new Date().toISOString().split('T')[0];
-    if (inv.dueDate && inv.dueDate < today) return 'OVERDUE';
-    return inv.status || 'OPEN';
+    if (inv.dueDate && inv.dueDate < today && bal > 0) return 'OVERDUE';
+    return 'UNPAID';
   };
 
   const renderInvoiceStatusChip = (inv: Invoice | null) => {
@@ -335,28 +761,28 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
     const status = getEffectiveInvoiceStatus(inv);
     if (status === 'PAID') {
       return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16A34A' }} /> Paid
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16A34A' }} /> ✓ PAID
         </span>
       );
     }
     if (status === 'PARTIAL_PAYMENT') {
       return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB' }} /> Partial Payment
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563EB' }} /> ↗ PARTIALLY PAID
         </span>
       );
     }
     if (status === 'OVERDUE') {
       return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#DC2626' }} /> Overdue
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#DC2626' }} /> OVERDUE
         </span>
       );
     }
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A' }}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#D97706' }} /> Open
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 12px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A' }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#D97706' }} /> OPEN / UNPAID
       </span>
     );
   };
@@ -1345,96 +1771,37 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
         {/* Modals Container */}
         {/* MODAL: GENERATE INVOICE */}
         {showGenerateInvoiceModal && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 10010, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setShowGenerateInvoiceModal(false)}>
-            <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 640, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 14, padding: 24, boxShadow: '0 20px 48px rgba(15, 23, 42, 0.2)', display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '90vh', overflowY: 'auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Receipt size={20} style={{ color: '#2563EB' }} />
-                  <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: 0 }}>Generate B2B Tax Invoice</h3>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', overflowY: 'auto', padding: '20px 10px' }}>
+            <div style={{ maxWidth: 1400, margin: '0 auto', background: '#F8FAFC', borderRadius: 16, padding: 16, boxShadow: '0 25px 50px rgba(0,0,0,0.3)', border: '1px solid #CBD5E1' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Receipt size={18} style={{ color: '#2563EB' }} /> Generate B2B Tax Invoice for Shipment #{activeShipment?.trackingNumber || activeShipment?.subOrderNumber}
                 </div>
-                <button onClick={() => setShowGenerateInvoiceModal(false)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}><X size={18} /></button>
+                <button onClick={() => setShowGenerateInvoiceModal(false)} style={{ padding: '6px 14px', borderRadius: 6, background: '#334155', color: '#FFF', border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>Close Workspace ✕</button>
               </div>
-
-              <form onSubmit={handleGenerateInvoiceSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 8, padding: 12, fontSize: 12.5, color: '#0F766E', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <div>Master Order: <strong>{genMasterOrder}</strong></div>
-                  <div>Sub-Order: <strong>{genSubOrder}</strong></div>
-                  <div>Customer: <strong>{genCustomerName}</strong></div>
-                  <div>Manufacturer: <strong>{genMfgName}</strong></div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Invoice Number</label>
-                    <input type="text" readOnly value={genInvNumber} style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace', fontWeight: 800, color: '#2563EB', background: '#F8FAFC' }} />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Invoice Date *</label>
-                    <input type="date" required value={genInvDate} onChange={e => setGenInvDate(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13 }} />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Due Date *</label>
-                    <input type="date" required value={genDueDate} onChange={e => setGenDueDate(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13 }} />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Product Line Item *</label>
-                  <input type="text" required value={genProductName} onChange={e => setGenProductName(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13 }} />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
-                  <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>HSN / SAC Code</label>
-                    <input type="text" value={genHsn} onChange={e => setGenHsn(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace' }} />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Quantity (Units) *</label>
-                    <input type="number" required value={genQty} onChange={e => setGenQty(Number(e.target.value))} style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace' }} />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Unit Price (₹) *</label>
-                    <input type="number" step="0.01" required value={genUnitPrice} onChange={e => setGenUnitPrice(Number(e.target.value))} style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace' }} />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>GST Rate % *</label>
-                    <select value={genTaxPercent} onChange={e => setGenTaxPercent(Number(e.target.value))} style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFF' }}>
-                      <option value={12}>12% GST (6% CGST + 6% SGST)</option>
-                      <option value={18}>18% GST (9% CGST + 9% SGST)</option>
-                      <option value={5}>5% GST</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#64748B' }}>Subtotal:</span>
-                    <strong style={{ fontFamily: 'monospace' }}>₹{Math.round(genQty * genUnitPrice).toLocaleString()}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#64748B' }}>GST ({genTaxPercent}%):</span>
-                    <strong style={{ fontFamily: 'monospace' }}>₹{Math.round(genQty * genUnitPrice * (genTaxPercent / 100)).toLocaleString()}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #CBD5E1', paddingTop: 6, marginTop: 2, fontSize: 15, color: '#0F172A' }}>
-                    <span>Grand Total:</span>
-                    <strong style={{ color: '#2563EB', fontFamily: 'monospace' }}>₹{Math.round((genQty * genUnitPrice * (1 + genTaxPercent / 100)) + Number(genFreight || 0)).toLocaleString()}</strong>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 12, borderTop: '1px solid #E2E8F0' }}>
-                  <button type="button" onClick={() => setShowGenerateInvoiceModal(false)} style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-                  <button type="submit" style={{ padding: '9px 22px', borderRadius: 6, border: 'none', background: '#2563EB', color: '#FFF', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>Generate Tax Invoice & Create AR Record →</button>
-                </div>
-              </form>
+              <InvoiceModule
+                initialViewMode="WORKSPACE"
+                initialData={{
+                  orderNumber: activeSubOrder?.masterOrderNumber || activeShipment?.masterOrderNumber,
+                  subOrderNumber: activeSubOrder?.subOrderNumber || activeShipment?.subOrderNumber,
+                  customerName: activeSubOrder?.customerName || activeShipment?.customerName,
+                  manufacturerName: activeSubOrder?.manufacturerName || activeShipment?.manufacturerName,
+                  productName: activeSubOrder?.productName || activeShipment?.productName,
+                  totalQuantity: activeSubOrder?.totalQuantity || activeShipment?.totalQuantity,
+                  orderValue: activeSubOrder?.orderValue || activeShipment?.totalOrderValue,
+                }}
+                onComplete={(createdInvoice) => {
+                  setShowGenerateInvoiceModal(false);
+                  if (activeSubOrder) {
+                    activeSubOrder.invoice = createdInvoice;
+                    activeSubOrder.invoiceStatus = 'GENERATED';
+                  }
+                }}
+                onCancel={() => setShowGenerateInvoiceModal(false)}
+              />
             </div>
           </div>
         )}
-
         {/* MODAL: VIEW TAX INVOICE & PDF VIEWER */}
         {showViewInvoiceModal && targetInvoiceForModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 10010, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setShowViewInvoiceModal(false)}>
@@ -1912,13 +2279,11 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
             ))}
           </select>
 
-          <div style={{ padding: '6px 14px', background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 6, fontSize: 12, color: '#0F766E', fontWeight: 700 }}>
-            Cold-Chain Telemetry: <strong style={{ color: '#16A34A' }}>2.0°C – 8.0°C Active ✓</strong>
-          </div>
-          {isManufacturer && (
-            <button onClick={() => { setViewMode('LIST'); setActiveTabLocal('CREATE_SHIPMENT'); }} style={{ height: 36, padding: '0 16px', background: '#0F766E', color: '#FFFFFF', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-              + Create Dispatch
-            </button>
+          {/* Cold-Chain Telemetry Badge — Only rendered if configured for Cold Chain */}
+          {(activeSubOrder?.isColdChain || activeShipment?.isColdChain) && (
+            <div style={{ padding: '6px 14px', background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 6, fontSize: 12, color: '#0F766E', fontWeight: 700 }}>
+              Cold-Chain Telemetry: <strong style={{ color: '#16A34A' }}>Active ({activeShipment?.currentTemp || '2.0°C–8.0°C'}) ✓</strong>
+            </div>
           )}
         </div>
       </div>
@@ -1974,14 +2339,17 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
                 ) : activeSubOrder.productionStatus === 'READY_TO_DISPATCH' ? (
                   <button
                     onClick={() => setActiveTabLocal('CREATE_SHIPMENT')}
-                    style={{ padding: '8px 16px', borderRadius: 6, background: '#166534', color: '#FFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    style={{ padding: '8px 18px', borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
-                    <Plus size={14} /> Create Dispatch Request →
+                    <Plus size={14} /> Create Dispatch
                   </button>
                 ) : (
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#94A3B8', background: '#F1F5F9', padding: '6px 12px', borderRadius: 6, border: '1px solid #E2E8F0' }}>
-                    🔒 Shipment Not Created Yet (Awaiting Production)
-                  </span>
+                  <button
+                    disabled
+                    style={{ padding: '8px 16px', borderRadius: 6, background: '#E2E8F0', color: '#94A3B8', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    🔒 Create Dispatch (Awaiting Production Completion)
+                  </button>
                 )}
               </div>
             </div>
@@ -1993,25 +2361,16 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 800, color: activeSubOrder.productionStatus === 'READY_TO_DISPATCH' ? '#0F766E' : '#334155' }}>
                       {activeSubOrder.productionStatus === 'READY_TO_DISPATCH'
-                        ? '✔ Manufacturing Completed — Sub-Order is Ready for Dispatch!'
-                        : 'No shipment created yet for this sub-order.'}
+                        ? '✔ Production Completed — Sub-Order Ready for Dispatch'
+                        : `Production Status: ${(activeSubOrder?.productionStatus || 'IN_PRODUCTION').replace(/_/g, ' ')}`}
                     </div>
                     <div style={{ fontSize: 12, color: '#64748B' }}>
                       {activeSubOrder.productionStatus === 'READY_TO_DISPATCH'
-                        ? 'Click "Create Dispatch Request" to generate a new shipment record with cold-chain tracking telemetry.'
-                        : 'Shipment creation becomes available after manufacturing reaches STEP 06 — Ready To Dispatch.'}
+                        ? 'Click the "Create Dispatch" button above to generate a shipment record.'
+                        : 'Shipment creation becomes available after manufacturing reaches Ready To Dispatch.'}
                     </div>
                   </div>
                 </div>
-
-                {activeSubOrder.productionStatus === 'READY_TO_DISPATCH' && (
-                  <button
-                    onClick={() => setActiveTabLocal('CREATE_SHIPMENT')}
-                    style={{ padding: '8px 18px', borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}
-                  >
-                    + Create Dispatch Request →
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -2023,7 +2382,7 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
 
           {activeDispatchesList.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', fontSize: 13.5, color: '#64748B', fontWeight: 600, background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: 8 }}>
-              No active shipments in transit. When a Sub-Order reaches "Ready To Dispatch", click "+ Create Dispatch" to initiate shipment creation.
+              No active dispatches. Create a dispatch after the sub-order reaches Ready to Dispatch.
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>

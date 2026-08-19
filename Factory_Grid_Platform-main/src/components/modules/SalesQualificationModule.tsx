@@ -4,8 +4,8 @@ import {
   LayoutDashboard, Clock, Calendar, CheckCircle2, XCircle, Send,
   FileText, Activity, BarChart3, Search, Filter, Phone, Mail, User,
   Building2, Factory, FileCheck, AlertCircle, Plus, Eye, ChevronRight, X,
-  CheckSquare, Square, ShieldCheck, ArrowRight, MessageSquare
-} from 'lucide-react';
+  CheckSquare, Square, ShieldCheck, ArrowRight, MessageSquare, Lock
+} from 'lucide-react';;
 
 export interface EnterpriseAccessRequest {
   id: string;

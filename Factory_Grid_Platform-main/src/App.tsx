@@ -64,7 +64,7 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [isAuthenticated]);
 
-  const navigate = (page: string) => {
+  const navigate = (page: string, overrideRole?: string) => {
     let targetPage = page as AppPage;
     let targetPath = '/';
 
@@ -73,14 +73,18 @@ const AppContent: React.FC = () => {
     } else if (targetPage === 'login') {
       targetPath = '/signin';
     } else if (targetPage === 'dashboard') {
-      if (isAuthenticated) {
-        if (currentRole === 'BUYER') targetPath = '/buyer';
-        else if (currentRole === 'SUPPLIER') targetPath = '/supplier';
-        else if (currentRole === 'COMPLIANCE_OFFICER') targetPath = '/compliance';
-        else if (currentRole === 'SALES_MANAGER') targetPath = '/sales';
-        else if (currentRole === 'ACCOUNTS_MANAGER') targetPath = '/accounts';
-        else if (currentRole === 'ADMIN') targetPath = '/admin';
-        else targetPath = '/dashboard';
+      const savedRole = (typeof window !== 'undefined' ? localStorage.getItem('fg_role') : null) as any;
+      const effectiveRole = overrideRole || savedRole || currentRole;
+      const authed = isAuthenticated || (typeof window !== 'undefined' && localStorage.getItem('fg_auth') === 'true');
+
+      if (authed) {
+        if (effectiveRole === 'COMPLIANCE_OFFICER') targetPath = '/compliance';
+        else if (effectiveRole === 'SALES_MANAGER') targetPath = '/sales';
+        else if (effectiveRole === 'ACCOUNTS_MANAGER') targetPath = '/accounts';
+        else if (effectiveRole === 'ADMIN') targetPath = '/admin';
+        else if (effectiveRole === 'SUPPLIER') targetPath = '/supplier';
+        else if (effectiveRole === 'BUYER') targetPath = '/buyer';
+        else targetPath = '/admin';
       } else {
         targetPage = 'login';
         targetPath = '/signin';

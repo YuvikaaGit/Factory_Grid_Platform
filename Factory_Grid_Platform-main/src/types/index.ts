@@ -47,7 +47,27 @@ export type MasterOrderStatus = 'OPEN' | 'SCHEDULED' | 'IN_PRODUCTION' | 'PACKAG
 
 export type SubOrderStatus = 'OPEN' | 'SCHEDULED' | 'IN_PRODUCTION' | 'PACKAGING' | 'READY_TO_DISPATCH' | 'DISPATCHED' | 'IN_TRANSIT' | 'DELIVERED';
 
-export type InvoiceStatus = 'OPEN' | 'PARTIAL_PAYMENT' | 'PAID' | 'OVERDUE';
+export type InvoiceStatus = 'OPEN' | 'UNPAID' | 'PARTIAL_PAYMENT' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
+
+export interface PaymentTimelineEvent {
+  title: string;
+  timestamp: string;
+  status: 'COMPLETED' | 'IN_PROGRESS' | 'PENDING';
+  details?: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  currency?: string;
+  paymentMethod: string;
+  paymentDate: string;
+  reference: string;
+  status: 'COMPLETED' | 'PENDING' | 'SETTLED';
+  remarks?: string;
+  timeline?: PaymentTimelineEvent[];
+}
 
 export interface Customer {
   id: string;
@@ -118,32 +138,24 @@ export interface ManufacturerRatingDetails {
   overallRating: number;
   totalReviews: number;
   distribution: {
-    fiveStar: number;
-    fourStar: number;
-    threeStar: number;
-    twoStar: number;
-    oneStar: number;
+    5: number;
+    4: number;
+    3: number;
+    2: number;
+    1: number;
   };
-  categoryRatings: {
-    delivery: number;
-    quality: number;
-    communication: number;
-    compliance: number;
+  metrics: {
+    qualityRating: number;
+    deliveryRating: number;
+    communicationRating: number;
   };
-  performance: {
-    onTimeDeliveryRate: number;
-    qualityPassRate: number;
-    rfqResponseRate: number;
-    completedOrdersCount: number;
-  };
-  recentReviews: ManufacturerReview[];
 }
 
 export interface Manufacturer {
   id: string;
   code: string;
-  name?: string;
   companyName: string;
+  brandName?: string;
   mfgLicenseNo: string;
   gstin: string;
   pan: string;
@@ -152,19 +164,19 @@ export interface Manufacturer {
   phone: string;
   city: string;
   state: string;
-  certifications: Certification[];
-  rating: number;
-  complianceStatus: ComplianceStatus;
   status: 'ACTIVE' | 'INACTIVE' | 'PENDING';
+  complianceStatus: ComplianceStatus;
+  rating: number;
+  ratingsDetails?: ManufacturerRatingDetails;
+  reviews?: ManufacturerReview[];
   activeSubOrders: number;
-  description?: string;
-  establishedYear?: number;
-  facilityInfo?: FacilityInfo;
-  manufacturingTypes?: string[];
+  facilities?: FacilityInfo;
   capabilities?: CapabilityItem[];
-  shortlisted?: boolean;
+  certifications?: Certification[];
   performanceMetrics?: PerformanceMetrics;
-  ratingDetails?: ManufacturerRatingDetails;
+  logoUrl?: string;
+  coverImageUrl?: string;
+  verifiedBadge?: boolean;
 }
 
 export interface Product {
@@ -172,30 +184,32 @@ export interface Product {
   code: string;
   name: string;
   genericName: string;
-  saltCombination: string;
   dosageForm: string;
-  strength: string;
+  composition: string;
   packSize: string;
-  uom: string;
-  description: string;
-  category: string;
-  manufacturersCount: number;
-  tags?: string[];
-  status?: 'Active' | 'Inactive';
-  moq?: number;
-  regulatoryInfo?: string[];
+  moq: number;
+  mrp: number;
+  targetPrice: number;
+  hsnCode: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  registeredCount: number;
+  storageCondition?: string;
+  shelfLifeMonths?: number;
+  therapeuticCategory?: string;
+  brandNames?: string[];
+  requiresColdChain?: boolean;
+  approvalStatus?: 'APPROVED' | 'PENDING' | 'REJECTED';
 }
 
-export interface ManufacturerProductMapping {
+export interface ProductManufacturerMapping {
+  id: string;
   productId: string;
+  productName: string;
   manufacturerId: string;
-  manufacturerCode: string;
   manufacturerName: string;
-  mfgProductCode: string;
-  moq: number;
-  standardLeadTimeDays: number;
-  unitPriceEstimate?: number;
-  productSpecificCertifications?: string[];
+  manufacturerCode: string;
+  contractStatus: 'ACTIVE' | 'UNDER_RENEWAL' | 'TERMINATED';
+  contractValidUntil: string;
 }
 
 export interface RFQLine {
@@ -307,6 +321,16 @@ export interface SubOrder {
   expectedDeliveryDate: string;
   awbNumber?: string;
   transporterName?: string;
+  poNumber?: string;
+  deliveredQuantity?: number;
+  trackingNumber?: string;
+  carrier?: string;
+  dispatchDate?: string;
+  deliveryDate?: string;
+  currentLocation?: string;
+  trackingStatus?: string;
+  lastTrackingUpdate?: string;
+  productionOrderId?: string;
 }
 
 export interface MasterOrder {
@@ -321,6 +345,11 @@ export interface MasterOrder {
   totalAmount: number;
   subOrders: SubOrder[];
   shippingAddress: string;
+  billingAddress?: string;
+  poNumber?: string;
+  paymentTerms?: string;
+  currency?: string;
+  updatedDate?: string;
 }
 
 export interface InvoiceLine {
@@ -330,6 +359,8 @@ export interface InvoiceLine {
   hsnCode: string;
   quantity: number;
   unitPrice: number;
+  discountPercent?: number;
+  taxPercent?: number;
   taxAmount: number;
   totalAmount: number;
 }
@@ -344,12 +375,25 @@ export interface Invoice {
   customerId: string;
   customerName: string;
   customerCode: string;
+  customerAddress?: string;
+  customerGstin?: string;
+  customerPan?: string;
   manufacturerId?: string;
   manufacturerName?: string;
+  manufacturerAddress?: string;
+  manufacturerGstin?: string;
+  manufacturerPan?: string;
+  manufacturerLicense?: string;
+  logoDataUrl?: string;
   invoiceDate: string;
   dueDate: string;
+  paymentTerms?: string;
   subtotal: number;
   taxTotal: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  freightAmount?: number;
   totalAmount: number;
   paidAmount: number;
   balanceAmount: number;
@@ -357,6 +401,14 @@ export interface Invoice {
   lines: InvoiceLine[];
   sentToCustomer?: boolean;
   sentAt?: string;
+  currency?: string;
+  paymentMethod?: string;
+  payments?: PaymentRecord[];
+  remindersSentCount?: number;
+  lastReminderSentAt?: string;
+  creationMethod?: 'TEXT' | 'UPLOAD';
+  uploadedFileName?: string;
+  uploadedFileUrl?: string;
 }
 
 export interface ComplianceCase {
@@ -623,6 +675,11 @@ export interface CustomerVerificationRequest {
   // 3. Address Information
   billingAddress: string;
   shippingAddress: string;
+  billingAddress?: string;
+  poNumber?: string;
+  paymentTerms?: string;
+  currency?: string;
+  updatedDate?: string;
   state: string;
   country: string;
   pincode: string;
