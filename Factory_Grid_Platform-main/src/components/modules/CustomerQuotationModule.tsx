@@ -372,14 +372,9 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
                 >
                   <CheckCircle2 size={16} /> Approve Quote
                 </button>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <button onClick={() => setShowRevisionModal(true)} style={{ padding: '8px', borderRadius: 6, background: '#FFFBEB', color: '#B45309', border: '1px solid #FCD34D', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                    Request Revision
-                  </button>
-                  <button onClick={() => setShowRejectionModal(true)} style={{ padding: '8px', borderRadius: 6, background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FCA5A5', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                    Reject Quote
-                  </button>
-                </div>
+                <button onClick={() => setShowRejectionModal(true)} style={{ width: '100%', padding: '8px', borderRadius: 6, background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FCA5A5', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                  Reject Quote
+                </button>
               </>
             )}
 

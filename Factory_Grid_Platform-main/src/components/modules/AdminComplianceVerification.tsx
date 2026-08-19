@@ -1,34 +1,11 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { ComplianceModule } from './ComplianceModule';
 import { ShieldCheck, Search, Eye, X, CheckCircle2, Clock, AlertTriangle, FileText, Building2, Check, CheckSquare } from 'lucide-react';
 
 export const AdminComplianceVerification: React.FC = () => {
-  const { complianceCases, currentRole, addAuditLog } = useApp();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  
-  // Local reactive state for compliance cases
-  const [casesList, setCasesList] = useState(complianceCases);
-  const [activeReviewCase, setActiveReviewCase] = useState<any | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const [showRejectInput, setShowRejectInput] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const pendingCount = casesList.filter(c => c.status === 'UNDER_REVIEW' || c.status === 'PENDING').length;
-  const underReviewCount = casesList.filter(c => c.status === 'UNDER_REVIEW').length;
-  const approvedCount = casesList.filter(c => c.status === 'APPROVED' || c.status === 'VERIFIED').length;
-  const rejectedCount = casesList.filter(c => c.status === 'REJECTED').length;
-  const expiringCount = 1;
-
-  const handleApproveCase = (caseId: string, entityName: string) => {
-    setCasesList(prev => prev.map(c => c.id === caseId ? { ...c, status: 'APPROVED', lastUpdated: 'Just now' } : c));
-    addAuditLog('Compliance Verification', `Admin approved compliance verification case for ${entityName} (Status -> APPROVED)`);
-    setActiveReviewCase(null);
-    setShowRejectInput(false);
-    setRejectReason('');
-    setToastMessage(`✔ Compliance verification for ${entityName} APPROVED successfully.`);
-    setTimeout(() => setToastMessage(null), 5000);
-  };
+  return <ComplianceModule />;
+};
 
   const handleRejectCase = (caseId: string, entityName: string) => {
     if (!rejectReason.trim()) {

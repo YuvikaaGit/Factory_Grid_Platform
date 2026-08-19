@@ -92,6 +92,8 @@ interface AppContextType {
   addInvoice: (newInvoice: Invoice) => void;
   updateInvoice: (invoiceId: string, updatedFields: Partial<Invoice>) => void;
   updateInvoiceStatus: (invoiceId: string, status: InvoiceStatus) => void;
+  deleteInvoice: (invoiceId: string) => void;
+  sendInvoiceToCustomer: (invoiceId: string) => void;
   recordInvoicePayment: (invoiceId: string, amount: number, method?: string, ref?: string, currency?: string, paymentDate?: string) => void;
   submitBuyerOnboarding: (data: Omit<BuyerOnboarding, 'id' | 'status' | 'submittedDate'>) => void;
   submitManufacturerOnboarding: (data: Omit<ManufacturerOnboarding, 'id' | 'status' | 'submittedDate'>) => void;
@@ -1289,13 +1291,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     setInvoices(prev => {
-      const idx = prev.findIndex(i => i.id === newInvoice.id || i.invoiceNumber === newInvoice.invoiceNumber || (newInvoice.subOrderNumber && i.subOrderNumber === newInvoice.subOrderNumber));
+      const idx = prev.findIndex(i => i.id === newInvoice.id || i.invoiceNumber === newInvoice.invoiceNumber);
+      let updated: Invoice[];
       if (idx >= 0) {
-        const updated = [...prev];
+        updated = [...prev];
         updated[idx] = { ...updated[idx], ...newInvoice };
-        return updated;
+      } else {
+        updated = [newInvoice, ...prev];
       }
-      return [newInvoice, ...prev];
+      try {
+        localStorage.setItem('fg_invoices', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
     });
 
     addAuditLog('Invoice Engine', `Created Tax Invoice ${newInvoice.invoiceNumber} for ${newInvoice.customerName} (Total: ₹${newInvoice.totalAmount.toLocaleString()})`);
@@ -1339,6 +1346,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }));
     addAuditLog('Invoice Engine', `Edited Invoice ${invoiceId}`);
+  };
+
+  const deleteInvoice = (invoiceId: string) => {
+    setInvoices(prev => {
+      const updated = prev.filter(inv => inv.id !== invoiceId && inv.invoiceNumber !== invoiceId);
+      try {
+        localStorage.setItem('fg_invoices', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    addAuditLog('Invoice Engine', `Deleted Invoice ${invoiceId}`);
+  };
+
+  const sendInvoiceToCustomer = (invoiceId: string) => {
+    setInvoices(prev => {
+      const updated = prev.map(inv => {
+        if (inv.id === invoiceId || inv.invoiceNumber === invoiceId) {
+          return {
+            ...inv,
+            status: 'GENERATED' as const,
+            sentToCustomer: true,
+            sentAt: new Date().toISOString().split('T')[0]
+          };
+        }
+        return inv;
+      });
+      try {
+        localStorage.setItem('fg_invoices', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    addAuditLog('Invoice Engine', `Sent Invoice ${invoiceId} to customer`);
   };
 
   const updateInvoiceStatus = (invoiceId: string, status: InvoiceStatus) => {

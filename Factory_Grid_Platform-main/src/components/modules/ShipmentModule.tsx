@@ -887,27 +887,37 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
   };
 
   const handleSendInvoiceToCustomer = (invObj: Invoice) => {
-    const updatedInv = {
-      ...invObj,
-      sentToCustomer: true,
-      sentAt: new Date().toLocaleString()
-    };
-
-    addInvoice(updatedInv);
-
-    setSubOrdersStore(prev => ({
-      ...prev,
-      [selectedSubOrderCode]: {
-        ...prev[selectedSubOrderCode],
-        invoice: updatedInv
+    if (invObj.sentToCustomer) {
+      alert(`Invoice ${invObj.invoiceNumber} has already been sent to the customer.`);
+      return;
+    }
+    if (window.confirm(`Are you sure you want to send Tax Invoice ${invObj.invoiceNumber} to ${invObj.customerName}? Once sent, the invoice will become locked and read-only.`)) {
+      if (sendInvoiceToCustomer) {
+        sendInvoiceToCustomer(invObj.id);
       }
-    }));
-
-    setTargetInvoiceForModal(updatedInv);
-
-    addAuditLog('Invoice Engine', `Sent Tax Invoice ${invObj.invoiceNumber} to Customer ${invObj.customerName}`);
-
-    alert(`✔ Tax Invoice ${invObj.invoiceNumber} Sent to Customer!\n\nCustomer: ${invObj.customerName}\nNotification & Digital Copy dispatched.`);
+      const updatedInv = {
+        ...invObj,
+        status: 'GENERATED' as const,
+        sentToCustomer: true,
+        sentAt: new Date().toISOString().split('T')[0]
+      };
+      addInvoice(updatedInv);
+      setSubOrdersStore(prev => ({
+        ...prev,
+        [selectedSubOrderCode]: {
+          ...prev[selectedSubOrderCode],
+          invoice: updatedInv
+        }
+      }));
+      setShowViewInvoiceModal(false);
+      setShowGenerateInvoiceModal(false);
+      setTargetInvoiceForModal(null);
+      addAuditLog('Invoice Engine', `Sent Tax Invoice ${invObj.invoiceNumber} to Customer ${invObj.customerName}`);
+      alert(`✔ Tax Invoice ${invObj.invoiceNumber} Sent to Customer! Navigating to Supplier Invoice Ledger...`);
+      if (setActiveTab) {
+        setActiveTab('invoices');
+      }
+    }
   };
 
   const handleDownloadPdf = (invObj: Invoice) => {
@@ -1402,22 +1412,7 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
                 >
                   <Receipt size={16} /> View Invoice ({activeInvoice.invoiceNumber})
                 </button>
-              ) : (
-                <button
-                  onClick={handleOpenGenerateInvoiceModal}
-                  disabled={!['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_CONFIRMED', 'CLOSED'].includes(activeShipment.shipmentStatus)}
-                  style={{
-                    padding: '10px 18px', borderRadius: 8,
-                    background: ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_CONFIRMED', 'CLOSED'].includes(activeShipment.shipmentStatus) ? '#2563EB' : '#E2E8F0',
-                    color: ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_CONFIRMED', 'CLOSED'].includes(activeShipment.shipmentStatus) ? '#FFF' : '#94A3B8',
-                    border: 'none', fontWeight: 800, fontSize: 13, cursor: ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_CONFIRMED', 'CLOSED'].includes(activeShipment.shipmentStatus) ? 'pointer' : 'not-allowed',
-                    display: 'inline-flex', alignItems: 'center', gap: 6
-                  }}
-                  title={['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_CONFIRMED', 'CLOSED'].includes(activeShipment.shipmentStatus) ? 'Generate B2B Tax Invoice' : 'Invoice generation available after shipment is Dispatched or Delivered'}
-                >
-                  <Receipt size={16} /> Generate Invoice
-                </button>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -1723,20 +1718,9 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
                 </div>
               </div>
 
-              {isManufacturer && (
-                <button
-                  onClick={handleOpenGenerateInvoiceModal}
-                  disabled={!['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_CONFIRMED', 'CLOSED'].includes(activeShipment?.shipmentStatus)}
-                  style={{
-                    padding: '10px 20px', borderRadius: 8,
-                    background: ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_CONFIRMED', 'CLOSED'].includes(activeShipment?.shipmentStatus) ? '#2563EB' : '#94A3B8',
-                    color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'POD_CONFIRMED', 'CLOSED'].includes(activeShipment?.shipmentStatus) ? 'pointer' : 'not-allowed',
-                    display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(37,99,235,0.2)'
-                  }}
-                >
-                  <Receipt size={16} /> + Generate Tax Invoice
-                </button>
-              )}
+              <div style={{ padding: '10px 16px', background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 12, color: '#475569', fontWeight: 600 }}>
+                Tax invoice generation for this shipment is managed in the <strong>Invoices & Payments</strong> workspace.
+              </div>
             </div>
           )}
         </div>
@@ -1795,6 +1779,9 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
                   if (activeSubOrder) {
                     activeSubOrder.invoice = createdInvoice;
                     activeSubOrder.invoiceStatus = 'GENERATED';
+                  }
+                  if (setActiveTab) {
+                    setActiveTab('invoices');
                   }
                 }}
                 onCancel={() => setShowGenerateInvoiceModal(false)}

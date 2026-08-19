@@ -331,7 +331,7 @@ export const Dashboards: React.FC = () => {
               </h2>
               <span style={{ fontSize: 11.5, color: '#64748B' }}>Monitor active shipments, carrier locations and 2°C–8°C IoT temperature sensors</span>
             </div>
-            <button onClick={() => setActiveTab('shipments')} style={{ padding: '5px 12px', background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', borderRadius: 6, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+            <button onClick={() => setActiveTab(currentRole === 'BUYER' ? 'buyer-tracking' : 'shipments')} style={{ padding: '5px 12px', background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', borderRadius: 6, fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
               View Dispatch Monitor →
             </button>
           </div>
@@ -373,7 +373,7 @@ export const Dashboards: React.FC = () => {
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                    <button onClick={() => setActiveTab('shipments')} style={{ padding: '4px 10px', background: '#F1F5F9', color: '#334155', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                    <button onClick={() => setActiveTab(currentRole === 'BUYER' ? 'buyer-tracking' : 'shipments')} style={{ padding: '4px 10px', background: '#F1F5F9', color: '#334155', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       View Shipment
                     </button>
                   </td>

@@ -47,7 +47,7 @@ export type MasterOrderStatus = 'OPEN' | 'SCHEDULED' | 'IN_PRODUCTION' | 'PACKAG
 
 export type SubOrderStatus = 'OPEN' | 'SCHEDULED' | 'IN_PRODUCTION' | 'PACKAGING' | 'READY_TO_DISPATCH' | 'DISPATCHED' | 'IN_TRANSIT' | 'DELIVERED';
 
-export type InvoiceStatus = 'OPEN' | 'UNPAID' | 'PARTIAL_PAYMENT' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
+export type InvoiceStatus = 'GENERATED' | 'SENT_TO_CUSTOMER' | 'OPEN' | 'UNPAID' | 'PARTIAL_PAYMENT' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE';
 
 export interface PaymentTimelineEvent {
   title: string;

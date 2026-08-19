@@ -1,13 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Invoice, InvoiceLine, Customer } from '../../types';
+import { Invoice, InvoiceLine, Customer, PaymentRecord } from '../../types';
 import {
   Receipt, CheckCircle2, Clock, AlertCircle, X, Banknote,
   Search, Plus, Check, Upload, FileText, Edit2, Eye,
   Trash2, Image as ImageIcon, ChevronRight, ArrowLeft,
   Printer, Package, ArrowRight, Save, DollarSign, FileCheck,
-  Building2, UserCheck, Shield
+  Building2, UserCheck, Shield, History, Send, Download, CreditCard
 } from 'lucide-react';
+import { initiateRazorpayCheckout, verifyRazorpaySignature } from '../../services/razorpayService';
 
 // ─── Types & Interfaces ───────────────────────────────────────────────────────
 
@@ -39,7 +40,6 @@ interface EditFormState {
   paymentTerms: string;
   orderNumber: string;
   subOrderNumber: string;
-  // Supplier Info
   manufacturerName: string;
   manufacturerAddress: string;
   manufacturerCity: string;
@@ -53,7 +53,6 @@ interface EditFormState {
   manufacturerEmail: string;
   manufacturerWebsite: string;
   logoDataUrl: string;
-  // Customer Info
   selectedCustomerId: string;
   customerName: string;
   customerCode: string;
@@ -63,13 +62,10 @@ interface EditFormState {
   customerPan: string;
   customerPhone: string;
   customerEmail: string;
-  // Line Items
   lines: EditableInvoiceLine[];
-  // Tax & Freight
   taxType: 'CGST_SGST' | 'IGST';
   freightAmount: number;
   currency: string;
-  // Upload Mode
   creationMethod: 'TEXT' | 'UPLOAD';
   uploadedFileName: string;
   uploadedFileType: string;
@@ -143,8 +139,8 @@ const defaultEditForm = (invoiceCount: number, orgProfile?: any, initialData?: I
     dueDate: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
     paymentTerms: 'Net 30 days from invoice date',
     orderNumber: initialData?.orderNumber || 'MO-2026-1001',
-    subOrderNumber: initialData?.subOrderNumber || 'SO-2026-1001-01',
-    manufacturerName: initialData?.manufacturerName || orgProfile?.companyName || 'SunBio Labs Pvt Ltd',
+    subOrderNumber: initialData?.subOrderNumber || `SO-2026-1001-0${(invoiceCount % 9) + 1}`,
+    manufacturerName: initialData?.manufacturerName || orgProfile?.companyName || 'SunBio LifeSciences Ltd',
     manufacturerAddress: orgProfile?.registeredAddress || 'Plot 42-45, Export Promotion Industrial Park, Phase I',
     manufacturerCity: orgProfile?.city || 'Baddi',
     manufacturerState: orgProfile?.state || 'Himachal Pradesh',
@@ -204,7 +200,7 @@ const invoiceToEditForm = (inv: Invoice): EditFormState => {
     paymentTerms: inv.paymentTerms || 'Net 30 days from invoice date',
     orderNumber: inv.orderNumber,
     subOrderNumber: inv.subOrderNumber || '',
-    manufacturerName: inv.manufacturerName || 'SunBio Labs Pvt Ltd',
+    manufacturerName: inv.manufacturerName || 'SunBio LifeSciences Ltd',
     manufacturerAddress: inv.manufacturerAddress || 'Plot 42-45, EPIP Phase I',
     manufacturerCity: 'Baddi',
     manufacturerState: 'Himachal Pradesh',
@@ -238,7 +234,7 @@ const invoiceToEditForm = (inv: Invoice): EditFormState => {
   };
 };
 
-// ─── Status Chip ──────────────────────────────────────────────────────────────
+// ─── Status Chip Component ────────────────────────────────────────────────────
 
 const StatusChip: React.FC<{ inv: Invoice }> = ({ inv }) => {
   const paid = Math.round((inv.paidAmount || 0) * 100) / 100;
@@ -247,30 +243,34 @@ const StatusChip: React.FC<{ inv: Invoice }> = ({ inv }) => {
     ? Math.round(inv.balanceAmount * 100) / 100
     : Math.max(0, Math.round((total - paid) * 100) / 100);
 
-  if ((bal <= 0 || paid >= total) && total > 0) {
+  const today = new Date().toISOString().split('T')[0];
+  const isOverdue = inv.status === 'OVERDUE' || (inv.dueDate && inv.dueDate < today && bal > 0);
+
+  if (bal <= 0 && total > 0) {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
-        <Check size={12} /> ✓ PAID
+        <Check size={12} /> PAID
       </span>
     );
   }
   if (paid > 0 && bal > 0) {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #93C5FD' }}>
-        <Clock size={12} /> ↗ PARTIALLY PAID
+        <Clock size={12} /> PARTIALLY PAID
       </span>
     );
   }
-  if (inv.status === 'OVERDUE') {
+  if (isOverdue) {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#FEE2E2', color: '#B91C1C', border: '1px solid #FCA5A5' }}>
         <AlertCircle size={12} /> OVERDUE
       </span>
     );
   }
+
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' }}>
-      <Clock size={12} /> OPEN / UNPAID
+      <Clock size={12} /> GENERATED
     </span>
   );
 };
@@ -285,14 +285,12 @@ const LiveInvoicePreviewDocument: React.FC<{ form: EditFormState; paidAmount?: n
   const getStatusLabel = () => {
     if (bal === 0 && totals.grand > 0) return { label: 'PAID', color: '#15803D', bg: '#DCFCE7', border: '#86EFAC' };
     if (paidAmount > 0 && bal > 0) return { label: 'PARTIALLY PAID', color: '#1D4ED8', bg: '#DBEAFE', border: '#93C5FD' };
-    return { label: 'UNPAID', color: '#B45309', bg: '#FEF3C7', border: '#FCD34D' };
+    return { label: 'GENERATED / TAX INVOICE', color: '#B45309', bg: '#FEF3C7', border: '#FCD34D' };
   };
   const statusInfo = getStatusLabel();
 
   return (
     <div style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 24, boxShadow: '0 4px 16px rgba(15,23,42,0.08)', fontFamily: 'Inter, system-ui, sans-serif' }}>
-
-      {/* Header: Logo + Company Info + Title */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0F172A', paddingBottom: 16, marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {form.logoDataUrl ? (
@@ -327,7 +325,6 @@ const LiveInvoicePreviewDocument: React.FC<{ form: EditFormState; paidAmount?: n
         </div>
       </div>
 
-      {/* References & Dates Bar */}
       <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, fontSize: 11.5, marginBottom: 16 }}>
         <div>
           <span style={{ color: '#64748B', display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>Invoice Date</span>
@@ -343,7 +340,6 @@ const LiveInvoicePreviewDocument: React.FC<{ form: EditFormState; paidAmount?: n
         </div>
       </div>
 
-      {/* Bill To & Order Info */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
         <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, fontSize: 11.5 }}>
           <div style={{ fontSize: 10, fontWeight: 800, color: '#2563EB', textTransform: 'uppercase', marginBottom: 4 }}>Billed & Shipped To</div>
@@ -363,7 +359,6 @@ const LiveInvoicePreviewDocument: React.FC<{ form: EditFormState; paidAmount?: n
         </div>
       </div>
 
-      {/* Line Items Table */}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, marginBottom: 16 }}>
         <thead>
           <tr style={{ background: '#1E293B', color: '#FFFFFF' }}>
@@ -394,7 +389,6 @@ const LiveInvoicePreviewDocument: React.FC<{ form: EditFormState; paidAmount?: n
         </tbody>
       </table>
 
-      {/* Financial Breakdown Panel */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -448,13 +442,29 @@ const FullInvoiceCreationWorkspace: React.FC<{
   form: EditFormState;
   onChangeForm: (f: EditFormState) => void;
   onSave: () => void;
+  onSendToCustomer: () => void;
+  onDownload: () => void;
   onCancel: () => void;
   isNew: boolean;
   customers: Customer[];
   orgProfile: any;
-}> = ({ form, onChangeForm, onSave, onCancel, isNew, customers, orgProfile }) => {
+}> = ({ form, onChangeForm, onSave, onSendToCustomer, onDownload, onCancel, isNew, customers, orgProfile }) => {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  const cleanupObjectURL = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      cleanupObjectURL();
+    };
+  }, []);
 
   const set = (field: keyof EditFormState, value: any) =>
     onChangeForm({ ...form, [field]: value });
@@ -489,32 +499,50 @@ const FullInvoiceCreationWorkspace: React.FC<{
     });
   };
 
+  // 1. Logo Upload Handler
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { alert('Logo file must be under 2 MB.'); return; }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Logo file size must be under 5 MB.');
+      return;
+    }
     const reader = new FileReader();
-    reader.onload = ev => set('logoDataUrl', ev.target?.result as string || '');
+    reader.onload = ev => {
+      set('logoDataUrl', ev.target?.result as string || '');
+    };
     reader.readAsDataURL(file);
   };
 
+  // 2. Custom Document Upload Handler using safe Object URLs (No Save As download popups)
   const handleInvoiceFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
+
+    cleanupObjectURL();
+
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isImage = file.type.startsWith('image/') || Boolean(file.name.toLowerCase().match(/\.(png|jpg|jpeg|svg|webp)$/));
+    const isDoc = Boolean(file.name.toLowerCase().match(/\.(doc|docx)$/));
+
+    let objectUrl = '';
+    if (isPdf || isImage) {
+      objectUrl = URL.createObjectURL(file);
+      objectUrlRef.current = objectUrl;
+    }
+
     const sizeMB = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+    const docTypeLabel = isPdf ? 'PDF Document' : isImage ? 'Image Document' : isDoc ? 'Word Document' : (file.type || 'Document');
+
     onChangeForm({
       ...form,
       uploadedFileName: file.name,
-      uploadedFileType: file.type || 'PDF Document',
+      uploadedFileType: docTypeLabel,
       uploadedFileSize: sizeMB,
-      uploadedFileUrl: url,
+      uploadedFileUrl: objectUrl,
       creationMethod: 'UPLOAD'
     });
   };
-
-  const totals = computeTotals(form.lines, form.freightAmount, form.taxType);
-  const sym = getCurrencySymbol(form.currency);
 
   const inputStyle: React.CSSProperties = {
     width: '100%', height: 36, padding: '0 10px', borderRadius: 7,
@@ -527,6 +555,10 @@ const FullInvoiceCreationWorkspace: React.FC<{
 
   return (
     <div style={{ background: '#F8FAFC', minHeight: '100vh', paddingBottom: 60 }}>
+      {/* Hidden File Inputs */}
+      <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
+      <input ref={uploadInputRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.svg,.webp,image/*,application/pdf" style={{ display: 'none' }} onChange={handleInvoiceFileUpload} />
+
       {/* Sticky Header Bar */}
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -540,38 +572,21 @@ const FullInvoiceCreationWorkspace: React.FC<{
           </div>
         </div>
 
-        {/* STEP 1: Top Mode Tabs */}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ display: 'flex', border: '1px solid #CBD5E1', borderRadius: 8, overflow: 'hidden', background: '#F1F5F9', padding: 2 }}>
-            <button
-              onClick={() => set('creationMethod', 'TEXT')}
-              style={{
-                height: 34, padding: '0 18px', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12.5, cursor: 'pointer',
-                background: form.creationMethod === 'TEXT' ? '#2563EB' : 'transparent',
-                color: form.creationMethod === 'TEXT' ? '#FFFFFF' : '#475569',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              Text / Digital Invoice
-            </button>
-            <button
-              onClick={() => set('creationMethod', 'UPLOAD')}
-              style={{
-                height: 34, padding: '0 18px', border: 'none', borderRadius: 6, fontWeight: 800, fontSize: 12.5, cursor: 'pointer',
-                background: form.creationMethod === 'UPLOAD' ? '#2563EB' : 'transparent',
-                color: form.creationMethod === 'UPLOAD' ? '#FFFFFF' : '#475569',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              Upload Invoice
-            </button>
-          </div>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={onDownload} style={{ height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Download size={14} /> Download Invoice
+          </button>
 
-          <button onClick={onCancel} style={{ height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontWeight: 600, fontSize: 12.5, cursor: 'pointer' }}>
+          <button onClick={onSendToCustomer} style={{ height: 36, padding: '0 18px', borderRadius: 8, background: '#2563EB', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(37,99,235,0.25)' }}>
+            <Send size={14} /> Send to Customer →
+          </button>
+
+          <button onClick={onCancel} style={{ height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontWeight: 600, fontSize: 12.5, cursor: 'pointer' }}>
             Cancel
           </button>
-          <button onClick={onSave} style={{ height: 36, padding: '0 20px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Check size={15} /> Finalize Invoice
+          <button onClick={onSave} style={{ height: 36, padding: '0 18px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Check size={15} /> Save Draft Invoice
           </button>
         </div>
       </div>
@@ -579,139 +594,97 @@ const FullInvoiceCreationWorkspace: React.FC<{
       {/* Main Split Layout: LEFT = Form, RIGHT = Live Preview Document */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 520px', gap: 20, alignItems: 'start' }}>
 
-        {/* ── LEFT SIDE: EDITABLE FORM WORKSPACE ───────────────────────────── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {/* LEFT COLUMN: Form Steps */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* UPLOAD INVOICE MODE WORKSPACE */}
+          {/* STEP 1: Invoice Mode Selector */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 16, display: 'flex', gap: 12, alignItems: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Format Mode:</span>
+            <button onClick={() => set('creationMethod', 'TEXT')} style={{ height: 32, padding: '0 14px', borderRadius: 6, border: `1px solid ${form.creationMethod === 'TEXT' ? '#2563EB' : '#CBD5E1'}`, background: form.creationMethod === 'TEXT' ? '#EFF6FF' : '#FFFFFF', color: form.creationMethod === 'TEXT' ? '#2563EB' : '#64748B', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+              ✓ Dynamic Builder (Text)
+            </button>
+            <button onClick={() => { set('creationMethod', 'UPLOAD'); uploadInputRef.current?.click(); }} style={{ height: 32, padding: '0 14px', borderRadius: 6, border: `1px solid ${form.creationMethod === 'UPLOAD' ? '#2563EB' : '#CBD5E1'}`, background: form.creationMethod === 'UPLOAD' ? '#EFF6FF' : '#FFFFFF', color: form.creationMethod === 'UPLOAD' ? '#2563EB' : '#64748B', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Upload size={13} /> PDF / Custom Doc Upload
+            </button>
+          </div>
+
+          {/* UPLOAD DOCUMENT CARD (When PDF Upload mode selected) */}
           {form.creationMethod === 'UPLOAD' && (
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Upload size={16} style={{ color: '#2563EB' }} /> UPLOAD INVOICE
+            <div style={{ background: '#FFFFFF', border: '2px dashed #BFDBFE', borderRadius: 12, padding: 22, textAlign: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <Upload size={32} style={{ color: '#2563EB', marginBottom: 8 }} />
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>
+                {form.uploadedFileName ? `Attached: ${form.uploadedFileName}` : 'Upload Official B2B Tax Invoice Document'}
               </div>
-              <div style={{ fontSize: 12, color: '#64748B', marginBottom: 14 }}>Upload your existing invoice document</div>
-
-              <div
-                onClick={() => uploadInputRef.current?.click()}
-                style={{ border: '2px dashed #3B82F6', borderRadius: 10, padding: 30, textAlign: 'center', cursor: 'pointer', background: '#F8FAFF', transition: 'all 0.15s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#EFF6FF')}
-                onMouseLeave={e => (e.currentTarget.style.background = '#F8FAFF')}
-              >
-                <Upload size={36} style={{ color: '#2563EB', margin: '0 auto 10px' }} />
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#1D4ED8' }}>Drag & Drop Invoice Here</div>
-                <div style={{ fontSize: 12, color: '#64748B', margin: '6px 0 10px' }}>or click below</div>
-                <button type="button" style={{ height: 32, padding: '0 16px', borderRadius: 6, background: '#2563EB', color: '#FFF', border: 'none', fontSize: 12, fontWeight: 700, pointerEvents: 'none' }}>
-                  Upload Invoice
-                </button>
-                <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 10 }}>Supported formats: PDF, PNG, JPG, JPEG</div>
-
-                {form.uploadedFileName && (
-                  <div style={{ marginTop: 14, padding: 12, background: '#FFFFFF', border: '1px solid #BFDBFE', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 14, textAlign: 'left' }}>
-                    <FileCheck size={24} style={{ color: '#10B981' }} />
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>{form.uploadedFileName}</div>
-                      <div style={{ fontSize: 11, color: '#64748B' }}>Type: {form.uploadedFileType || 'Document'} | Size: {form.uploadedFileSize || '1.2 MB'}</div>
-                      <div style={{ fontSize: 10.5, color: '#16A34A', fontWeight: 700, marginTop: 2 }}>✓ Uploaded & Ready</div>
-                    </div>
-                  </div>
-                )}
+              <div style={{ fontSize: 12, color: '#64748B', marginTop: 4, marginBottom: 14 }}>
+                {form.uploadedFileName ? `File Size: ${form.uploadedFileSize} | Type: ${form.uploadedFileType}` : 'Select a PDF, Word doc, or Image file from your computer.'}
               </div>
-              <input ref={uploadInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg" style={{ display: 'none' }} onChange={handleInvoiceFileUpload} />
-
-              {form.uploadedFileName && (
-                <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
-                  <button type="button" onClick={() => uploadInputRef.current?.click()} style={{ height: 34, padding: '0 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#0F766E', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                    Replace File
-                  </button>
-                  <button type="button" onClick={() => set('uploadedFileName', '')} style={{ height: 34, padding: '0 16px', borderRadius: 6, border: '1px solid #FCA5A5', background: '#FFF5F5', color: '#B91C1C', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                    Remove File
-                  </button>
-                </div>
-              )}
+              <button onClick={() => uploadInputRef.current?.click()} style={{ padding: '8px 18px', borderRadius: 8, background: '#2563EB', color: '#FFF', border: 'none', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Upload size={14} /> {form.uploadedFileName ? 'Change Uploaded File' : 'Browse & Select File'}
+              </button>
             </div>
           )}
 
-          {/* SECTION 1: BILL FROM / MANUFACTURER */}
+          {/* Manufacturer Information Card */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-            <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Building2 size={16} style={{ color: '#0F766E' }} /> Bill From / Manufacturer Details
-            </div>
-
-            {/* Editable Company Logo */}
-            <div style={{ marginBottom: 16, padding: 14, background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: 10 }}>
-              <label style={labelStyle}>Company Logo</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                {form.logoDataUrl ? (
-                  <img src={form.logoDataUrl} alt="Logo" style={{ height: 50, maxWidth: 120, objectFit: 'contain', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', padding: 4 }} />
-                ) : (
-                  <div style={{ width: 50, height: 50, borderRadius: 8, background: '#EFF6FF', border: '2px dashed #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB', fontWeight: 800 }}>
-                    <ImageIcon size={22} />
-                  </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Building2 size={16} style={{ color: '#0F766E' }} /> Manufacturer / Issuer Profile
+              </div>
+              
+              {/* UPLOAD LOGO BUTTON */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {form.logoDataUrl && (
+                  <img src={form.logoDataUrl} alt="Company Logo" style={{ height: 30, maxWidth: 70, objectFit: 'contain', borderRadius: 4, border: '1px solid #CBD5E1' }} />
                 )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" onClick={() => logoInputRef.current?.click()} style={{ height: 32, padding: '0 14px', borderRadius: 6, border: '1px solid #0F766E', background: '#FFFFFF', color: '#0F766E', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    <Upload size={13} /> {form.logoDataUrl ? 'Change Logo' : 'Upload Logo'}
+                <button type="button" onClick={() => logoInputRef.current?.click()} style={{ height: 32, padding: '0 12px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#2563EB', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <ImageIcon size={13} /> {form.logoDataUrl ? 'Replace Logo' : 'Upload Logo'}
+                </button>
+                {form.logoDataUrl && (
+                  <button type="button" onClick={() => set('logoDataUrl', '')} style={{ height: 32, width: 32, borderRadius: 6, border: '1px solid #FCA5A5', background: '#FFF5F5', color: '#B91C1C', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <X size={13} />
                   </button>
-                  {form.logoDataUrl && (
-                    <button type="button" onClick={() => set('logoDataUrl', '')} style={{ height: 32, padding: '0 12px', borderRadius: 6, border: '1px solid #FCA5A5', background: '#FFF5F5', color: '#B91C1C', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <Trash2 size={13} /> Remove Logo
-                    </button>
-                  )}
-                </div>
-                <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
+                )}
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>Company / Manufacturer Name *</label>
-                <input style={inputStyle} value={form.manufacturerName} onChange={e => set('manufacturerName', e.target.value)} />
-              </div>
-              <div>
-                <label style={labelStyle}>Manufacturing License No.</label>
-                <input style={inputStyle} value={form.manufacturerLicense} onChange={e => set('manufacturerLicense', e.target.value)} />
-              </div>
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={labelStyle}>Registered Address *</label>
-                <input style={inputStyle} value={form.manufacturerAddress} onChange={e => set('manufacturerAddress', e.target.value)} />
-              </div>
-              <div>
-                <label style={labelStyle}>City</label>
-                <input style={inputStyle} value={form.manufacturerCity} onChange={e => set('manufacturerCity', e.target.value)} />
-              </div>
-              <div>
-                <label style={labelStyle}>State</label>
-                <input style={inputStyle} value={form.manufacturerState} onChange={e => set('manufacturerState', e.target.value)} />
-              </div>
-              <div>
-                <label style={labelStyle}>Pincode</label>
-                <input style={inputStyle} value={form.manufacturerPincode} onChange={e => set('manufacturerPincode', e.target.value)} />
+                <label style={labelStyle}>Manufacturer Company Name *</label>
+                <input style={inputStyle} value={form.manufacturerName} onChange={e => set('manufacturerName', e.target.value)} />
               </div>
               <div>
                 <label style={labelStyle}>GSTIN *</label>
                 <input style={{ ...inputStyle, fontFamily: 'monospace' }} value={form.manufacturerGstin} onChange={e => set('manufacturerGstin', e.target.value)} />
               </div>
               <div>
-                <label style={labelStyle}>PAN</label>
+                <label style={labelStyle}>PAN *</label>
                 <input style={{ ...inputStyle, fontFamily: 'monospace' }} value={form.manufacturerPan} onChange={e => set('manufacturerPan', e.target.value)} />
+              </div>
+              <div>
+                <label style={labelStyle}>Mfg License No</label>
+                <input style={{ ...inputStyle, fontFamily: 'monospace' }} value={form.manufacturerLicense} onChange={e => set('manufacturerLicense', e.target.value)} />
+              </div>
+              <div>
+                <label style={labelStyle}>Contact Phone</label>
+                <input style={inputStyle} value={form.manufacturerPhone} onChange={e => set('manufacturerPhone', e.target.value)} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Manufacturing Facility Address</label>
+                <input style={inputStyle} value={form.manufacturerAddress} onChange={e => set('manufacturerAddress', e.target.value)} />
               </div>
             </div>
           </div>
 
-          {/* SECTION 2: BILL TO / CUSTOMER */}
+          {/* Customer Selection */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
             <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <UserCheck size={16} style={{ color: '#2563EB' }} /> Bill To / Customer Details
+              <UserCheck size={16} style={{ color: '#2563EB' }} /> Billed Customer / Consignee
             </div>
 
-            {/* Select existing customer dropdown */}
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>Select Customer (Auto-Populate)</label>
-              <select
-                style={{ ...inputStyle, fontWeight: 600 }}
-                value={form.selectedCustomerId}
-                onChange={e => handleCustomerSelect(e.target.value)}
-              >
-                <option value="">-- Select Customer from Directory --</option>
+              <select style={{ ...inputStyle, fontWeight: 600 }} value={form.selectedCustomerId} onChange={e => handleCustomerSelect(e.target.value)}>
+                <option value="">-- Select Customer Directory --</option>
                 {customers.map(c => (
                   <option key={c.id} value={c.id}>{c.name} ({c.code}) — GST: {c.gstin || 'N/A'}</option>
                 ))}
@@ -720,7 +693,7 @@ const FullInvoiceCreationWorkspace: React.FC<{
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Customer / Buyer Name *</label>
+                <label style={labelStyle}>Customer Name *</label>
                 <input style={inputStyle} value={form.customerName} onChange={e => set('customerName', e.target.value)} />
               </div>
               <div>
@@ -739,17 +712,13 @@ const FullInvoiceCreationWorkspace: React.FC<{
                 <label style={labelStyle}>Billing Address *</label>
                 <textarea style={{ ...inputStyle, height: 50, resize: 'vertical', paddingTop: 6 }} value={form.customerAddress} onChange={e => set('customerAddress', e.target.value)} />
               </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={labelStyle}>Consignee / Delivery Address</label>
-                <textarea style={{ ...inputStyle, height: 50, resize: 'vertical', paddingTop: 6 }} value={form.consigneeAddress} onChange={e => set('consigneeAddress', e.target.value)} />
-              </div>
             </div>
           </div>
 
-          {/* SECTION 3 & 4: ORDER REFS & INVOICE DETAILS */}
+          {/* References & Dates */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
             <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <FileText size={16} style={{ color: '#7C3AED' }} /> Order References & Invoice Details
+              <FileText size={16} style={{ color: '#7C3AED' }} /> Invoice Identifiers & Terms
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
@@ -789,7 +758,7 @@ const FullInvoiceCreationWorkspace: React.FC<{
             </div>
           </div>
 
-          {/* SECTION 5: ITEMS TABLE */}
+          {/* Line Items */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -800,7 +769,6 @@ const FullInvoiceCreationWorkspace: React.FC<{
               </button>
             </div>
 
-            {/* GST Rate Switcher */}
             <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: '#64748B', alignSelf: 'center' }}>GST Rate Structure:</span>
               {(['CGST_SGST', 'IGST'] as const).map(t => (
@@ -846,7 +814,7 @@ const FullInvoiceCreationWorkspace: React.FC<{
                           <input type="number" step="0.5" style={{ ...inputStyle, textAlign: 'right', fontSize: 12 }} value={line.taxPercent} onChange={e => setLine(line.id, 'taxPercent', Number(e.target.value))} min={0} max={100} />
                         </td>
                         <td style={{ padding: '8px 8px', textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', minWidth: 90 }}>
-                          {sym}{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          {getCurrencySymbol(form.currency)}{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </td>
                         <td style={{ padding: '8px 4px' }}>
                           {form.lines.length > 1 && (
@@ -862,40 +830,74 @@ const FullInvoiceCreationWorkspace: React.FC<{
               </table>
             </div>
 
-            {/* Freight */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, gap: 8, alignItems: 'center' }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Freight / Shipping Charge ({sym}):</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>Freight / Shipping Charge ({getCurrencySymbol(form.currency)}):</label>
               <input type="number" step="0.01" value={form.freightAmount} onChange={e => set('freightAmount', Number(e.target.value))} min={0} style={{ width: 120, height: 32, padding: '0 10px', borderRadius: 7, border: '1px solid #CBD5E1', fontSize: 12.5, textAlign: 'right', fontFamily: 'monospace' }} />
             </div>
           </div>
         </div>
 
-        {/* ── RIGHT SIDE: LIVE SYNCHRONIZED DOCUMENT PREVIEW ─────────────── */}
+        {/* RIGHT SIDE: LIVE SYNCHRONIZED DOCUMENT PREVIEW */}
         <div style={{ position: 'sticky', top: 16 }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: '#2563EB', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Eye size={15} /> Real-Time Live Tax Invoice Preview
           </div>
 
-          {form.creationMethod === 'UPLOAD' && form.uploadedFileUrl ? (
-            <div style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 16, boxShadow: '0 4px 16px rgba(15,23,42,0.08)' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Uploaded Document Preview: {form.uploadedFileName}</div>
-              {form.uploadedFileName?.toLowerCase().match(/\.(png|jpg|jpeg)$/) ? (
-                <img src={form.uploadedFileUrl} alt="Uploaded Document Preview" style={{ width: '100%', maxHeight: 500, objectFit: 'contain', borderRadius: 8, border: '1px solid #E2E8F0' }} />
+          {form.creationMethod === 'UPLOAD' ? (
+            <div style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 18, boxShadow: '0 4px 16px rgba(15,23,42,0.08)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>Uploaded Document Preview</div>
+                  <div style={{ fontSize: 11, color: '#64748B' }}>{form.uploadedFileName || 'No file selected'}</div>
+                </div>
+                {form.uploadedFileName && (
+                  <span style={{ fontSize: 10.5, fontWeight: 800, padding: '3px 8px', borderRadius: 6, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
+                    ✓ Uploaded
+                  </span>
+                )}
+              </div>
+
+              {form.uploadedFileUrl ? (
+                form.uploadedFileType === 'Image Document' || Boolean(form.uploadedFileName?.toLowerCase().match(/\.(png|jpg|jpeg|svg|webp)$/)) ? (
+                  <img src={form.uploadedFileUrl} alt="Uploaded Preview" style={{ width: '100%', maxHeight: 520, objectFit: 'contain', borderRadius: 8, border: '1px solid #E2E8F0' }} />
+                ) : (
+                  <iframe src={form.uploadedFileUrl} title="Uploaded PDF Preview" style={{ width: '100%', height: 520, borderRadius: 8, border: '1px solid #E2E8F0', background: '#FFFFFF' }} />
+                )
               ) : (
-                <iframe src={form.uploadedFileUrl} title="Uploaded Document Preview" style={{ width: '100%', height: 480, borderRadius: 8, border: '1px solid #E2E8F0' }} />
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 24, textAlign: 'center' }}>
+                  <FileCheck size={40} style={{ color: '#0F766E', marginBottom: 8 }} />
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>
+                    {form.uploadedFileName || 'Document Uploaded Successfully'}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
+                    File Type: <strong>{form.uploadedFileType || 'Office Document'}</strong> | Size: <strong>{form.uploadedFileSize || '—'}</strong>
+                  </div>
+                  <div style={{ marginTop: 12, fontSize: 11.5, color: '#15803D', fontWeight: 700, background: '#DCFCE7', border: '1px solid #86EFAC', padding: '6px 12px', borderRadius: 6, display: 'inline-block' }}>
+                    ✓ Document attached & ready for invoice submission
+                  </div>
+                </div>
               )}
             </div>
           ) : (
             <LiveInvoicePreviewDocument form={form} />
           )}
 
-          {/* Form Action Buttons */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button onClick={onCancel} style={{ flex: 1, height: 42, borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-              Cancel
+          {/* Bottom Action Buttons */}
+          <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+            <button onClick={onDownload} style={{ height: 42, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Download size={14} /> Download
             </button>
-            <button onClick={onSave} style={{ flex: 1.5, height: 42, borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13.5, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.25)' }}>
-              <Check size={16} /> Finalize Invoice →
+
+            <button onClick={onSendToCustomer} style={{ flex: 1, height: 42, borderRadius: 8, background: '#2563EB', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 6px rgba(37,99,235,0.25)' }}>
+              <Send size={15} /> Send to Customer →
+            </button>
+
+            <button onClick={onSave} style={{ flex: 1, height: 42, borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.25)' }}>
+              <Check size={16} /> Save Draft Invoice
+            </button>
+
+            <button onClick={onCancel} style={{ height: 42, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              Cancel
             </button>
           </div>
         </div>
@@ -915,8 +917,13 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
 }) => {
   const {
     invoices, recordInvoicePayment, currentRole,
-    addInvoice, updateInvoice, orgProfile, customers
+    addInvoice, updateInvoice, deleteInvoice, sendInvoiceToCustomer,
+    orgProfile, customers, setActiveTab
   } = useApp();
+
+  const isBuyer = currentRole === 'BUYER';
+  const isManufacturer = currentRole === 'SUPPLIER';
+  const isAdmin = currentRole === 'ADMIN';
 
   // View state: LIST | WORKSPACE | DETAILS
   const [viewState, setViewState] = useState<'LIST' | 'WORKSPACE' | 'DETAILS'>(initialViewMode);
@@ -931,12 +938,12 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
     }
   }, [initialViewMode, initialData]);
 
-  // Record Payment Modal State
+  // Payment Form Modal State
   const [showPaymentModal, setShowPaymentModal] = useState<Invoice | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentCurrency, setPaymentCurrency] = useState('INR');
   const [utrNumber, setUtrNumber] = useState('');
-  const [paymentMode, setPaymentMode] = useState('Bank Transfer');
+  const [paymentMode, setPaymentMode] = useState('Razorpay');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentRemarks, setPaymentRemarks] = useState('');
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -946,17 +953,17 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const isManufacturer = currentRole === 'SUPPLIER';
-
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4500);
   };
 
-  // Synchronize selected invoice for details view if invoices state changes
-  const activeDetailInvoice = selectedInvoiceForDetails
-    ? (invoices.find(i => i.id === selectedInvoiceForDetails.id || i.invoiceNumber === selectedInvoiceForDetails.invoiceNumber) || selectedInvoiceForDetails)
-    : null;
+  // Synchronize selected invoice for details view DIRECTLY from invoices state array
+  const activeDetailInvoice = useMemo(() => {
+    if (!selectedInvoiceForDetails) return null;
+    const found = invoices.find(i => i.id === selectedInvoiceForDetails.id || i.invoiceNumber === selectedInvoiceForDetails.invoiceNumber);
+    return found || selectedInvoiceForDetails;
+  }, [selectedInvoiceForDetails, invoices]);
 
   // Calculated Metrics
   const totalOutstanding = invoices.reduce((acc, inv) => acc + inv.balanceAmount, 0);
@@ -964,35 +971,140 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
   const totalInvoiced = invoices.reduce((acc, inv) => acc + inv.totalAmount, 0);
   const collectionRate = totalInvoiced > 0 ? Math.min(100, Math.round((totalPaid / totalInvoiced) * 100)) : 0;
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
   const filteredInvoices = invoices.filter(inv => {
     const q = searchTerm.toLowerCase().trim();
     const matchSearch = q === '' ||
       inv.invoiceNumber.toLowerCase().includes(q) ||
       inv.customerName.toLowerCase().includes(q) ||
+      (inv.manufacturerName || '').toLowerCase().includes(q) ||
       (inv.orderNumber || '').toLowerCase().includes(q);
     if (!matchSearch) return false;
+
+    const isOverdue = inv.status === 'OVERDUE' || (inv.dueDate && inv.dueDate < todayStr && inv.balanceAmount > 0);
+
+    if (statusFilter === 'GENERATED') return inv.status === 'GENERATED';
+    if (statusFilter === 'UNSENT_DRAFT') return !inv.sentToCustomer;
+    if (statusFilter === 'SENT_TO_CUSTOMER') return inv.sentToCustomer === true;
     if (statusFilter === 'PAID') return inv.balanceAmount === 0;
     if (statusFilter === 'PARTIALLY_PAID') return inv.paidAmount > 0 && inv.balanceAmount > 0;
-    if (statusFilter === 'UNPAID') return inv.paidAmount === 0 && inv.balanceAmount > 0;
-    if (statusFilter === 'OVERDUE') return inv.status === 'OVERDUE';
+    if (statusFilter === 'UNPAID') return inv.paidAmount === 0 && inv.balanceAmount > 0 && !isOverdue;
+    if (statusFilter === 'OVERDUE') return isOverdue;
     return true;
   });
 
-  // Open Record Payment Form Modal
+  // RAZORPAY CHECKOUT HANDLER (FOR BUYER)
+  const handleTriggerRazorpay = async (inv: Invoice, e?: React.MouseEvent, customAmt?: number) => {
+    if (e) e.stopPropagation();
+    const payAmt = typeof customAmt === 'number' ? customAmt : inv.balanceAmount;
+
+    if (payAmt <= 0) {
+      showToast("❌ Balance due is ₹0. Invoice is already fully paid.");
+      return;
+    }
+
+    initiateRazorpayCheckout({
+      amount: payAmt,
+      currency: inv.currency || 'INR',
+      invoiceNumber: inv.invoiceNumber,
+      orderNumber: inv.orderNumber,
+      buyerName: inv.customerName,
+      buyerEmail: 'accounts@apexpharma.com',
+      buyerPhone: '+91 98250 11223',
+      onSuccess: async (response) => {
+        // Server-Side Signature Verification
+        const isVerified = await verifyRazorpaySignature(
+          response.razorpay_order_id,
+          response.razorpay_payment_id,
+          response.razorpay_signature
+        );
+
+        if (isVerified) {
+          recordInvoicePayment(
+            inv.id,
+            payAmt,
+            'Razorpay',
+            response.razorpay_payment_id,
+            inv.currency || 'INR',
+            new Date().toISOString().split('T')[0]
+          );
+
+          const newBal = Math.max(0, inv.balanceAmount - payAmt);
+          const statusText = newBal === 0 ? 'PAID' : 'PARTIALLY PAID';
+          showToast(`✔ Razorpay Payment Verified! Ref: ${response.razorpay_payment_id}. Status: ${statusText}`);
+          setShowPaymentModal(null);
+        } else {
+          showToast("❌ Server signature verification failed. Payment was not recorded.");
+        }
+      },
+      onFailure: (err) => {
+        showToast(`❌ Razorpay payment failed: ${err.message || 'Payment cancelled by user.'}`);
+      },
+      onDismiss: () => {
+        showToast("ℹ Razorpay payment checkout window closed.");
+      }
+    });
+  };
+
+  // Action Handlers: Send to Customer & Delete
+  const handleSendToCustomer = (inv: Invoice, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (inv.sentToCustomer) {
+      alert(`Invoice ${inv.invoiceNumber} has already been sent to the customer.`);
+      return;
+    }
+    if (window.confirm(`Are you sure you want to send Invoice ${inv.invoiceNumber} to ${inv.customerName}? Once sent, the invoice will become locked and read-only.`)) {
+      if (sendInvoiceToCustomer) {
+        sendInvoiceToCustomer(inv.id);
+      }
+      showToast(`✔ Invoice ${inv.invoiceNumber} sent to customer successfully! Invoice is now locked and read-only.`);
+      
+      // CRITICAL NAVIGATION: Set statusFilter to 'ALL', return to Invoice Ledger (setViewState('LIST'))
+      setStatusFilter('ALL');
+      setViewState('LIST');
+      setSelectedInvoiceForDetails(null);
+      setEditForm(null);
+      setEditingInvoice(null);
+      if (setActiveTab) {
+        setActiveTab('invoices');
+      }
+    }
+  };
+
+  const handleDeleteInvoice = (inv: Invoice, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (inv.status === 'PARTIAL_PAYMENT' || inv.status === 'PARTIALLY_PAID') {
+      alert("Partially paid invoices cannot be deleted.");
+      return;
+    }
+    if (window.confirm(`Are you sure you want to delete Invoice ${inv.invoiceNumber}? This action cannot be undone.`)) {
+      if (deleteInvoice) {
+        deleteInvoice(inv.id);
+      }
+      showToast(`✔ Invoice ${inv.invoiceNumber} deleted successfully.`);
+      if (viewState === 'DETAILS') {
+        setViewState('LIST');
+        setSelectedInvoiceForDetails(null);
+      }
+    }
+  };
+
+  // Open Payment Modal (Available after invoice is sent)
   const handleOpenPaymentModal = (inv: Invoice, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (inv.balanceAmount <= 0) return;
     setShowPaymentModal(inv);
-    setPaymentAmount('');
+    setPaymentAmount(String(inv.balanceAmount));
     setPaymentCurrency(inv.currency || 'INR');
     setUtrNumber(`UTR-${Date.now().toString().slice(-6)}`);
-    setPaymentMode('Bank Transfer');
+    setPaymentMode('Razorpay');
     setPaymentDate(new Date().toISOString().split('T')[0]);
-    setPaymentRemarks('Payment received');
+    setPaymentRemarks(isBuyer ? 'Invoice payment via Razorpay' : 'Payment received');
     setPaymentError(null);
   };
 
-  // Submit Payment Record with Strict Validation
+  // Submit Payment with Strict Validation
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!showPaymentModal) return;
@@ -1009,12 +1121,23 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
       return;
     }
 
+    if (isBuyer && paymentMode === 'Razorpay') {
+      handleTriggerRazorpay(showPaymentModal, undefined, amt);
+      return;
+    }
+
     recordInvoicePayment(showPaymentModal.id, amt, paymentMode, utrNumber, paymentCurrency, paymentDate);
     const newPaid = (showPaymentModal.paidAmount || 0) + amt;
     const newBal = Math.max(0, showPaymentModal.totalAmount - newPaid);
     const sym = getCurrencySymbol(paymentCurrency);
+    const statusText = newBal === 0 ? 'PAID' : 'PARTIALLY PAID';
 
-    showToast(`✔ Payment of ${sym}${amt.toLocaleString('en-IN')} recorded for Invoice ${showPaymentModal.invoiceNumber}! Status: ${newBal === 0 ? 'PAID' : 'PARTIALLY PAID'}`);
+    if (isBuyer) {
+      showToast(`✔ Payment of ${sym}${amt.toLocaleString('en-IN')} for Invoice ${showPaymentModal.invoiceNumber} submitted successfully! Status: ${statusText}`);
+    } else {
+      showToast(`✔ Payment of ${sym}${amt.toLocaleString('en-IN')} recorded for Invoice ${showPaymentModal.invoiceNumber}! Status: ${statusText}`);
+    }
+
     setShowPaymentModal(null);
     setPaymentAmount('');
     setPaymentError(null);
@@ -1027,20 +1150,22 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
     setViewState('WORKSPACE');
   };
 
-  // Open Edit Workspace
+  // Open Edit Workspace (Allowed only before invoice is sent, or if partially paid)
   const handleOpenEditWorkspace = (inv: Invoice, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    if (inv.sentToCustomer && inv.balanceAmount === 0) {
+      alert(`Invoice ${inv.invoiceNumber} is fully paid and locked. Editing is not permitted.`);
+      return;
+    }
     setEditForm(invoiceToEditForm(inv));
     setEditingInvoice(inv);
     setViewState('WORKSPACE');
   };
 
-  // Save / Finalize Invoice
-  const handleSaveInvoice = () => {
-    if (!editForm) return;
+  // Build Invoice Object from editForm
+  const buildInvoiceFromForm = (): Invoice => {
+    if (!editForm) throw new Error("No edit form");
     const totals = computeTotals(editForm.lines, editForm.freightAmount, editForm.taxType);
-    const sym = getCurrencySymbol(editForm.currency);
-
     const lines: InvoiceLine[] = editForm.lines.map(l => {
       const { taxAmt, total } = computeLineTotal(l);
       return {
@@ -1058,7 +1183,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
     });
 
     if (editingInvoice) {
-      const updatedInv = {
+      return {
         ...editingInvoice,
         invoiceNumber: editForm.invoiceNumber,
         orderNumber: editForm.orderNumber,
@@ -1085,69 +1210,110 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
         freightAmount: editForm.freightAmount,
         totalAmount: totals.grand,
         lines,
+        status: editingInvoice.status || 'GENERATED',
+        sentToCustomer: editingInvoice.sentToCustomer || false,
         creationMethod: editForm.creationMethod,
         uploadedFileName: editForm.uploadedFileName,
         uploadedFileUrl: editForm.uploadedFileUrl,
       };
-      updateInvoice(editingInvoice.id, updatedInv);
+    }
+
+    return {
+      id: 'inv_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      invoiceNumber: editForm.invoiceNumber,
+      masterOrderId: 'mo_' + editForm.orderNumber,
+      orderNumber: editForm.orderNumber,
+      subOrderNumber: editForm.subOrderNumber,
+      customerId: editForm.selectedCustomerId || 'cus001',
+      customerName: editForm.customerName,
+      customerCode: editForm.customerCode || 'CUS001',
+      customerAddress: editForm.customerAddress,
+      customerGstin: editForm.customerGstin,
+      customerPan: editForm.customerPan,
+      manufacturerName: editForm.manufacturerName,
+      manufacturerAddress: editForm.manufacturerAddress,
+      manufacturerGstin: editForm.manufacturerGstin,
+      manufacturerPan: editForm.manufacturerPan,
+      manufacturerLicense: editForm.manufacturerLicense,
+      logoDataUrl: editForm.logoDataUrl,
+      invoiceDate: editForm.invoiceDate,
+      dueDate: editForm.dueDate,
+      paymentTerms: editForm.paymentTerms,
+      currency: editForm.currency,
+      subtotal: totals.subtotal,
+      taxTotal: totals.totalTax,
+      cgst: totals.cgst,
+      sgst: totals.sgst,
+      igst: totals.igst,
+      freightAmount: editForm.freightAmount,
+      totalAmount: totals.grand,
+      paidAmount: 0,
+      balanceAmount: totals.grand,
+      status: 'GENERATED',
+      sentToCustomer: false,
+      lines,
+      payments: [],
+      creationMethod: editForm.creationMethod,
+      uploadedFileName: editForm.uploadedFileName,
+      uploadedFileUrl: editForm.uploadedFileUrl,
+    };
+  };
+
+  // Save Draft Invoice (Draft unsent -> Opens Invoice Detail page)
+  const handleSaveInvoice = () => {
+    if (!editForm) return;
+    const invObj = buildInvoiceFromForm();
+
+    if (editingInvoice) {
+      updateInvoice(editingInvoice.id, invObj);
       showToast(`✔ Invoice ${editForm.invoiceNumber} updated successfully!`);
-      if (onComplete) {
-        onComplete(updatedInv);
-      } else {
-        setSelectedInvoiceForDetails(updatedInv);
-        setViewState('DETAILS');
-      }
     } else {
-      const newInv: Invoice = {
-        id: 'inv_' + Date.now(),
-        invoiceNumber: editForm.invoiceNumber,
-        masterOrderId: 'mo_' + editForm.orderNumber,
-        orderNumber: editForm.orderNumber,
-        subOrderNumber: editForm.subOrderNumber,
-        customerId: editForm.selectedCustomerId || 'cus001',
-        customerName: editForm.customerName,
-        customerCode: editForm.customerCode || 'CUS001',
-        customerAddress: editForm.customerAddress,
-        customerGstin: editForm.customerGstin,
-        customerPan: editForm.customerPan,
-        manufacturerName: editForm.manufacturerName,
-        manufacturerAddress: editForm.manufacturerAddress,
-        manufacturerGstin: editForm.manufacturerGstin,
-        manufacturerPan: editForm.manufacturerPan,
-        manufacturerLicense: editForm.manufacturerLicense,
-        logoDataUrl: editForm.logoDataUrl,
-        invoiceDate: editForm.invoiceDate,
-        dueDate: editForm.dueDate,
-        paymentTerms: editForm.paymentTerms,
-        currency: editForm.currency,
-        subtotal: totals.subtotal,
-        taxTotal: totals.totalTax,
-        cgst: totals.cgst,
-        sgst: totals.sgst,
-        igst: totals.igst,
-        freightAmount: editForm.freightAmount,
-        totalAmount: totals.grand,
-        paidAmount: 0,
-        balanceAmount: totals.grand,
-        status: 'UNPAID',
-        lines,
-        payments: [],
-        creationMethod: editForm.creationMethod,
-        uploadedFileName: editForm.uploadedFileName,
-        uploadedFileUrl: editForm.uploadedFileUrl,
-      };
-      addInvoice(newInv);
-      showToast(`✔ Tax Invoice ${editForm.invoiceNumber} finalized successfully (${sym}${totals.grand.toLocaleString('en-IN')})!`);
-      if (onComplete) {
-        onComplete(newInv);
-      } else {
-        setSelectedInvoiceForDetails(newInv);
-        setViewState('DETAILS');
-      }
+      addInvoice(invObj);
+      showToast(`✔ Tax Invoice ${editForm.invoiceNumber} generated! Status: GENERATED.`);
+    }
+
+    if (onComplete) {
+      onComplete(invObj);
+    } else {
+      setSelectedInvoiceForDetails(invObj);
+      setViewState('DETAILS');
     }
 
     setEditForm(null);
     setEditingInvoice(null);
+  };
+
+  // Send to Customer handler from Creation Workspace: saves invoice as sent and navigates to Invoice Ledger
+  const handleWorkspaceSendToCustomer = () => {
+    if (!editForm) return;
+
+    if (window.confirm(`Are you sure you want to send Invoice ${editForm.invoiceNumber} to ${editForm.customerName}? Once sent, the invoice will become locked and read-only.`)) {
+      const invObj = buildInvoiceFromForm();
+      invObj.sentToCustomer = true;
+      invObj.status = 'GENERATED';
+
+      if (editingInvoice) {
+        updateInvoice(editingInvoice.id, invObj);
+      } else {
+        addInvoice(invObj);
+      }
+
+      showToast(`✔ Invoice ${invObj.invoiceNumber} sent to customer successfully! Invoice is now locked and read-only.`);
+
+      // CRITICAL NAVIGATION: Return to Invoice Ledger (setViewState('LIST'))
+      setStatusFilter('ALL');
+      setViewState('LIST');
+      setSelectedInvoiceForDetails(null);
+      setEditForm(null);
+      setEditingInvoice(null);
+      if (setActiveTab) {
+        setActiveTab('invoices');
+      }
+    }
+  };
+
+  const handleWorkspaceDownload = () => {
+    window.print();
   };
 
   const handleCancelWorkspace = () => {
@@ -1161,13 +1327,13 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
   };
 
   // ── WORKSPACE VIEW RENDER ──────────────────────────────────────────────────
-  if (viewState === 'WORKSPACE' && currentRole === 'ADMIN') {
+  if (viewState === 'WORKSPACE' && (isAdmin || isBuyer)) {
     return (
       <div style={{ padding: 40, textAlign: 'center', background: '#FFF', borderRadius: 12, border: '1px solid #E2E8F0', margin: '20px auto', maxWidth: 600 }}>
         <h2 style={{ color: '#DC2626', fontSize: 20, fontWeight: 800 }}>Access Restricted</h2>
-        <p style={{ color: '#64748B', fontSize: 14 }}>The Admin role is strictly for monitoring &amp; governance. Tax invoice creation and editing are restricted to Manufacturer partners.</p>
+        <p style={{ color: '#64748B', fontSize: 14 }}>Tax invoice creation and structural editing are performed by Manufacturer partners. Buyers may view and pay issued invoices.</p>
         <button onClick={() => setViewState('LIST')} style={{ padding: '10px 20px', background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 8, fontWeight: 800, cursor: 'pointer', marginTop: 12 }}>
-          Return to Invoice Monitor
+          Return to Invoices & Payments
         </button>
       </div>
     );
@@ -1185,6 +1351,8 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
           form={editForm}
           onChangeForm={setEditForm}
           onSave={handleSaveInvoice}
+          onSendToCustomer={handleWorkspaceSendToCustomer}
+          onDownload={handleWorkspaceDownload}
           onCancel={handleCancelWorkspace}
           isNew={!editingInvoice}
           customers={customers}
@@ -1200,6 +1368,12 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
     const sym = getCurrencySymbol(inv.currency);
     const paid = inv.paidAmount || 0;
     const bal = inv.balanceAmount;
+    const isSent = Boolean(inv.sentToCustomer);
+    
+    // Status flags for details view
+    const isPaidStatus = bal === 0 && inv.totalAmount > 0;
+    const isPartiallyPaidStatus = paid > 0 && bal > 0;
+    const showPaymentHistory = (isPaidStatus || isPartiallyPaidStatus) && Array.isArray(inv.payments) && inv.payments.length > 0;
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 60, background: '#F8FAFC', minHeight: '100vh', color: '#0F172A' }}>
@@ -1222,21 +1396,48 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
               <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
                 Invoice {inv.invoiceNumber} <StatusChip inv={inv} />
               </div>
-              <div style={{ fontSize: 11.5, color: '#64748B' }}>Customer: <strong>{inv.customerName}</strong> | Issued: {inv.invoiceDate}</div>
+              <div style={{ fontSize: 11.5, color: '#64748B' }}>
+                {isBuyer ? `Supplier: ${inv.manufacturerName || 'SunBio LifeSciences Ltd'}` : `Customer: ${inv.customerName}`} | Issued: {inv.invoiceDate}
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10 }}>
-            {bal > 0 && currentRole !== 'ADMIN' && (
-              <button onClick={(e) => handleOpenPaymentModal(inv, e)} style={{ height: 36, padding: '0 16px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Banknote size={14} /> Record Payment
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {/* Send to Customer Button (Top Header - Only shown when NOT sent and not paid/partially paid) */}
+            {isManufacturer && !isSent && !isPaidStatus && !isPartiallyPaidStatus && (
+              <button onClick={(e) => handleSendToCustomer(inv, e)} style={{ height: 36, padding: '0 18px', borderRadius: 8, background: '#2563EB', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(37,99,235,0.25)' }}>
+                <Send size={14} /> Send to Customer →
               </button>
             )}
-            {isManufacturer && (
+
+            {/* Edit Button for Partially Paid or Unsent Invoices */}
+            {isManufacturer && (isPartiallyPaidStatus || !isSent) && !isPaidStatus && (
               <button onClick={(e) => handleOpenEditWorkspace(inv, e)} style={{ height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#2563EB', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <Edit2 size={14} /> Edit Invoice
+                <Edit2 size={14} /> Edit
               </button>
             )}
+
+            {/* Delete Button for Paid or Unsent Invoices */}
+            {isManufacturer && (isPaidStatus || !isSent) && !isPartiallyPaidStatus && (
+              <button onClick={(e) => handleDeleteInvoice(inv, e)} style={{ height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #FCA5A5', background: '#FFF5F5', color: '#B91C1C', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Trash2 size={14} /> Delete
+              </button>
+            )}
+
+            {/* PAY NOW BUTTON FOR BUYER (Shown strictly when balanceAmount > 0) */}
+            {isBuyer && bal > 0 && (
+              <button onClick={(e) => handleTriggerRazorpay(inv, e)} style={{ height: 36, padding: '0 18px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.25)' }}>
+                <Shield size={14} /> Pay Now (Razorpay)
+              </button>
+            )}
+
+            {/* Record Payment Button for Manufacturer */}
+            {!isBuyer && bal > 0 && !isAdmin && (
+              <button onClick={(e) => handleOpenPaymentModal(inv, e)} style={{ height: 36, padding: '0 18px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.2)' }}>
+                <Banknote size={14} /> Record Payment Received
+              </button>
+            )}
+
             <button onClick={() => window.print()} style={{ height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#334155', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <Printer size={14} /> Download / Print
             </button>
@@ -1251,81 +1452,114 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
             <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Issued Date: {inv.invoiceDate}</div>
           </div>
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Amount Already Paid</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>{isBuyer ? 'Amount Paid' : 'Amount Received'}</div>
             <div style={{ fontSize: 24, fontWeight: 800, color: '#16A34A', fontFamily: 'monospace', marginTop: 4 }}>{sym}{paid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
             <div style={{ fontSize: 11, color: '#16A34A', fontWeight: 600, marginTop: 2 }}>{Math.round((paid / inv.totalAmount) * 100)}% settled</div>
           </div>
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Outstanding Amount</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Outstanding Balance</div>
             <div style={{ fontSize: 24, fontWeight: 800, color: bal === 0 ? '#16A34A' : '#DC2626', fontFamily: 'monospace', marginTop: 4 }}>{sym}{bal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
             <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Due Date: {inv.dueDate}</div>
           </div>
         </div>
 
         {/* Split Section */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
 
-          {/* Document View */}
+          {/* Left Column: Live Invoice Preview Document */}
           <LiveInvoicePreviewDocument
             form={invoiceToEditForm(inv)}
             paidAmount={paid}
           />
 
-          {/* Right Panel: Payment History Ledger */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-            <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Banknote size={16} style={{ color: '#0F766E' }} /> Payment History & Ledger
-            </div>
+          {/* Right Panel: Settlement Actions & Payment History */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {Array.isArray(inv.payments) && inv.payments.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {inv.payments.map((p, i) => (
-                  <div key={p.id || i} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, fontSize: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, color: '#16A34A', fontSize: 13, fontFamily: 'monospace' }}>
-                      <span>+{sym}{p.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                      <span style={{ fontSize: 10, padding: '2px 6px', background: '#DCFCE7', borderRadius: 4, color: '#15803D' }}>{p.status}</span>
-                    </div>
-                    <div style={{ color: '#475569', marginTop: 4 }}>Date: <strong>{p.paymentDate}</strong></div>
-                    <div style={{ color: '#475569' }}>Method: <strong>{p.paymentMethod}</strong></div>
-                    <div style={{ color: '#475569', fontFamily: 'monospace', fontSize: 11 }}>Ref: {p.reference}</div>
+            {/* Pay Invoice Action Box (When balance > 0) */}
+            {bal > 0 && !isAdmin && (
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A', marginBottom: 4 }}>
+                  {isBuyer ? 'Online Payment Gateway' : 'Settlement Actions'}
+                </div>
+                <div style={{ fontSize: 12, color: '#64748B', marginBottom: 14 }}>
+                  {isBuyer 
+                    ? `Pay outstanding balance of ₹${bal.toLocaleString('en-IN')} instantly using Razorpay UPI, Cards, NetBanking, or Corporate Wire.` 
+                    : 'Record payment received from buyer to update Accounts Receivable ledger.'}
+                </div>
+
+                {isBuyer ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <button onClick={(e) => handleTriggerRazorpay(inv, e)} style={{ width: '100%', height: 42, borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.25)' }}>
+                      <Shield size={16} /> Pay ₹{bal.toLocaleString('en-IN')} via Razorpay →
+                    </button>
+                    <button onClick={(e) => handleOpenPaymentModal(inv, e)} style={{ width: '100%', height: 34, borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', color: '#475569', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                      Optionally Pay Custom Partial Amount
+                    </button>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ padding: 24, textAlign: 'center', background: '#F8FAFC', borderRadius: 8, border: '1px dashed #CBD5E1', color: '#94A3B8', fontSize: 12 }}>
-                No payment transactions recorded yet.
+                ) : (
+                  <button onClick={(e) => handleOpenPaymentModal(inv, e)} style={{ width: '100%', height: 40, borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.2)' }}>
+                    <Banknote size={15} /> Record Payment Received
+                  </button>
+                )}
               </div>
             )}
 
-            {bal > 0 && currentRole !== 'ADMIN' && (
-              <button onClick={(e) => handleOpenPaymentModal(inv, e)} style={{ width: '100%', height: 38, marginTop: 16, borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <Banknote size={14} /> Record Payment Received
-              </button>
+            {/* PAYMENT HISTORY: Rendered ONLY for PAID and PARTIALLY PAID invoices */}
+            {showPaymentHistory && (
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: '#0F172A', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <History size={15} style={{ color: '#2563EB' }} /> Payment History ({inv.payments!.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {inv.payments!.map((p, idx) => (
+                    <div key={idx} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, fontSize: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontWeight: 800, color: '#16A34A', fontFamily: 'monospace', fontSize: 13 }}>
+                          +{sym}{p.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 7px', borderRadius: 4, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
+                          {p.status || 'COMPLETED'}
+                        </span>
+                      </div>
+                      <div style={{ color: '#64748B', fontSize: 11 }}>
+                        Date: <strong style={{ color: '#0F172A' }}>{p.paymentDate || inv.invoiceDate}</strong> | Method: <strong style={{ color: '#0F766E' }}>{p.paymentMethod || 'Razorpay'}</strong>
+                      </div>
+                      {p.reference && (
+                        <div style={{ color: '#475569', fontSize: 11, fontFamily: 'monospace', marginTop: 3 }}>
+                          Ref/ID: <strong>{p.reference}</strong>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
+
           </div>
         </div>
 
-        {/* Record Payment Modal */}
+        {/* Payment Modal */}
         {showPaymentModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
             <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, width: 520, padding: 26, boxShadow: '0 16px 40px rgba(15,23,42,0.22)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
                 <div>
                   <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    Record Payment Received
+                    {isBuyer ? 'Pay Invoice via Razorpay' : 'Record Payment Received'}
                   </h3>
-                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>Invoice: <strong style={{ fontFamily: 'monospace' }}>{showPaymentModal.invoiceNumber}</strong></div>
+                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                    Invoice #: <strong style={{ fontFamily: 'monospace' }}>{showPaymentModal.invoiceNumber}</strong> {isBuyer && `| Supplier: ${showPaymentModal.manufacturerName || 'SunBio LifeSciences Ltd'}`}
+                  </div>
                 </div>
                 <button onClick={() => setShowPaymentModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', padding: 4 }}>
                   <X size={18} />
                 </button>
               </div>
 
-              {/* Payment Summary Box */}
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18 }}>
                 {[
                   { label: 'Invoice Total Amount', value: `${getCurrencySymbol(paymentCurrency)}${showPaymentModal.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, color: '#0F172A' },
-                  { label: 'Amount Already Received', value: `${getCurrencySymbol(paymentCurrency)}${(showPaymentModal.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, color: '#16A34A' },
+                  { label: isBuyer ? 'Amount Already Paid' : 'Amount Already Received', value: `${getCurrencySymbol(paymentCurrency)}${(showPaymentModal.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, color: '#16A34A' },
                 ].map((row, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
                     <span style={{ color: '#64748B' }}>{row.label}:</span>
@@ -1347,11 +1581,10 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
               <form onSubmit={handleSubmitPayment} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Payment Amount Received *
+                    {isBuyer ? 'Payment Amount *' : 'Payment Amount Received *'}
                   </label>
                   <input type="number" step="0.01" placeholder={`Max: ${getCurrencySymbol(paymentCurrency)}${showPaymentModal.balanceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} value={paymentAmount} onChange={e => { setPaymentAmount(e.target.value); setPaymentError(null); }} style={{ width: '100%', height: 40, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontFamily: 'monospace', fontWeight: 700, fontSize: 15, outline: 'none' }} />
 
-                  {/* Quick Pill Buttons */}
                   <div style={{ display: 'flex', gap: 7, marginTop: 7, flexWrap: 'wrap' }}>
                     <button type="button" onClick={() => { setPaymentAmount(String(Math.round(showPaymentModal.balanceAmount * 0.25 * 100) / 100)); setPaymentError(null); }} style={{ height: 26, padding: '0 10px', borderRadius: 5, border: '1px solid #CBD5E1', background: '#F1F5F9', color: '#334155', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>25%</button>
                     <button type="button" onClick={() => { setPaymentAmount(String(Math.round(showPaymentModal.balanceAmount * 0.5 * 100) / 100)); setPaymentError(null); }} style={{ height: 26, padding: '0 10px', borderRadius: 5, border: '1px solid #CBD5E1', background: '#F1F5F9', color: '#334155', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>50% of Outstanding</button>
@@ -1360,7 +1593,6 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                   </div>
                 </div>
 
-                {/* Live Remaining Balance Preview */}
                 {Number(paymentAmount) > 0 && !isNaN(Number(paymentAmount)) && (
                   <div style={{ background: Number(paymentAmount) >= showPaymentModal.balanceAmount ? '#F0FDF4' : '#EFF6FF', border: `1px solid ${Number(paymentAmount) >= showPaymentModal.balanceAmount ? '#86EFAC' : '#93C5FD'}`, borderRadius: 8, padding: '9px 14px', fontSize: 12.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
@@ -1373,7 +1605,6 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                   </div>
                 )}
 
-                {/* Currency + Method */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 12 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Currency *</label>
@@ -1385,28 +1616,24 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Payment Method *</label>
-                    <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} style={{ width: '100%', height: 36, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 13 }}>
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Payment Gateway / Method *</label>
+                    <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} style={{ width: '100%', height: 36, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 13, fontWeight: 700 }}>
+                      <option value="Razorpay">Razorpay Online Gateway (UPI / Cards / NetBanking)</option>
                       <option value="Bank Transfer">Bank Transfer (Wire / BACS)</option>
                       <option value="RTGS">RTGS – Real-Time Gross Settlement</option>
                       <option value="NEFT">NEFT – National Electronic Funds Transfer</option>
-                      <option value="UPI">UPI</option>
-                      <option value="Cheque">Cheque</option>
-                      <option value="Credit Card">Corporate Credit Card</option>
-                      <option value="LC">Letter of Credit (LC)</option>
                     </select>
                   </div>
                 </div>
 
-                {/* Date + Reference / UTR */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Payment Date *</label>
                     <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} style={{ width: '100%', height: 36, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5 }} />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Transaction / UTR # *</label>
-                    <input type="text" value={utrNumber} onChange={e => setUtrNumber(e.target.value)} style={{ width: '100%', height: 36, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontFamily: 'monospace', fontSize: 12.5 }} />
+                    <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>{paymentMode === 'Razorpay' ? 'Gateway Reference ID' : 'Transaction / UTR #'}</label>
+                    <input type="text" value={utrNumber} onChange={e => setUtrNumber(e.target.value)} style={{ width: '100%', height: 36, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontFamily: 'monospace', fontSize: 12.5 }} readOnly={paymentMode === 'Razorpay'} />
                   </div>
                 </div>
 
@@ -1414,8 +1641,9 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                   <button type="button" onClick={() => setShowPaymentModal(null)} style={{ height: 38, padding: '0 16px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: 13, fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
                     Cancel
                   </button>
-                  <button type="submit" style={{ height: 38, padding: '0 22px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Banknote size={14} /> Record Payment Received
+                  <button type="submit" style={{ height: 38, padding: '0 22px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.2)' }}>
+                    {isBuyer && paymentMode === 'Razorpay' ? <Shield size={14} /> : <Banknote size={14} />}
+                    {isBuyer && paymentMode === 'Razorpay' ? 'Proceed to Razorpay →' : 'Record Payment Received'}
                   </button>
                 </div>
               </form>
@@ -1445,14 +1673,18 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748B' }}>
-              <span>FactoryGrid</span><ChevronRight size={12} /><span>{currentRole === 'BUYER' ? 'buyer' : 'supplier'}</span><ChevronRight size={12} />
+              <span>FactoryGrid</span><ChevronRight size={12} /><span>{currentRole === 'BUYER' ? 'buyer' : currentRole === 'SUPPLIER' ? 'supplier' : 'admin'}</span><ChevronRight size={12} />
               <span style={{ color: '#2563EB', fontWeight: 600 }}>Invoices & Payments</span>
             </div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '2px 0 0', letterSpacing: '-0.02em' }}>
-              Manufacturer Tax Invoices Workspace
+              {isBuyer ? 'Buyer Tax Invoices & Payments' : isManufacturer ? 'Manufacturer Tax Invoices Workspace' : 'Admin Tax Invoices & AR Ledger Monitor'}
             </h1>
             <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 1 }}>
-              B2B pharmaceutical tax invoice management, partial payments, and treasury settlement ledger.
+              {isBuyer
+                ? 'B2B pharmaceutical tax invoice management, Razorpay online checkout, partial payments, and treasury settlement ledger.'
+                : isManufacturer
+                ? 'B2B pharmaceutical tax invoice generation, customer billing, and payment collection ledger.'
+                : 'Read-only platform invoice surveillance, payment tracking, and audit monitoring.'}
             </div>
           </div>
         </div>
@@ -1460,7 +1692,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ position: 'relative' }}>
             <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
-            <input type="text" placeholder="Search invoice#, customer..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: 220, height: 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5, outline: 'none', background: '#FFFFFF' }} />
+            <input type="text" placeholder="Search invoice#, partner, order..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: 240, height: 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5, outline: 'none', background: '#FFFFFF' }} />
           </div>
           {isManufacturer && (
             <button onClick={handleOpenCreateWorkspace} style={{ height: 36, padding: '0 18px', borderRadius: 8, background: '#2563EB', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(37,99,235,0.2)' }}>
@@ -1474,7 +1706,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
         {[
           { label: 'Total Invoiced', value: `₹${totalInvoiced.toLocaleString('en-IN')}`, sub: `${invoices.length} total issued`, color: '#2563EB', bg: '#EFF6FF', border: '#BFDBFE', icon: <Receipt size={16} /> },
-          { label: isManufacturer ? 'Payment Received' : 'Amount Paid', value: `₹${totalPaid.toLocaleString('en-IN')}`, sub: `↑ ${collectionRate}% collection rate`, color: '#16A34A', bg: '#F0FDF4', border: '#86EFAC', icon: <Check size={16} /> },
+          { label: isBuyer ? 'Amount Paid' : 'Payment Received', value: `₹${totalPaid.toLocaleString('en-IN')}`, sub: `↑ ${collectionRate}% collection rate`, color: '#16A34A', bg: '#F0FDF4', border: '#86EFAC', icon: <Check size={16} /> },
           { label: 'Outstanding Balance', value: `₹${totalOutstanding.toLocaleString('en-IN')}`, sub: `${invoices.filter(i => i.balanceAmount > 0).length} pending settlements`, color: '#D97706', bg: '#FFFBEB', border: '#FCD34D', icon: <AlertCircle size={16} /> },
           { label: 'Partially Paid', value: `${invoices.filter(i => i.paidAmount > 0 && i.balanceAmount > 0).length} Invoices`, sub: 'Active installment plans', color: '#1D4ED8', bg: '#DBEAFE', border: '#93C5FD', icon: <Clock size={16} /> },
         ].map((card, i) => (
@@ -1491,12 +1723,15 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
 
       {/* Filters Bar */}
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
             { id: 'ALL', label: `All Invoices (${invoices.length})` },
-            { id: 'UNPAID', label: `Open / Outstanding (${invoices.filter(i => i.paidAmount === 0 && i.balanceAmount > 0).length})` },
+            { id: 'GENERATED', label: `Generated (${invoices.filter(i => i.status === 'GENERATED').length})` },
+            { id: 'UNSENT_DRAFT', label: `Unsent Drafts (${invoices.filter(i => !i.sentToCustomer).length})` },
+            { id: 'SENT_TO_CUSTOMER', label: `Sent to Customer (${invoices.filter(i => i.sentToCustomer).length})` },
             { id: 'PARTIALLY_PAID', label: `Partially Paid (${invoices.filter(i => i.paidAmount > 0 && i.balanceAmount > 0).length})` },
             { id: 'PAID', label: `Paid (${invoices.filter(i => i.balanceAmount === 0).length})` },
+            { id: 'OVERDUE', label: `Overdue (${invoices.filter(i => i.status === 'OVERDUE' || (i.dueDate && i.dueDate < todayStr && i.balanceAmount > 0)).length})` },
           ].map(tab => (
             <button key={tab.id} onClick={() => setStatusFilter(tab.id)} style={{ height: 32, padding: '0 12px', borderRadius: 8, fontSize: 12, fontWeight: statusFilter === tab.id ? 700 : 500, background: statusFilter === tab.id ? '#2563EB' : 'transparent', color: statusFilter === tab.id ? '#FFFFFF' : '#475569', border: 'none', cursor: 'pointer', transition: 'all 120ms ease' }}>
               {tab.label}
@@ -1516,12 +1751,12 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
             <thead>
               <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 <th style={{ padding: '11px 16px' }}>Invoice #</th>
-                <th style={{ padding: '11px 14px' }}>{isManufacturer ? 'Customer / Buyer' : 'Supplier'}</th>
+                <th style={{ padding: '11px 14px' }}>{isBuyer ? 'Supplier / Manufacturer' : 'Customer / Buyer'}</th>
                 <th style={{ padding: '11px 14px' }}>Invoice Total</th>
                 <th style={{ padding: '11px 14px' }}>Amount Paid</th>
                 <th style={{ padding: '11px 14px' }}>Balance Due</th>
                 <th style={{ padding: '11px 14px' }}>Due Date</th>
-                <th style={{ padding: '11px 14px' }}>Status</th>
+                <th style={{ padding: '11px 14px' }}>Status / Delivery</th>
                 <th style={{ padding: '11px 16px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
@@ -1531,9 +1766,10 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
               ) : (
                 filteredInvoices.map(inv => {
                   const sym = getCurrencySymbol(inv.currency);
-                  const canPay = inv.balanceAmount > 0;
+                  const isPaid = inv.balanceAmount === 0 && inv.totalAmount > 0;
                   const isPartial = inv.paidAmount > 0 && inv.balanceAmount > 0;
-                  const isPaid = inv.balanceAmount === 0;
+                  const isSent = Boolean(inv.sentToCustomer);
+
                   return (
                     <tr key={inv.id} style={{ borderBottom: '1px solid #F1F5F9', cursor: 'pointer', transition: 'background 0.1s' }}
                       onClick={() => { setSelectedInvoiceForDetails(inv); setViewState('DETAILS'); }}
@@ -1545,7 +1781,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                         <div style={{ fontSize: 10.5, color: '#64748B', marginTop: 2, fontFamily: 'monospace' }}>Order: {inv.orderNumber}</div>
                       </td>
                       <td style={{ padding: '14px 14px' }}>
-                        <div style={{ fontWeight: 700, color: '#0F172A' }}>{inv.customerName}</div>
+                        <div style={{ fontWeight: 700, color: '#0F172A' }}>{isBuyer ? (inv.manufacturerName || 'SunBio LifeSciences Ltd') : inv.customerName}</div>
                         <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>{inv.invoiceDate}</div>
                       </td>
                       <td style={{ padding: '14px 14px', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
@@ -1570,18 +1806,62 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                       <td style={{ padding: '14px 14px' }}><StatusChip inv={inv} /></td>
                       <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                          {/* Always show View */}
                           <button onClick={(e) => { e.stopPropagation(); setSelectedInvoiceForDetails(inv); setViewState('DETAILS'); }} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: 11.5, fontWeight: 700, color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <Eye size={12} /> View
                           </button>
-                          {isManufacturer && (
-                            <button onClick={(e) => handleOpenEditWorkspace(inv, e)} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: 11.5, fontWeight: 700, color: '#2563EB', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <Edit2 size={12} /> Edit
-                            </button>
-                          )}
-                          {canPay && (
-                            <button onClick={(e) => handleOpenPaymentModal(inv, e)} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: 'none', background: isPartial ? '#1D4ED8' : '#0F766E', fontSize: 11.5, fontWeight: 700, color: '#FFFFFF', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <Banknote size={12} /> Record Payment
-                            </button>
+
+                          {/* Action Matrix Rules */}
+                          {isPaid ? (
+                            /* 1. PAID: View + Delete ONLY */
+                            isManufacturer && (
+                              <button onClick={(e) => handleDeleteInvoice(inv, e)} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid #FCA5A5', background: '#FFF5F5', fontSize: 11.5, fontWeight: 700, color: '#B91C1C', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <Trash2 size={12} /> Delete
+                              </button>
+                            )
+                          ) : isPartial ? (
+                            /* 2. PARTIALLY PAID: View + Edit + Record Payment / Pay Now */
+                            <>
+                              {isManufacturer && (
+                                <button onClick={(e) => handleOpenEditWorkspace(inv, e)} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: 11.5, fontWeight: 700, color: '#2563EB', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <Edit2 size={12} /> Edit
+                                </button>
+                              )}
+                              {isBuyer ? (
+                                <button onClick={(e) => handleTriggerRazorpay(inv, e)} style={{ height: 30, padding: '0 12px', borderRadius: 6, border: 'none', background: '#0F766E', fontSize: 11.5, fontWeight: 800, color: '#FFFFFF', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, boxShadow: '0 1px 3px rgba(15,118,110,0.2)' }}>
+                                  <Shield size={12} /> Pay Now →
+                                </button>
+                              ) : !isAdmin && (
+                                <button onClick={(e) => handleOpenPaymentModal(inv, e)} style={{ height: 30, padding: '0 12px', borderRadius: 6, border: 'none', background: '#1D4ED8', fontSize: 11.5, fontWeight: 800, color: '#FFFFFF', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, boxShadow: '0 1px 3px rgba(29,78,216,0.2)' }}>
+                                  <Banknote size={12} /> Record Payment
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            /* 3. GENERATED / SENT TO CUSTOMER / UNSENT DRAFT / OVERDUE: Existing actions */
+                            <>
+                              {isManufacturer && !isSent && (
+                                <>
+                                  <button onClick={(e) => handleOpenEditWorkspace(inv, e)} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: 11.5, fontWeight: 700, color: '#2563EB', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <Edit2 size={12} /> Edit
+                                  </button>
+                                  <button onClick={(e) => handleDeleteInvoice(inv, e)} style={{ height: 30, padding: '0 10px', borderRadius: 6, border: '1px solid #FCA5A5', background: '#FFF5F5', fontSize: 11.5, fontWeight: 700, color: '#B91C1C', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <Trash2 size={12} /> Delete
+                                  </button>
+                                </>
+                              )}
+                              {inv.balanceAmount > 0 && !isAdmin && isSent && (
+                                isBuyer ? (
+                                  <button onClick={(e) => handleTriggerRazorpay(inv, e)} style={{ height: 30, padding: '0 12px', borderRadius: 6, border: 'none', background: '#0F766E', fontSize: 11.5, fontWeight: 800, color: '#FFFFFF', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, boxShadow: '0 1px 3px rgba(15,118,110,0.2)' }}>
+                                    <Shield size={12} /> Pay Now →
+                                  </button>
+                                ) : (
+                                  <button onClick={(e) => handleOpenPaymentModal(inv, e)} style={{ height: 30, padding: '0 12px', borderRadius: 6, border: 'none', background: '#0F766E', fontSize: 11.5, fontWeight: 800, color: '#FFFFFF', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, boxShadow: '0 1px 3px rgba(15,118,110,0.2)' }}>
+                                    <Banknote size={12} /> Record Payment
+                                  </button>
+                                )
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
@@ -1594,27 +1874,28 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
         </div>
       </div>
 
-      {/* Record Payment Modal */}
+      {/* Payment Modal */}
       {showPaymentModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, width: 520, padding: 26, boxShadow: '0 16px 40px rgba(15,23,42,0.22)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
               <div>
                 <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                  Record Payment Received
+                  {isBuyer ? 'Pay Invoice via Razorpay' : 'Record Payment Received'}
                 </h3>
-                <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>Invoice: <strong style={{ fontFamily: 'monospace' }}>{showPaymentModal.invoiceNumber}</strong></div>
+                <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                  Invoice #: <strong style={{ fontFamily: 'monospace' }}>{showPaymentModal.invoiceNumber}</strong> {isBuyer && `| Supplier: ${showPaymentModal.manufacturerName || 'SunBio LifeSciences Ltd'}`}
+                </div>
               </div>
               <button onClick={() => setShowPaymentModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', padding: 4 }}>
                 <X size={18} />
               </button>
             </div>
 
-            {/* Payment Summary Box */}
             <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14, marginBottom: 18 }}>
               {[
                 { label: 'Invoice Total Amount', value: `${getCurrencySymbol(paymentCurrency)}${showPaymentModal.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, color: '#0F172A' },
-                { label: 'Amount Already Received', value: `${getCurrencySymbol(paymentCurrency)}${(showPaymentModal.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, color: '#16A34A' },
+                { label: isBuyer ? 'Amount Already Paid' : 'Amount Already Received', value: `${getCurrencySymbol(paymentCurrency)}${(showPaymentModal.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, color: '#16A34A' },
               ].map((row, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
                   <span style={{ color: '#64748B' }}>{row.label}:</span>
@@ -1636,11 +1917,10 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
             <form onSubmit={handleSubmitPayment} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                  Payment Amount Received *
+                  {isBuyer ? 'Payment Amount *' : 'Payment Amount Received *'}
                 </label>
                 <input type="number" step="0.01" placeholder={`Max: ${getCurrencySymbol(paymentCurrency)}${showPaymentModal.balanceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} value={paymentAmount} onChange={e => { setPaymentAmount(e.target.value); setPaymentError(null); }} style={{ width: '100%', height: 40, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontFamily: 'monospace', fontWeight: 700, fontSize: 15, outline: 'none' }} />
 
-                {/* Quick Pill Buttons */}
                 <div style={{ display: 'flex', gap: 7, marginTop: 7, flexWrap: 'wrap' }}>
                   <button type="button" onClick={() => { setPaymentAmount(String(Math.round(showPaymentModal.balanceAmount * 0.25 * 100) / 100)); setPaymentError(null); }} style={{ height: 26, padding: '0 10px', borderRadius: 5, border: '1px solid #CBD5E1', background: '#F1F5F9', color: '#334155', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>25%</button>
                   <button type="button" onClick={() => { setPaymentAmount(String(Math.round(showPaymentModal.balanceAmount * 0.5 * 100) / 100)); setPaymentError(null); }} style={{ height: 26, padding: '0 10px', borderRadius: 5, border: '1px solid #CBD5E1', background: '#F1F5F9', color: '#334155', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>50% of Outstanding</button>
@@ -1649,7 +1929,6 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                 </div>
               </div>
 
-              {/* Live Remaining Balance Preview */}
               {Number(paymentAmount) > 0 && !isNaN(Number(paymentAmount)) && (
                 <div style={{ background: Number(paymentAmount) >= showPaymentModal.balanceAmount ? '#F0FDF4' : '#EFF6FF', border: `1px solid ${Number(paymentAmount) >= showPaymentModal.balanceAmount ? '#86EFAC' : '#93C5FD'}`, borderRadius: 8, padding: '9px 14px', fontSize: 12.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
@@ -1662,7 +1941,6 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                 </div>
               )}
 
-              {/* Currency + Method */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Currency *</label>
@@ -1674,28 +1952,24 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Payment Method *</label>
-                  <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} style={{ width: '100%', height: 36, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 13 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Payment Gateway / Method *</label>
+                  <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} style={{ width: '100%', height: 36, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 13, fontWeight: 700 }}>
+                    <option value="Razorpay">Razorpay Online Gateway (UPI / Cards / NetBanking)</option>
                     <option value="Bank Transfer">Bank Transfer (Wire / BACS)</option>
                     <option value="RTGS">RTGS – Real-Time Gross Settlement</option>
                     <option value="NEFT">NEFT – National Electronic Funds Transfer</option>
-                    <option value="UPI">UPI</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Credit Card">Corporate Credit Card</option>
-                    <option value="LC">Letter of Credit (LC)</option>
                   </select>
                 </div>
               </div>
 
-              {/* Date + Reference / UTR */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Payment Date *</label>
                   <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} style={{ width: '100%', height: 36, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5 }} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Transaction / UTR # *</label>
-                  <input type="text" value={utrNumber} onChange={e => setUtrNumber(e.target.value)} style={{ width: '100%', height: 36, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontFamily: 'monospace', fontSize: 12.5 }} />
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 4 }}>{paymentMode === 'Razorpay' ? 'Gateway Reference ID' : 'Transaction / UTR #'}</label>
+                  <input type="text" value={utrNumber} onChange={e => setUtrNumber(e.target.value)} style={{ width: '100%', height: 36, padding: '0 10px', borderRadius: 8, border: '1px solid #CBD5E1', fontFamily: 'monospace', fontSize: 12.5 }} readOnly={paymentMode === 'Razorpay'} />
                 </div>
               </div>
 
@@ -1703,8 +1977,9 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                 <button type="button" onClick={() => setShowPaymentModal(null)} style={{ height: 38, padding: '0 16px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', fontSize: 13, fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
                   Cancel
                 </button>
-                <button type="submit" style={{ height: 38, padding: '0 22px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Banknote size={14} /> Record Payment Received
+                <button type="submit" style={{ height: 38, padding: '0 22px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.2)' }}>
+                  {isBuyer && paymentMode === 'Razorpay' ? <Shield size={14} /> : <Banknote size={14} />}
+                  {isBuyer && paymentMode === 'Razorpay' ? 'Proceed to Razorpay →' : 'Record Payment Received'}
                 </button>
               </div>
             </form>

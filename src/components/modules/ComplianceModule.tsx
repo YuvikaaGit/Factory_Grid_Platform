@@ -6,10 +6,13 @@ import {
   Send, UserCheck, Key, FileCheck, Building2, Factory, MessageSquare, Plus, File,
   Filter, MoreVertical, Calendar, Bell, User, Check, Shield
 } from 'lucide-react';
+import { CustomerVerificationModule } from './CustomerVerificationModule';
 import { ManufacturerVerificationModule } from './ManufacturerVerificationModule';
 import { TrademarkVerificationModule } from './TrademarkVerificationModule';
 import { BrandVerificationModule } from './BrandVerificationModule';
 import { ComplianceCase } from '../../types';
+import { analyzeComplianceDocument, AIComplianceFinding } from '../../services/aiComplianceService';
+import { Sparkles } from 'lucide-react';
 
 export interface VerificationRecord {
   id: string;
@@ -147,6 +150,70 @@ const mockVerificationRecords: VerificationRecord[] = [
   }
 ];
 
+export const AIComplianceResultCard: React.FC<{ finding: AIComplianceFinding; onClose?: () => void }> = ({ finding, onClose }) => {
+  return (
+    <div style={{ width: '100%', background: '#F8FAFC', border: '1px solid #BBF7D0', borderRadius: 10, padding: 16, marginTop: 10, fontSize: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.05)', boxSizing: 'border-box' }}>
+      {/* Top Banner Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Sparkles size={16} style={{ color: '#15803D' }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 900, color: '#15803D', letterSpacing: '-0.01em' }}>DEMO AI ANALYSIS</div>
+            <div style={{ fontSize: 11, color: '#64748B', marginTop: 1 }}>Document: <strong>{finding.documentType || finding.documentName}</strong></div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, background: '#FFFFFF', border: '1px solid #CBD5E1', padding: '2px 8px', borderRadius: 6, color: '#475569' }}>
+            Confidence: {finding.confidence}
+          </span>
+          {onClose && (
+            <button onClick={onClose} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 4, cursor: 'pointer', color: '#64748B', padding: '2px 6px', fontSize: 11, fontWeight: 700 }}>
+              ✕ Close
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Overall Result */}
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontWeight: 700, color: '#475569', fontSize: 12 }}>Overall Result:</span>
+        <span style={{ fontSize: 13, fontWeight: 900, color: '#16A34A' }}>✓ DOCUMENT LOOKS VALID</span>
+      </div>
+
+      {/* Checks */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+          Checks:
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {finding.checks.map((chk, idx) => (
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, background: '#FFFFFF', padding: '6px 10px', borderRadius: 6, border: '1px solid #F1F5F9' }}>
+              <span style={{ fontSize: 13, fontWeight: 900, color: '#16A34A' }}>✓</span>
+              <span style={{ color: '#1E293B', fontWeight: 700 }}>{chk.label}:</span>
+              <span style={{ color: '#475569' }}>{chk.message}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* AI Recommendation */}
+      <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: 10, marginBottom: 10 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 800, color: '#15803D', marginBottom: 2 }}>
+          AI Recommendation:
+        </div>
+        <div style={{ fontSize: 11.5, color: '#166534', lineHeight: 1.4 }}>
+          {finding.potentialIssues[0] || 'No obvious compliance issue detected in this demo analysis.'}
+        </div>
+      </div>
+
+      {/* Demo Disclaimer */}
+      <div style={{ fontSize: 10.5, fontStyle: 'italic', color: '#64748B', borderTop: '1px solid #E2E8F0', paddingTop: 6, textAlign: 'center' }}>
+        ℹ Demo result — actual document AI/OCR verification will be connected in the production implementation. Final verification must be performed by the reviewer using the controls below.
+      </div>
+    </div>
+  );
+};
+
 export const ComplianceModule: React.FC = () => {
   const {
     buyerOnboardings, manufacturerOnboardings,
@@ -154,7 +221,7 @@ export const ComplianceModule: React.FC = () => {
     setActiveTab
   } = useApp();
 
-  const [activeComplianceSubTab, setActiveComplianceSubTab] = useState<'GENERAL' | 'MANUFACTURER_VERIFICATION' | 'TRADEMARK_VERIFICATION' | 'BRAND_VERIFICATION'>('GENERAL');
+  const [activeComplianceSubTab, setActiveComplianceSubTab] = useState<'CUSTOMER_VERIFICATION' | 'GENERAL' | 'MANUFACTURER_VERIFICATION' | 'TRADEMARK_VERIFICATION' | 'BRAND_VERIFICATION'>('CUSTOMER_VERIFICATION');
   const [queueTab, setQueueTab] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRING'>('PENDING');
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('ALL');
@@ -215,6 +282,20 @@ export const ComplianceModule: React.FC = () => {
   });
 
   const [drawerRecordId, setDrawerRecordId] = useState<string | null>(null);
+  const [aiResults, setAiResults] = useState<Record<string, AIComplianceFinding>>({});
+  const [analyzingDoc, setAnalyzingDoc] = useState<string | null>(null);
+
+  const handleRunAiAnalysis = async (docName: string, docType: string, targetOrg: any) => {
+    try {
+      setAnalyzingDoc(docName);
+      const res = await analyzeComplianceDocument(docName, docType, { name: targetOrg.organizationName, gstin: targetOrg.gstNumber, licenseNumber: targetOrg.licenseNumber });
+      setAiResults(prev => ({ ...prev, [docName]: res }));
+    } catch (e) {
+      alert("AI analysis unavailable. You may proceed with manual compliance verification.");
+    } finally {
+      setAnalyzingDoc(null);
+    }
+  };
   const [newRemarkText, setNewRemarkText] = useState('');
 
   const selectedDrawerRecord = records.find(r => r.id === drawerRecordId) || null;
@@ -244,7 +325,7 @@ export const ComplianceModule: React.FC = () => {
   });
 
   // Action Handlers
-  const handleApproveRecord = (rec: VerificationRecord) => {
+    const handleApproveRecord = (rec: VerificationRecord) => {
     setRecords(prev => prev.map(r => r.id === rec.id ? { ...r, status: 'APPROVED' } : r));
 
     const buyerMatch = buyerOnboardings.find(b => b.companyName === rec.organizationName);
@@ -255,27 +336,22 @@ export const ComplianceModule: React.FC = () => {
 
     addAuditLog('Compliance Verification', `Approved regulatory documents for ${rec.organizationName}`);
     setActiveMenuId(null);
-    alert(`✔ Approved! Regulatory clearance issued for ${rec.organizationName}.`);
   };
 
   const handleRejectRecord = (rec: VerificationRecord) => {
-    const reason = prompt('Enter rejection reason:') || 'Statutory document non-compliance';
     setRecords(prev => prev.map(r => r.id === rec.id ? { ...r, status: 'REJECTED' } : r));
-    addAuditLog('Compliance Verification', `Rejected compliance case for ${rec.organizationName}. Reason: ${reason}`);
+    addAuditLog('Compliance Verification', `Rejected compliance case for ${rec.organizationName}.`);
     setActiveMenuId(null);
-    alert(`Case rejected for ${rec.organizationName}.`);
   };
 
   const handleRequestChanges = (rec: VerificationRecord) => {
-    const changes = prompt('Enter document correction details required:') || 'Please re-upload Form 20B/21B with clear official seal';
     setRecords(prev => prev.map(r => r.id === rec.id ? {
       ...r,
       status: 'CHANGES_REQUESTED',
-      auditNotes: [`Changes Requested: ${changes}`, ...r.auditNotes]
+      auditNotes: [`Changes Requested: Re-upload Form 20B/21B with clear seal`, ...r.auditNotes]
     } : r));
     addAuditLog('Compliance Verification', `Requested document changes from ${rec.organizationName}`);
     setActiveMenuId(null);
-    alert(`Correction request sent to ${rec.organizationName}.`);
   };
 
   const handleVerifyDocumentFile = (recId: string, docId: string) => {
@@ -287,6 +363,28 @@ export const ComplianceModule: React.FC = () => {
       };
     }));
     addAuditLog('Compliance Verification', `Document file verified.`);
+  };
+
+  const handleRejectDocumentFile = (recId: string, docId: string) => {
+    setRecords(prev => prev.map(r => {
+      if (r.id !== recId) return r;
+      return {
+        ...r,
+        documents: r.documents.map(d => d.id === docId ? { ...d, status: 'REJECTED' } : d)
+      };
+    }));
+    addAuditLog('Compliance Verification', `Document file rejected.`);
+  };
+
+  const handleRequestReplacementDocumentFile = (recId: string, docId: string) => {
+    setRecords(prev => prev.map(r => {
+      if (r.id !== recId) return r;
+      return {
+        ...r,
+        documents: r.documents.map(d => d.id === docId ? { ...d, status: 'PENDING' } : d)
+      };
+    }));
+    addAuditLog('Compliance Verification', `Requested document replacement.`);
   };
 
   const handleAddRemark = (e: React.FormEvent) => {
@@ -672,26 +770,63 @@ export const ComplianceModule: React.FC = () => {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', marginBottom: 10 }}>Uploaded Statutory Documents ({selectedDrawerRecord.documents.length})</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {selectedDrawerRecord.documents.map(doc => (
-                    <div key={doc.id} style={{ padding: 12, borderRadius: 8, border: '1px solid #E2E8F0', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div key={doc.id} style={{ padding: 12, borderRadius: 8, border: '1px solid #E2E8F0', background: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <FileText size={20} style={{ color: '#2563EB' }} />
-                        <div>
-                          <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>{doc.name}</div>
-                          <div style={{ fontSize: 11, color: '#64748B' }}>Type: {doc.type} · Valid until: {doc.expiryDate}</div>
+                          <FileText size={20} style={{ color: '#2563EB' }} />
+                          <div>
+                            <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>{doc.name}</div>
+                            <div style={{ fontSize: 11, color: '#64748B' }}>Type: {doc.type} · Valid until: {doc.expiryDate}</div>
+                          </div>
                         </div>
-                      </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: doc.status === 'VERIFIED' ? '#16A34A' : '#D97706' }}>
-                          {doc.status}
-                        </span>
-                        {doc.status !== 'VERIFIED' && (
-                          <button onClick={() => handleVerifyDocumentFile(selectedDrawerRecord.id, doc.id)} style={{ padding: '4px 8px', borderRadius: 4, background: '#2563EB', color: '#FFFFFF', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                            Verify File
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{
+                            fontSize: 11, fontWeight: 700,
+                            color: doc.status === 'VERIFIED' ? '#16A34A' : doc.status === 'REJECTED' ? '#DC2626' : '#D97706',
+                            background: doc.status === 'VERIFIED' ? '#F0FDF4' : doc.status === 'REJECTED' ? '#FEF2F2' : '#FFFBEB',
+                            padding: '3px 8px', borderRadius: 6,
+                            border: `1px solid ${doc.status === 'VERIFIED' ? '#BBF7D0' : doc.status === 'REJECTED' ? '#FECACA' : '#FCD34D'}`
+                          }}>
+                            {doc.status === 'VERIFIED' ? '✓ Verified' : doc.status === 'REJECTED' ? '✕ Rejected' : 'Under Review'}
+                          </span>
+
+                          <button
+                            onClick={() => handleRunAiAnalysis(doc.name, doc.type, selectedDrawerRecord)}
+                            disabled={analyzingDoc === doc.name}
+                            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #93C5FD', background: '#EFF6FF', color: '#1D4ED8', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <Sparkles size={12} /> {analyzingDoc === doc.name ? 'Analyzing...' : 'AI Analyse'}
                           </button>
-                        )}
+
+                          {doc.status !== 'VERIFIED' && (
+                            <>
+                              <button
+                                onClick={() => handleVerifyDocumentFile(selectedDrawerRecord.id, doc.id)}
+                                style={{ padding: '4px 10px', borderRadius: 6, background: '#16A34A', color: '#FFFFFF', border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                ✓ Verify
+                              </button>
+
+                              {doc.status !== 'REJECTED' && (
+                                <button
+                                  onClick={() => handleRejectDocumentFile(selectedDrawerRecord.id, doc.id)}
+                                  style={{ padding: '4px 10px', borderRadius: 6, background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  ✕ Reject
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => handleRequestReplacementDocumentFile(selectedDrawerRecord.id, doc.id)}
+                                style={{ padding: '4px 10px', borderRadius: 6, background: '#FDF2F8', color: '#DB2777', border: '1px solid #FBCFE8', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                Request Replacement
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        {aiResults[doc.name] && <AIComplianceResultCard finding={aiResults[doc.name]} onClose={() => setAiResults(prev => ({ ...prev, [doc.name]: undefined as any }))} />}
                       </div>
-                    </div>
                   ))}
                 </div>
               </div>

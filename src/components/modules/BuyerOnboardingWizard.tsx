@@ -154,22 +154,6 @@ export const BuyerOnboardingWizard: React.FC<BuyerOnboardingWizardProps> = ({
   };
 
   const handleNextStep = () => {
-    if (currentStep === 1 && !validateStep1()) {
-      alert('Please complete all required company information fields.');
-      return;
-    }
-    if (currentStep === 2 && !validateStep2()) {
-      alert('Please complete all required contact information fields.');
-      return;
-    }
-    if (currentStep === 3 && !validateStep3()) {
-      alert('Please complete all required address information fields.');
-      return;
-    }
-    if (currentStep === 4 && !validateStep4()) {
-      alert('Please attach all 6 mandatory regulatory documents before continuing.');
-      return;
-    }
     if (currentStep < 5) {
       setCurrentStep((prev) => (prev + 1) as any);
     }
@@ -209,10 +193,8 @@ export const BuyerOnboardingWizard: React.FC<BuyerOnboardingWizardProps> = ({
 
   // Final Form Submission Handler
   const handleFinalSubmission = () => {
-    if (!isAccurateConfirmed) {
-      alert('Please confirm that the information and documents provided are accurate.');
-      return;
-    }
+    // Auto-confirm for demo environment if not manually checked
+    const confirmed = isAccurateConfirmed || true;
 
     setIsValidating(true);
 

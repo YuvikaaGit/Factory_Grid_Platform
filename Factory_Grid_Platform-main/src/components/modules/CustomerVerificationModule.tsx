@@ -14,7 +14,7 @@ import {
   WholesalerDetails
 } from '../../types';
 import {
-  ShieldCheck, CheckCircle2, XCircle, AlertTriangle, Search,
+  ShieldCheck, Sparkles, CheckCircle2, XCircle, AlertTriangle, Search,
   Eye, ChevronRight, X, Clock, FileText, Download, RefreshCw,
   UserCheck, Building2, Upload, FileCheck, Filter, User, HelpCircle,
   Key, ArrowRight, AlertCircle, Plus, Check, Mail, Phone, MapPin, Award, Globe
@@ -35,6 +35,71 @@ const COMPLIANCE_OFFICERS = [
   'Vikram Sethi (Lead Auditor)',
   'Ananya Roy (Regulatory Officer)'
 ];
+
+
+const AIComplianceResultCard: React.FC<{ finding: AIComplianceFinding; onClose?: () => void }> = ({ finding, onClose }) => {
+  return (
+    <div style={{ width: '100%', background: '#F8FAFC', border: '1px solid #BBF7D0', borderRadius: 10, padding: 16, marginTop: 10, fontSize: 12, boxShadow: '0 2px 8px rgba(15,23,42,0.05)', boxSizing: 'border-box' }}>
+      {/* Top Banner Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Sparkles size={16} style={{ color: '#15803D' }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 900, color: '#15803D', letterSpacing: '-0.01em' }}>DEMO AI ANALYSIS</div>
+            <div style={{ fontSize: 11, color: '#64748B', marginTop: 1 }}>Document: <strong>{finding.documentType || finding.documentName}</strong></div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, background: '#FFFFFF', border: '1px solid #CBD5E1', padding: '2px 8px', borderRadius: 6, color: '#475569' }}>
+            Confidence: {finding.confidence}
+          </span>
+          {onClose && (
+            <button onClick={onClose} style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 4, cursor: 'pointer', color: '#64748B', padding: '2px 6px', fontSize: 11, fontWeight: 700 }}>
+              ✕ Close
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Overall Result */}
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontWeight: 700, color: '#475569', fontSize: 12 }}>Overall Result:</span>
+        <span style={{ fontSize: 13, fontWeight: 900, color: '#16A34A' }}>✓ DOCUMENT LOOKS VALID</span>
+      </div>
+
+      {/* Checks */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+          Checks:
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {finding.checks.map((chk, idx) => (
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, background: '#FFFFFF', padding: '6px 10px', borderRadius: 6, border: '1px solid #F1F5F9' }}>
+              <span style={{ fontSize: 13, fontWeight: 900, color: '#16A34A' }}>✓</span>
+              <span style={{ color: '#1E293B', fontWeight: 700 }}>{chk.label}:</span>
+              <span style={{ color: '#475569' }}>{chk.message}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* AI Recommendation */}
+      <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: 10, marginBottom: 10 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 800, color: '#15803D', marginBottom: 2 }}>
+          AI Recommendation:
+        </div>
+        <div style={{ fontSize: 11.5, color: '#166534', lineHeight: 1.4 }}>
+          {finding.potentialIssues[0] || 'No obvious compliance issue detected in this demo analysis.'}
+        </div>
+      </div>
+
+      {/* Demo Disclaimer */}
+      <div style={{ fontSize: 10.5, fontStyle: 'italic', color: '#64748B', borderTop: '1px solid #E2E8F0', paddingTop: 6, textAlign: 'center' }}>
+        ℹ Demo result — actual document AI/OCR verification will be connected in the production implementation. Final verification must be performed by the reviewer using the controls below.
+      </div>
+    </div>
+  );
+};
 
 export const CustomerVerificationModule: React.FC = () => {
   const {
@@ -57,6 +122,20 @@ export const CustomerVerificationModule: React.FC = () => {
   
   // Document Viewing Modal State
   const [viewingDoc, setViewingDoc] = useState<CustomerVerificationDocument | null>(null);
+  const [aiResultsMap, setAiResultsMap] = useState<Record<string, AIComplianceFinding>>({});
+  const [analyzingDocType, setAnalyzingDocType] = useState<string | null>(null);
+
+  const handleRunCustomerAiAnalysis = async (docType: string, rec: any) => {
+    try {
+      setAnalyzingDocType(docType);
+      const res = await analyzeComplianceDocument(docType, docType, { name: rec.companyName, gstin: rec.gstNumber, licenseNumber: rec.drugLicenseNumber, address: rec.billingAddress });
+      setAiResultsMap(prev => ({ ...prev, [docType]: res }));
+    } catch (e) {
+      alert("AI analysis unavailable. You may proceed with manual compliance verification.");
+    } finally {
+      setAnalyzingDocType(null);
+    }
+  };
 
   // New Request Modal State
   const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState<boolean>(false);
@@ -206,36 +285,27 @@ export const CustomerVerificationModule: React.FC = () => {
   };
 
   // Decision Execution Handlers
-  const handleExecuteApprove = () => {
+    const handleExecuteApprove = () => {
     if (!selectedRecord) return;
     approveCustomerVerification(selectedRecord.id);
     setDecisionModalType(null);
-    alert(`✔ Compliance Approved!\nCustomer Code Generated: ${selectedRecord.customerCode || 'CUS000' + Math.floor(Math.random()*900)}\nPortal Login: Created\nAccount Status: Active`);
   };
 
   const handleExecuteReject = () => {
     if (!selectedRecord) return;
-    if (!rejectionReasonInput.trim()) {
-      alert('Please enter a rejection reason.');
-      return;
-    }
-    rejectCustomerVerification(selectedRecord.id, rejectionReasonInput);
+    const reason = rejectionReasonInput.trim() || 'Statutory compliance verification rejected by compliance auditor';
+    rejectCustomerVerification(selectedRecord.id, reason);
     setDecisionModalType(null);
     setRejectionReasonInput('');
-    alert(`Case rejected for ${selectedRecord.companyName}. Rejection email notification sent. Workflow ended.`);
   };
 
   const handleExecuteNeedMoreDocs = () => {
     if (!selectedRecord) return;
-    if (!moreDocsNotesInput.trim()) {
-      alert('Please specify required documents or correction details.');
-      return;
-    }
-    const notesArray = moreDocsNotesInput.split('\n').filter(n => n.trim().length > 0);
+    const notesInput = moreDocsNotesInput.trim() || 'Drug License / GST Certificate clarification required';
+    const notesArray = notesInput.split('\n').filter(n => n.trim().length > 0);
     requestMoreCustomerDocs(selectedRecord.id, notesArray);
     setDecisionModalType(null);
     setMoreDocsNotesInput('');
-    alert(`Notification sent to customer. Status updated to Need More Docs (Loop Back).`);
   };
 
   const handleOpenResubmit = () => {
@@ -313,10 +383,10 @@ export const CustomerVerificationModule: React.FC = () => {
               <span style={{ color: '#2563EB', fontWeight: 600 }}>Customer Verification</span>
             </div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '2px 0 0', letterSpacing: '-0.02em' }}>
-              Customer Onboarding & Verification Desk
+              Customer Onboarding Verification
             </h1>
             <div style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>
-              Registration Request → Document Upload → Auto-Validation → Compliance Review → Decision
+              Customer registration → Document submission → Business verification → Regulatory verification → Financial verification → Approval
             </div>
           </div>
         </div>
@@ -796,6 +866,18 @@ export const CustomerVerificationModule: React.FC = () => {
                             </span>
 
                             <button
+                              onClick={() => handleRunCustomerAiAnalysis(docType, selectedRecord)}
+                              disabled={analyzingDocType === docType}
+                              style={{
+                                padding: '5px 12px', borderRadius: 6, fontSize: 11.5, fontWeight: 700,
+                                background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #93C5FD',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+                              }}
+                            >
+                              <Sparkles size={12} /> {analyzingDocType === docType ? 'Analyzing...' : 'AI Analyse'}
+                            </button>
+
+                            <button
                               onClick={() => setViewingDoc(docItem)}
                               style={{
                                 height: 32, padding: '0 12px', background: '#1D4ED8', border: 'none', borderRadius: 6,
@@ -807,36 +889,39 @@ export const CustomerVerificationModule: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Inline Document Review Action Buttons */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, pt: 6, borderTop: '1px border-subtle' }}>
-                          <button
-                            onClick={() => {
-                              setDocStatusesMap(prev => ({ ...prev, [docType]: 'Verified' }));
-                              alert(`✓ ${docType} marked as VERIFIED.`);
-                            }}
-                            style={{ height: 28, padding: '0 10px', borderRadius: 5, background: '#F0FDF4', color: '#166534', border: '1px solid #BBF7D0', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                          >
-                            ✓ Verify
-                          </button>
-                          <button
-                            onClick={() => {
-                              setDocStatusesMap(prev => ({ ...prev, [docType]: 'Rejected' }));
-                              alert(`✗ ${docType} marked as REJECTED.`);
-                            }}
-                            style={{ height: 28, padding: '0 10px', borderRadius: 5, background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                          >
-                            ✗ Reject
-                          </button>
-                          <button
-                            onClick={() => {
-                              setDocStatusesMap(prev => ({ ...prev, [docType]: 'Need Replacement' }));
-                              setDecisionModalType('NEED_MORE_DOCS');
-                            }}
-                            style={{ height: 28, padding: '0 10px', borderRadius: 5, background: '#FDF2F8', color: '#9D174D', border: '1px solid #FBCFE8', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-                          >
-                            Request Replacement
-                          </button>
-                        </div>
+                        {/* Inline Document Review Action Buttons (Hidden when Verified) */}
+                        {currentDocStatus !== 'Verified' && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, paddingTop: 6, borderTop: '1px solid #F1F5F9' }}>
+                            <button
+                              onClick={() => {
+                                setDocStatusesMap(prev => ({ ...prev, [docType]: 'Verified' }));
+                              }}
+                              style={{ height: 28, padding: '0 12px', borderRadius: 5, background: '#16A34A', color: '#FFFFFF', border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              ✓ Verify
+                            </button>
+                            
+                            {currentDocStatus !== 'Rejected' && (
+                              <button
+                                onClick={() => {
+                                  setDocStatusesMap(prev => ({ ...prev, [docType]: 'Rejected' }));
+                                }}
+                                style={{ height: 28, padding: '0 10px', borderRadius: 5, background: '#FEF2F2', color: '#991B1B', border: '1px solid #FECACA', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                ✕ Reject
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => {
+                                setDocStatusesMap(prev => ({ ...prev, [docType]: 'Need Replacement' }));
+                              }}
+                              style={{ height: 28, padding: '0 10px', borderRadius: 5, background: '#FDF2F8', color: '#9D174D', border: '1px solid #FBCFE8', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              Request Replacement
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

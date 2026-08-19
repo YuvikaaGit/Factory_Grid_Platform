@@ -985,18 +985,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
   const [isContactSalesModalOpen, setIsContactSalesModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const handleNavClick = (item: string) => {
+      const handleNavClick = (item: string) => {
     setIsMobileMenuOpen(false);
-    if (item === 'Manufacturers' || item === 'Platform' || item === 'Compliance') {
+    if (item === 'Platform') {
       if (isAuthenticated) {
-        if (item === 'Compliance') {
-          setCurrentRole('COMPLIANCE_OFFICER');
-          setActiveTab('compliance');
-        } else {
-          setCurrentRole('BUYER');
-          setActiveTab('manufacturers');
-        }
-        onNavigate('dashboard');
+        setCurrentRole('BUYER');
+        setActiveTab('rfqs');
+        onNavigate('dashboard', 'BUYER');
+      } else {
+        onNavigate('login');
+      }
+    } else if (item === 'Manufacturers') {
+      if (isAuthenticated) {
+        setCurrentRole('BUYER');
+        setActiveTab('manufacturers');
+        onNavigate('dashboard', 'BUYER');
+      } else {
+        onNavigate('mfg-register');
+      }
+    } else if (item === 'Compliance') {
+      if (isAuthenticated) {
+        setCurrentRole('COMPLIANCE_OFFICER');
+        setActiveTab('compliance');
+        onNavigate('dashboard', 'COMPLIANCE_OFFICER');
       } else {
         onNavigate('login');
       }
@@ -1005,12 +1016,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
     }
   };
 
-  const handleEnterPlatform = () => {
+  const handleStartSourcing = () => {
+    setIsMobileMenuOpen(false);
     if (isAuthenticated) {
-      onNavigate('dashboard');
+      setCurrentRole('BUYER');
+      setActiveTab('rfqs');
+      onNavigate('dashboard', 'BUYER');
     } else {
-      onNavigate('login');
+      onNavigate('buyer-register');
     }
+  };
+
+  const handleEnterPlatform = () => {
+    setIsMobileMenuOpen(false);
+    onNavigate('login');
   };
 
   return (
@@ -1037,7 +1056,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             <span style={{ fontSize: 17, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>FactoryGrid</span>
           </button>
           <nav className="fg-desktop-nav" style={{ display: 'flex', gap: 24 }}>
-            {['Platform', 'Manufacturers', 'Compliance', 'Pricing'].map(item => (
+            {['Platform'].map(item => (
               <a key={item} href="#" onClick={e => { e.preventDefault(); handleNavClick(item); }}
                 style={{ fontSize: 14, fontWeight: 500, color: '#94A3B8', textDecoration: 'none', transition: 'color 0.2s' }}
                 onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
@@ -1075,7 +1094,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
           padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 16,
           borderBottom: '1px solid rgba(255,255,255,0.1)'
         }}>
-          {['Platform', 'Manufacturers', 'Compliance', 'Pricing'].map(item => (
+          {['Platform'].map(item => (
             <button
               key={item}
               onClick={() => handleNavClick(item)}
@@ -1109,14 +1128,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
               <p className="fg-desc" style={{ marginBottom: 36, maxWidth: 480 }}>
                 FactoryGrid is a smart B2B pharmaceutical procurement platform that helps buyers discover verified manufacturers, manage RFQs, compare quotations and track complete order fulfillment from one place.
               </p>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button className="fg-btn-primary" onClick={handleEnterPlatform}>
-                  Start Sourcing <ArrowRight size={16} />
-                </button>
-                <button className="fg-btn-ghost" onClick={() => setIsDemoModalOpen(true)}>
-                  Book Demo
-                </button>
-              </div>
+              
               {/* Trust signals */}
               <div style={{ display: 'flex', gap: 20, marginTop: 36, paddingTop: 28, borderTop: '1px solid rgba(255,255,255,0.07)' }}>
                 {[
@@ -1389,20 +1401,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
           <p className="fg-desc" style={{ maxWidth: 440, margin: '0 auto 40px' }}>
             Join India's fastest-growing pharmaceutical procurement network. Digitize your entire sourcing workflow from day one.
           </p>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <motion.button
-              className="fg-btn-primary"
-              onClick={handleEnterPlatform}
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              style={{ padding: '16px 36px', fontSize: 16 }}
-            >
-              Start Sourcing <ArrowRight size={17} />
-            </motion.button>
-            <button className="fg-btn-ghost" onClick={() => setIsDemoModalOpen(true)} style={{ padding: '16px 36px', fontSize: 16 }}>
-              Schedule Demo
-            </button>
-          </div>
+          
         </div>
       </section>
 

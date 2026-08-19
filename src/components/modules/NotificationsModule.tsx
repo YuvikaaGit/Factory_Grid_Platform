@@ -60,7 +60,11 @@ export const NotificationsModule: React.FC = () => {
     if (linkLower === 'quotes' || linkLower === 'rfqs' || catUpper.includes('RFQ') || catUpper.includes('QUOTE') || titleUpper.includes('RFQ') || titleUpper.includes('QUOTE')) {
       setActiveTab('quotes');
     } else if (linkLower === 'orders' || linkLower === 'shipments' || catUpper.includes('ORDER') || catUpper.includes('DISPATCH') || titleUpper.includes('ORDER') || titleUpper.includes('DISPATCH') || titleUpper.includes('SUB-ORDER')) {
-      setActiveTab('shipments');
+      if (currentRole === 'BUYER') {
+        setActiveTab('buyer-tracking');
+      } else {
+        setActiveTab('shipments');
+      }
     } else if (linkLower === 'invoices' || catUpper.includes('INVOICE') || catUpper.includes('PAYMENT') || titleUpper.includes('INVOICE') || titleUpper.includes('PAYMENT')) {
       setActiveTab('invoices');
     } else if (linkLower === 'compliance' || linkLower === 'compliance-verification' || catUpper.includes('COMPLIANCE') || titleUpper.includes('COMPLIANCE') || titleUpper.includes('EXPIRY')) {

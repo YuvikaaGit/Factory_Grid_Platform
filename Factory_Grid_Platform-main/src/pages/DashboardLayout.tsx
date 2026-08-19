@@ -184,7 +184,6 @@ export const BUYER_NAV_GROUPS: BuyerNavGroup[] = [
     label: 'FULFILLMENT',
     defaultExpanded: true,
     items: [
-      { id: 'shipments', label: 'Dispatch & Tracking', icon: Truck },
       { id: 'buyer-tracking', label: 'Live Order Tracking', icon: FileCheck },
     ],
   },
@@ -236,7 +235,7 @@ const navGroups = [
   {
     label: 'COMPLIANCE & VERIFICATION',
     items: [
-      { id: 'compliance-verification', label: 'Compliance Verification', icon: ShieldCheck, badge: 'compliance', roles: ['COMPLIANCE_OFFICER', 'ADMIN'] },
+      { id: 'compliance-verification', label: 'Customer Verification', icon: UserCheck, badge: 'compliance', roles: ['COMPLIANCE_OFFICER', 'ADMIN'] },
       { id: 'manufacturer-verification', label: 'Manufacturer Verification', icon: Factory, roles: ['COMPLIANCE_OFFICER', 'ADMIN'] },
       { id: 'trademark-verification', label: 'Trademark Verification', icon: Award, roles: ['COMPLIANCE_OFFICER', 'ADMIN'] },
       { id: 'brand-verification', label: 'Brand Verification', icon: Tag, roles: ['COMPLIANCE_OFFICER', 'ADMIN'] },
@@ -418,6 +417,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
     SETTINGS: true,
   });
 
+  // Auto-redirect Buyer away from old 'shipments' tab to 'buyer-tracking'
+  useEffect(() => {
+    if (currentRole === 'BUYER' && activeTab === 'shipments') {
+      setActiveTab('buyer-tracking');
+    }
+  }, [activeTab, currentRole, setActiveTab]);
+
   // Auto-expand buyer group containing activeTab if currently collapsed
   useEffect(() => {
     if (currentRole === 'BUYER' && activeTab) {
@@ -490,7 +496,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
       case 'sub-orders': return <OrderModule />;
       case 'mfg-order-history': return <ManufacturerOrderHistoryModule onNavigateTab={handleTabClick} />;
       case 'my-orders': return <BuyerOrderTrackingModule initialViewMode="ORDERS_LIST" />;
-      case 'shipments': return <ShipmentModule onNavigateTab={handleTabClick} />;
+      case 'shipments': return currentRole === 'BUYER' ? <BuyerOrderTrackingModule initialViewMode="TRACKING_DETAIL" /> : <ShipmentModule onNavigateTab={handleTabClick} />;
       case 'goods-received': return currentRole === 'SUPPLIER' ? <ShipmentModule onNavigateTab={handleTabClick} /> : <BuyerOrderTrackingModule initialViewMode="ORDERS_LIST" />;
       case 'buyer-tracking': return <BuyerOrderTrackingModule initialViewMode="TRACKING_DETAIL" />;
       case 'invoices': return <InvoiceModule />;

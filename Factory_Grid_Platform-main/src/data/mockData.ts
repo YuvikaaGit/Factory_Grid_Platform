@@ -1034,6 +1034,7 @@ export const mockMasterOrders: MasterOrder[] = [
 export const mockInvoices: Invoice[] = [
   {
     id: 'inv-4407',
+    sentToCustomer: true,
     invoiceNumber: 'INV-2026-4407',
     masterOrderId: 'mo-5228',
     orderNumber: 'MO-2026-5228',
@@ -1072,6 +1073,7 @@ export const mockInvoices: Invoice[] = [
   },
   {
     id: 'inv-4408',
+    sentToCustomer: true,
     invoiceNumber: 'INV-2026-4408',
     masterOrderId: 'mo-5228',
     orderNumber: 'MO-2026-5228',
@@ -1098,6 +1100,7 @@ export const mockInvoices: Invoice[] = [
   },
   {
     id: 'inv1',
+    sentToCustomer: true,
     invoiceNumber: 'INV-2026-4401',
     masterOrderId: 'mo1',
     orderNumber: 'MO-2026-1001',
@@ -1137,6 +1140,7 @@ export const mockInvoices: Invoice[] = [
   },
   {
     id: 'inv2',
+    sentToCustomer: true,
     invoiceNumber: 'INV-2026-4402',
     masterOrderId: 'mo2',
     orderNumber: 'MO-2026-0988',
@@ -1152,7 +1156,7 @@ export const mockInvoices: Invoice[] = [
     totalAmount: 560000,
     paidAmount: 0,
     balanceAmount: 560000,
-    status: 'UNPAID',
+    status: 'OVERDUE',
     currency: 'INR',
     lines: [
       { id: 'il4', productId: 'p4', productName: 'Pantoprazole 40mg + Domperidone 30mg SR', hsnCode: '30049099', quantity: 15000, unitPrice: 33.33, taxAmount: 60000, totalAmount: 560000 }
@@ -1161,6 +1165,8 @@ export const mockInvoices: Invoice[] = [
   },
   {
     id: 'inv3',
+    status: 'GENERATED',
+    sentToCustomer: false,
     invoiceNumber: 'INV-2026-4819',
     masterOrderId: 'mo1',
     orderNumber: 'MO-2026-1001',

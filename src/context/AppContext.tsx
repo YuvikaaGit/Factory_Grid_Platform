@@ -92,6 +92,8 @@ interface AppContextType {
   addInvoice: (newInvoice: Invoice) => void;
   updateInvoice: (invoiceId: string, updatedFields: Partial<Invoice>) => void;
   updateInvoiceStatus: (invoiceId: string, status: InvoiceStatus) => void;
+  deleteInvoice: (invoiceId: string) => void;
+  sendInvoiceToCustomer: (invoiceId: string) => void;
   recordInvoicePayment: (invoiceId: string, amount: number, method?: string, ref?: string, currency?: string, paymentDate?: string) => void;
   submitBuyerOnboarding: (data: Omit<BuyerOnboarding, 'id' | 'status' | 'submittedDate'>) => void;
   submitManufacturerOnboarding: (data: Omit<ManufacturerOnboarding, 'id' | 'status' | 'submittedDate'>) => void;
@@ -1289,13 +1291,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     setInvoices(prev => {
-      const idx = prev.findIndex(i => i.id === newInvoice.id || i.invoiceNumber === newInvoice.invoiceNumber || (newInvoice.subOrderNumber && i.subOrderNumber === newInvoice.subOrderNumber));
+      const idx = prev.findIndex(i => i.id === newInvoice.id || i.invoiceNumber === newInvoice.invoiceNumber);
+      let updated: Invoice[];
       if (idx >= 0) {
-        const updated = [...prev];
+        updated = [...prev];
         updated[idx] = { ...updated[idx], ...newInvoice };
-        return updated;
+      } else {
+        updated = [newInvoice, ...prev];
       }
-      return [newInvoice, ...prev];
+      try {
+        localStorage.setItem('fg_invoices', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
     });
 
     addAuditLog('Invoice Engine', `Created Tax Invoice ${newInvoice.invoiceNumber} for ${newInvoice.customerName} (Total: ₹${newInvoice.totalAmount.toLocaleString()})`);
@@ -1318,26 +1325,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       alert("Admin role cannot modify financial invoices.");
       return;
     }
-    setInvoices(prev => prev.map(inv => {
-      if (inv.id !== invoiceId) return inv;
-      const existingPayments = Array.isArray(inv.payments) ? inv.payments : [];
-      const existingPaid = inv.paidAmount;
-      const newTotal = updatedFields.totalAmount ?? inv.totalAmount;
-      const newBal = Math.max(0, newTotal - existingPaid);
-      let newStatus: InvoiceStatus = inv.status;
-      if (newBal <= 0) newStatus = 'PAID';
-      else if (existingPaid > 0) newStatus = 'PARTIAL_PAYMENT';
-      else newStatus = updatedFields.status || inv.status;
-      return {
-        ...inv,
-        ...updatedFields,
-        paidAmount: existingPaid,
-        balanceAmount: newBal,
-        payments: existingPayments,
-        status: newStatus
-      };
-    }));
+    setInvoices(prev => {
+      const updated = prev.map(inv => {
+        if (inv.id !== invoiceId) return inv;
+        const existingPayments = Array.isArray(inv.payments) ? inv.payments : [];
+        const existingPaid = inv.paidAmount;
+        const newTotal = updatedFields.totalAmount ?? inv.totalAmount;
+        const newBal = Math.max(0, newTotal - existingPaid);
+        let newStatus: InvoiceStatus = inv.status;
+        if (newBal <= 0) newStatus = 'PAID';
+        else if (existingPaid > 0) newStatus = 'PARTIAL_PAYMENT';
+        else newStatus = updatedFields.status || inv.status;
+        return {
+          ...inv,
+          ...updatedFields,
+          paidAmount: existingPaid,
+          balanceAmount: newBal,
+          payments: existingPayments,
+          status: newStatus
+        };
+      });
+      try {
+        localStorage.setItem('fg_invoices', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     addAuditLog('Invoice Engine', `Edited Invoice ${invoiceId}`);
+  };
+
+  const deleteInvoice = (invoiceId: string) => {
+    setInvoices(prev => {
+      const updated = prev.filter(inv => inv.id !== invoiceId && inv.invoiceNumber !== invoiceId);
+      try {
+        localStorage.setItem('fg_invoices', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    addAuditLog('Invoice Engine', `Deleted Invoice ${invoiceId}`);
+  };
+
+  const sendInvoiceToCustomer = (invoiceId: string) => {
+    setInvoices(prev => {
+      const updated = prev.map(inv => {
+        if (inv.id === invoiceId || inv.invoiceNumber === invoiceId) {
+          return {
+            ...inv,
+            status: 'GENERATED' as const,
+            sentToCustomer: true,
+            sentAt: new Date().toISOString().split('T')[0]
+          };
+        }
+        return inv;
+      });
+      try {
+        localStorage.setItem('fg_invoices', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+    addAuditLog('Invoice Engine', `Sent Invoice ${invoiceId} to customer`);
   };
 
   const updateInvoiceStatus = (invoiceId: string, status: InvoiceStatus) => {
@@ -1938,7 +1983,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isCreateRfqDrawerOpen, setIsCreateRfqDrawerOpen, openCreateRfqDrawer,
       addRFQ, submitQuote, selectQuoteAndCreateOrder,
       updateSubOrderStatus, verifyComplianceDocument, approveComplianceCase,
-      addInvoice, updateInvoiceStatus, recordInvoicePayment, submitBuyerOnboarding, submitManufacturerOnboarding,
+      addInvoice, updateInvoiceStatus, deleteInvoice, sendInvoiceToCustomer, recordInvoicePayment, submitBuyerOnboarding, submitManufacturerOnboarding,
       approveBuyerOnboarding, approveManufacturerOnboarding, updateShipmentStatus,
       addCRMInteraction, addAuditLog,
       submitCustomerVerificationRequest, assignComplianceOfficer,

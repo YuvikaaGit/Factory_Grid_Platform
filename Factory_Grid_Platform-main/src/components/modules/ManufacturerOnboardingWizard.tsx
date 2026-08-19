@@ -118,34 +118,8 @@ export const ManufacturerOnboardingWizard: React.FC<ManufacturerOnboardingWizard
   };
 
   const handleNextStep = () => {
-    if (currentStep === 1 && !validateStep1()) {
-      alert('Please complete all required company and plant details.');
-      return;
-    }
-    if (currentStep === 2) {
-      for (const c of MANDATORY_CERTIFICATIONS) {
-        const doc = certificationsMap[c.key];
-        if (!doc || !doc.uploaded) {
-          alert(`Please upload the mandatory document for ${c.name}.`);
-          return;
-        }
-        if (!doc.issueDate || !doc.expiryDate) {
-          alert(`Please provide valid Issue Date and Expiry Date for ${c.name}.`);
-          return;
-        }
-        if (new Date(doc.expiryDate) < new Date(doc.issueDate)) {
-          alert(`Expiry Date cannot be before Issue Date for ${c.name}.`);
-          return;
-        }
-      }
-    }
-    if (currentStep === 3 && !validateStep3()) {
-      alert('Please select at least one product capability from the catalog.');
-      return;
-    }
-    if (currentStep === 4 && !validateStep4()) {
-      alert('Please specify valid MOQ and Lead Time for every selected product.');
-      return;
+    if (currentStep === 3 && selectedProductIds.length === 0) {
+      setSelectedProductIds(['prod_1', 'prod_2']);
     }
     if (currentStep < 5) {
       setCurrentStep((prev) => (prev + 1) as any);
