@@ -7,14 +7,14 @@ import { messageCentralProvider, apiSathiProvider, gstVerifyProvider, signCarePr
 import { ShipmentCredentials } from '../../services/connectors/types';
 import { GSTCredentials } from '../../services/connectors/gstTypes';
 
-export const IntegrationsSettingsModule: React.FC = () => {
+export const IntegrationsSettingsModule: React.FC<{ initialCategory?: 'SHIPMENT' | 'GST' }> = ({ initialCategory = 'SHIPMENT' }) => {
   const {
     shipmentConnectors, gstConnectors,
     saveShipmentConnector, disconnectShipmentConnector,
     saveGSTConnector, disconnectGSTConnector
   } = useApp();
 
-  const [activeCategory, setActiveCategory] = useState<'SHIPMENT' | 'GST'>('SHIPMENT');
+  const [activeCategory, setActiveCategory] = useState<'SHIPMENT' | 'GST'>(initialCategory);
 
   // Modal States for Shipment Provider Configuration
   const [selectedShipmentProvider, setSelectedShipmentProvider] = useState<'bluedart' | 'delhivery' | null>(null);

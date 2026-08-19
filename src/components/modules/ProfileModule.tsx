@@ -67,7 +67,46 @@ export const ProfileModule: React.FC = () => {
   });
   const [passError, setPassError] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+    // Buyer 2FA State
+  const [is2FAEnabled, setIs2FAEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('fg_buyer_2fa_enabled') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [show2FASetupModal, setShow2FASetupModal] = useState<boolean>(false);
+  const [show2FADisableModal, setShow2FADisableModal] = useState<boolean>(false);
+  const [otpInput, setOtpInput] = useState<string>('');
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [isVerifying2FA, setIsVerifying2FA] = useState<boolean>(false);
+
+  const handleVerifyAndEnable2FA = (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpError(null);
+    if (otpInput.trim().length !== 6 || !/^\d+$/.test(otpInput.trim())) {
+      setOtpError('Please enter a valid 6-digit numerical OTP code.');
+      return;
+    }
+    setIsVerifying2FA(true);
+    setTimeout(() => {
+      setIsVerifying2FA(false);
+      setIs2FAEnabled(true);
+      try { localStorage.setItem('fg_buyer_2fa_enabled', 'true'); } catch (err) {}
+      setShow2FASetupModal(false);
+      setOtpInput('');
+      showToast('✓ Two-Factor Authentication (2FA) enabled successfully.');
+    }, 500);
+  };
+
+  const handleDisable2FA = () => {
+    setIs2FAEnabled(false);
+    try { localStorage.setItem('fg_buyer_2fa_enabled', 'false'); } catch (err) {}
+    setShow2FADisableModal(false);
+    showToast('Two-Factor Authentication (2FA) disabled.');
+  };
+
+const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
@@ -842,6 +881,70 @@ export const ProfileModule: React.FC = () => {
               </button>
             </div>
           </form>
+
+          {/* ── TWO-FACTOR AUTHENTICATION (BUYER ONLY) ────────────────────────── */}
+          {currentRole === 'BUYER' && (
+            <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <ShieldCheck size={20} style={{ color: is2FAEnabled ? '#10B981' : 'var(--c-primary)' }} />
+                  <div>
+                    <h2 style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Two-Factor Authentication</h2>
+                    <div className="ent-caption" style={{ marginTop: 2 }}>
+                      Add an additional layer of security to your Buyer account.
+                    </div>
+                  </div>
+                </div>
+
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 800,
+                  background: is2FAEnabled ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                  color: is2FAEnabled ? '#10B981' : '#F59E0B',
+                  border: `1px solid ${is2FAEnabled ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
+                }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: is2FAEnabled ? '#10B981' : '#F59E0B' }} />
+                  {is2FAEnabled ? '✓ 2FA Enabled' : '2FA Disabled'}
+                </span>
+              </div>
+
+              <div style={{
+                background: is2FAEnabled ? 'rgba(16, 185, 129, 0.05)' : 'var(--bg-subtle)',
+                border: `1px solid ${is2FAEnabled ? 'rgba(16, 185, 129, 0.25)' : 'var(--border-subtle)'}`,
+                borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12
+              }}>
+                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  {is2FAEnabled
+                    ? 'Two-Factor Authentication is active for your account. Verification codes will be required during login and critical procurement approvals.'
+                    : 'When 2FA is enabled, you will be required to enter a 6-digit security verification code sent to your registered mobile or authenticator app during login.'
+                  }
+                </div>
+
+                <div>
+                  {is2FAEnabled ? (
+                    <button
+                      onClick={() => setShow2FADisableModal(true)}
+                      style={{
+                        padding: '8px 16px', borderRadius: 6, background: 'rgba(239, 68, 68, 0.1)',
+                        color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.3)',
+                        fontWeight: 700, fontSize: 12.5, cursor: 'pointer'
+                      }}
+                    >
+                      Disable 2FA
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setOtpInput(''); setOtpError(null); setShow2FASetupModal(true); }}
+                      className="ent-btn-primary"
+                      style={{ padding: '8px 18px', fontSize: 13 }}
+                    >
+                      Enable 2FA
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1356,6 +1459,81 @@ export const ProfileModule: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── 2FA ENABLE SETUP MODAL (BUYER ONLY) ── */}
+      {show2FASetupModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ width: 440, maxWidth: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 12, boxShadow: '0 25px 50px rgba(0,0,0,0.3)', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 12, borderBottom: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ShieldCheck size={18} style={{ color: 'var(--c-primary)' }} />
+                <span>Enable Two-Factor Authentication</span>
+              </div>
+              <button onClick={() => setShow2FASetupModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Two-Factor Authentication adds an additional verification step to protect your Buyer account.
+            </div>
+
+            <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: 12, textAlign: 'center' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Demo OTP Code</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--c-primary)', letterSpacing: '0.2em', margin: '4px 0', fontFamily: 'monospace' }}>123456</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Enter code <strong style={{ color: 'var(--text-primary)' }}>123456</strong> below to complete setup</div>
+            </div>
+
+            <form onSubmit={handleVerifyAndEnable2FA} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: 6 }}>Enter 6-Digit OTP Code *</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="Enter 6-digit OTP"
+                  value={otpInput}
+                  onChange={e => setOtpInput(e.target.value)}
+                  style={{ width: '100%', height: 40, borderRadius: 6, border: '1px solid var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)', fontSize: 16, fontWeight: 800, textAlign: 'center', letterSpacing: '0.3em', outline: 'none' }}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              {otpError && (
+                <div style={{ padding: '8px 12px', borderRadius: 6, background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#EF4444', fontSize: 12, fontWeight: 600 }}>
+                  ⚠️ {otpError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+                <button type="button" onClick={() => setShow2FASetupModal(false)} className="ent-btn-secondary">Cancel</button>
+                <button type="submit" disabled={isVerifying2FA} className="ent-btn-primary" style={{ background: '#10B981' }}>
+                  {isVerifying2FA ? 'Verifying...' : 'Verify & Enable 2FA'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── 2FA DISABLE CONFIRMATION MODAL (BUYER ONLY) ── */}
+      {show2FADisableModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ width: 420, maxWidth: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 12, boxShadow: '0 25px 50px rgba(0,0,0,0.3)', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, borderBottom: '1px solid var(--border-subtle)' }}>
+              <AlertTriangle size={18} style={{ color: '#EF4444' }} />
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>Disable Two-Factor Authentication?</h3>
+            </div>
+
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              Are you sure you want to disable 2FA? Your Buyer account will rely solely on password authentication for login and transactions.
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button onClick={() => setShow2FADisableModal(false)} className="ent-btn-secondary">Cancel</button>
+              <button onClick={handleDisable2FA} className="ent-btn-primary" style={{ background: '#EF4444' }}>Confirm Disable</button>
+            </div>
           </div>
         </div>
       )}

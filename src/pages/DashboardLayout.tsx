@@ -1,3 +1,5 @@
+import { IntegrationsSettingsModule } from '../components/modules/IntegrationsSettingsModule';
+import { BuyerSecuritySettingsModule } from '../components/modules/BuyerSecuritySettingsModule';
 import { AdminRfqMonitor } from '../components/modules/AdminRfqMonitor';
 import { AdminQuoteMonitor } from '../components/modules/AdminQuoteMonitor';
 import { AdminOrderMonitor } from '../components/modules/AdminOrderMonitor';
@@ -253,6 +255,7 @@ const navGroups = [
     items: [
       { id: 'reports', label: 'Audit Logs', icon: FileCheck, roles: ['ADMIN', 'SALES_MANAGER', 'ACCOUNTS_MANAGER'] },
       { id: 'admin-approval', label: 'System Health', icon: Activity, roles: ['ADMIN'] },
+      { id: 'shipment-api', label: 'Shipment API', icon: Truck, roles: ['ADMIN'] },
       { id: 'settings', label: 'Settings', icon: Settings, roles: ['ADMIN'] },
     ],
   },
@@ -515,12 +518,67 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
           return <ManufacturerSettingsModule />;
         }
         if (currentRole === 'BUYER') {
-          return <NotificationsModule />;
+          return <ProfileModule />;
         }
         return <SettingsModule />;
       case 'admin-approval': return <AdminApprovalModule />;
+      case 'shipment-api': return <IntegrationsSettingsModule initialCategory="GST" />;
       default: return <Dashboards />;
     }
+  };
+
+  // AI Copilot Chat State
+  const [copilotMessages, setCopilotMessages] = useState<Array<{ id: string; sender: 'user' | 'assistant'; text: string; time: string }>>([
+    {
+      id: 'welcome',
+      sender: 'assistant',
+      text: 'Hello! I am your FactoryGrid AI Copilot. I can analyze RFQ risks, check WHO-GMP compliance, calculate procurement savings, and draft formulation specs. How can I assist your team today?',
+      time: 'Just now'
+    }
+  ]);
+  const [copilotInput, setCopilotInput] = useState<string>('');
+  const [isCopilotThinking, setIsCopilotThinking] = useState<boolean>(false);
+
+  const getAIResponseText = (query: string): string => {
+    const q = query.toLowerCase();
+    if (q.includes('rfq') || q.includes('bid') || q.includes('risk')) {
+      return "📊 **Sealed RFQ Risk Analysis:**\n\n- **Pricing Spread:** Lowest bid is ₹1,420/kg (SunBio Labs), 12% below market average.\n- **Delivery SLA:** 14-day SLA with 2°C–8°C cold-chain IoT telemetry monitoring.\n- **WHO-GMP Status:** 100% verified CDSCO license (ML-HP-2024-001).\n- **Recommendation:** Proceed to award split allocation to SunBio Labs & CiplaFormulations for supply chain redundancy.";
+    } else if (q.includes('compliance') || q.includes('regulatory') || q.includes('drug')) {
+      return "🛡️ **Regulatory Compliance Audit Report:**\n\n- **CDSCO Manufacturing License:** Valid thru Nov 2028 (SunBio Labs Unit II).\n- **WHO-GMP Certification:** Active (Certificate No: WHO-GMP-2025-8891).\n- **Batch Quality (COA):** 100% pharmacopeial compliance across active batches.\n- **Compliance Risk Level:** **LOW** (No critical inspection observations found).";
+    } else if (q.includes('saving') || q.includes('calculate') || q.includes('cost') || q.includes('price')) {
+      return "💰 **Procurement Savings Optimization:**\n\n- **Single-Supplier Baseline:** ₹28,50,000 for full volume.\n- **Dual-Plant Allocation Cost:** ₹25,20,000 via optimized volume splitting.\n- **Net Cost Reduction:** **₹3,30,000 (11.5% Savings)**\n- **GST Impact:** 18% Input Tax Credit (ITC) claimable on inter-state dispatch.";
+    } else if (q.includes('draft') || q.includes('spec') || q.includes('formulation')) {
+      return "📑 **Draft Formulation Specification (IP/BP/USP):**\n\n- **Active Pharmaceutical Ingredient (API):** Paracetamol IP 500mg\n- **Excipients:** Starch IP, Microcrystalline Cellulose USP, Magnesium Stearate BP\n- **Dosage Form:** Uncoated Tablets\n- **Packaging:** 10 x 10 Blister Pack (Alu-PVC)\n- **Shelf Life:** 36 Months from Manufacturing";
+    }
+    return `🤖 **FactoryGrid B2B Copilot Insights for:** *"${query}"*\n\nBased on real-time platform data across 2,840 verified pharmaceutical manufacturers:\n\n1. **Supplier Availability:** 4 active WHO-GMP manufacturing units ready for immediate production.\n2. **Lead Time:** 10-14 business days with cold-chain tracking.\n3. **Compliance Status:** All matched suppliers hold active CDSCO licenses.\n\nLet me know if you would like me to generate a detailed quote breakdown or RFQ draft!`;
+  };
+
+  const handleSendCopilotQuery = (userQueryText?: string) => {
+    const textToSend = (userQueryText || copilotInput).trim();
+    if (!textToSend) return;
+
+    const userMsg = {
+      id: 'msg-' + Date.now(),
+      sender: 'user' as const,
+      text: textToSend,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setCopilotMessages(prev => [...prev, userMsg]);
+    if (!userQueryText) setCopilotInput('');
+    setIsCopilotThinking(true);
+
+    setTimeout(() => {
+      const responseText = getAIResponseText(textToSend);
+      const aiMsg = {
+        id: 'msg-ai-' + Date.now(),
+        sender: 'assistant' as const,
+        text: responseText,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setCopilotMessages(prev => [...prev, aiMsg]);
+      setIsCopilotThinking(false);
+    }, 600);
   };
 
   return (
@@ -1129,14 +1187,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(2px)', display: 'flex', justifyContent: 'flex-end' }}>
           <div style={{ width: isMobile ? '100vw' : 440, maxWidth: '100vw', height: '100vh', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 24px rgba(15,23,42,0.12)' }}>
 
-            <div style={{ padding: '20px 24px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Header */}
+            <div style={{ padding: '18px 20px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Sparkles size={20} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>FactoryGrid AI Copilot</div>
-                  <div style={{ fontSize: 11.5, color: '#64748B' }}>Contextual B2B Sourcing & Regulatory Assistant</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#0F172A' }}>FactoryGrid AI Copilot</div>
+                  <div style={{ fontSize: 11, color: '#64748B' }}>Contextual B2B Sourcing & Regulatory Assistant</div>
                 </div>
               </div>
               <button onClick={() => setAiOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B' }}>
@@ -1144,45 +1203,107 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
               </button>
             </div>
 
-            <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Suggested Contextual Actions</div>
+            {/* Body / Chat Area */}
+            <div style={{ flex: 1, padding: 18, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-              {[
-                { title: 'Analyze Sealed RFQ Bids', desc: 'Compare pricing, lead times & WHO-GMP compliance across manufacturers', icon: '📊' },
-                { title: 'Check Regulatory Compliance Risks', desc: 'Audit Drug Licenses & WHO-GMP expiry timelines', icon: '🛡' },
-                { title: 'Calculate Procurement Savings', desc: 'Estimate multi-plant order allocation savings', icon: '💰' },
-                { title: 'Draft Formulation Specification', desc: 'Auto-generate standard B2B pharma RFQ line specs', icon: '📑' },
-              ].map((act, i) => (
-                <div
-                  key={i}
-                  onClick={() => alert(`AI Copilot Executed Action: ${act.title}\n\nGenerating contextual analysis...`)}
-                  style={{ padding: 14, borderRadius: 10, border: '1px solid #E2E8F0', background: '#F8FAFC', cursor: 'pointer', transition: 'all 150ms ease' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#EFF6FF'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#F8FAFC'}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
-                    <span>{act.icon}</span>
-                    <span>{act.title}</span>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 4 }}>{act.desc}</div>
+              {/* Suggested Actions Section */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 10 }}>
+                  Suggested Contextual Actions
                 </div>
-              ))}
-
-              <div style={{ marginTop: 'auto', borderTop: '1px solid #E2E8F0', paddingTop: 14 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Ask AI Assistant</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    type="text"
-                    placeholder="Ask about RFQs, orders, suppliers..."
-                    style={{ flex: 1, height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5, outline: 'none' }}
-                  />
-                  <button onClick={() => alert('AI query processed.')} style={{ height: 38, padding: '0 14px', borderRadius: 8, background: '#2563EB', color: '#FFFFFF', border: 'none', fontWeight: 600, fontSize: 12.5, cursor: 'pointer' }}>
-                    Send
-                  </button>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {[
+                    { title: 'Analyze Sealed RFQ Bids', desc: 'Compare pricing & WHO-GMP compliance', icon: '📊' },
+                    { title: 'Check Regulatory Compliance Risks', desc: 'Audit Drug Licenses & WHO-GMP timelines', icon: '🛡' },
+                    { title: 'Calculate Procurement Savings', desc: 'Estimate multi-plant allocation savings', icon: '💰' },
+                    { title: 'Draft Formulation Specification', desc: 'Auto-generate B2B pharma line specs', icon: '📑' },
+                  ].map((act, i) => (
+                    <div
+                      key={i}
+                      onClick={() => handleSendCopilotQuery(act.title)}
+                      style={{ padding: 10, borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC', cursor: 'pointer', transition: 'all 150ms ease' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#EFF6FF'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#F8FAFC'}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0F172A' }}>
+                        <span>{act.icon}</span>
+                        <span>{act.title}</span>
+                      </div>
+                      <div style={{ fontSize: 10.5, color: '#64748B', marginTop: 3 }}>{act.desc}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
+
+              {/* Conversation Messages */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+                {copilotMessages.map(msg => (
+                  <div
+                    key={msg.id}
+                    style={{
+                      alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
+                      maxWidth: '88%',
+                      background: msg.sender === 'user' ? '#2563EB' : '#F1F5F9',
+                      color: msg.sender === 'user' ? '#FFFFFF' : '#0F172A',
+                      padding: '10px 14px',
+                      borderRadius: msg.sender === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                      fontSize: 12.5,
+                      lineHeight: 1.5,
+                      boxShadow: '0 1px 3px rgba(15,23,42,0.05)'
+                    }}
+                  >
+                    <div style={{ whiteSpace: 'pre-wrap' }}>
+                      {msg.text.split('\n').map((line, idx) => (
+                        <div key={idx} style={{ marginTop: idx > 0 && line.startsWith('-') ? 3 : (idx > 0 ? 6 : 0) }}>
+                          {line.startsWith('**') && line.endsWith('**') ? <strong>{line.slice(2, -2)}</strong> : line}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4, textAlign: 'right' }}>{msg.time}</div>
+                  </div>
+                ))}
+
+                {isCopilotThinking && (
+                  <div style={{ alignSelf: 'flex-start', background: '#F1F5F9', color: '#64748B', padding: '10px 14px', borderRadius: '12px 12px 12px 2px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Sparkles size={14} className="animate-spin" style={{ color: '#2563EB' }} />
+                    <span>FactoryGrid AI Assistant is thinking...</span>
+                  </div>
+                )}
+              </div>
+
             </div>
 
+            {/* Input Form at Bottom */}
+            <div style={{ padding: 16, borderTop: '1px solid #E2E8F0', background: '#FFFFFF' }}>
+              <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 6 }}>Ask AI Assistant</label>
+              <form
+                onSubmit={e => {
+                  e.preventDefault();
+                  handleSendCopilotQuery();
+                }}
+                style={{ display: 'flex', gap: 8 }}
+              >
+                <input
+                  type="text"
+                  placeholder="Ask about RFQs, orders, suppliers..."
+                  value={copilotInput}
+                  onChange={e => setCopilotInput(e.target.value)}
+                  style={{ flex: 1, height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5, outline: 'none' }}
+                />
+                <button
+                  type="submit"
+                  disabled={!copilotInput.trim() || isCopilotThinking}
+                  style={{
+                    height: 38, padding: '0 16px', borderRadius: 8,
+                    background: copilotInput.trim() ? '#2563EB' : '#94A3B8',
+                    color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 12.5,
+                    cursor: copilotInput.trim() ? 'pointer' : 'not-allowed'
+                  }}
+                >
+                  Send
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}

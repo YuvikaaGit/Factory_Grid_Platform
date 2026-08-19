@@ -1042,15 +1042,6 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
   // CREATE NEW SHIPMENT HANDLER
   const handleCreateShipmentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (activeSubOrder.productionStatus !== 'READY_TO_DISPATCH') {
-      alert('⚠ Shipment Cannot Be Created Yet!\n\nReason: Production must reach Ready To Dispatch before a shipment can be created.');
-      return;
-    }
-
-    if (activeSubOrder.shipment && activeSubOrder.shipment.shipmentStatus !== 'CLOSED') {
-      alert(`⚠ Shipment Already Exists!\n\nActive Shipment ${activeSubOrder.shipment.trackingNumber} is already created for Sub-Order ${activeSubOrder.subOrderNumber}.`);
-      return;
-    }
 
     const effectiveTransporter = transporterSelect === 'Other' ? customTransporter.trim() : transporterSelect;
     const timeStr = getTimeString();
@@ -2281,8 +2272,8 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
           Active Dispatches ({activeDispatchesList.length})
         </button>
         {isManufacturer && (
-          <button onClick={() => { setViewMode('LIST'); setActiveTabLocal('CREATE_SHIPMENT'); }} style={{ padding: '12px 20px', border: 'none', background: activeTabLocal === 'CREATE_SHIPMENT' ? '#0F766E' : 'transparent', color: activeTabLocal === 'CREATE_SHIPMENT' ? '#FFFFFF' : '#475569', fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>
-            + Create Shipment Form
+          <button onClick={() => { setViewMode('LIST'); setActiveTabLocal('CREATE_SHIPMENT'); }} style={{ padding: '12px 20px', border: 'none', background: activeTabLocal === 'CREATE_SHIPMENT' ? '#0F766E' : 'transparent', color: activeTabLocal === 'CREATE_SHIPMENT' ? '#FFFFFF' : '#475569', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Plus size={14} /> Create Dispatch
           </button>
         )}
         <button onClick={() => { setViewMode('LIST'); setActiveTabLocal('DELIVERY_HISTORY'); }} style={{ padding: '12px 20px', border: 'none', background: activeTabLocal === 'DELIVERY_HISTORY' ? '#0F766E' : 'transparent', color: activeTabLocal === 'DELIVERY_HISTORY' ? '#FFFFFF' : '#475569', fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>
@@ -2316,26 +2307,21 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
                   Production: {activeSubOrder.productionStatus?.replace(/_/g, ' ')}
                 </span>
 
-                {activeShipment ? (
+                {activeShipment && (
                   <button
                     onClick={() => setViewMode('DETAIL')}
-                    style={{ padding: '8px 16px', borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    style={{ padding: '8px 16px', borderRadius: 6, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
                     <Truck size={14} /> Inspect Active Shipment ({activeShipment.trackingNumber}) →
                   </button>
-                ) : activeSubOrder.productionStatus === 'READY_TO_DISPATCH' ? (
+                )}
+
+                {isManufacturer && (
                   <button
-                    onClick={() => setActiveTabLocal('CREATE_SHIPMENT')}
+                    onClick={() => { setViewMode('LIST'); setActiveTabLocal('CREATE_SHIPMENT'); }}
                     style={{ padding: '8px 18px', borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
                     <Plus size={14} /> Create Dispatch
-                  </button>
-                ) : (
-                  <button
-                    disabled
-                    style={{ padding: '8px 16px', borderRadius: 6, background: '#E2E8F0', color: '#94A3B8', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                  >
-                    🔒 Create Dispatch (Awaiting Production Completion)
                   </button>
                 )}
               </div>
@@ -2448,41 +2434,7 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', margin: '0 0 16px 0' }}>Create Cold-Chain Dispatch Request</h2>
 
-          {/* Validation Check: Must be READY_TO_DISPATCH */}
-          {activeSubOrder?.productionStatus !== 'READY_TO_DISPATCH' ? (
-            <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: 20, color: '#991B1B' }}>
-              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <XCircle size={18} color="#DC2626" /> Shipment Cannot Be Created Yet
-              </div>
-              <div style={{ fontSize: 13, lineHeight: 1.5 }}>
-                <strong>Production must reach Ready To Dispatch before a shipment can be created.</strong>
-                <br />
-                Sub-Order <strong>{activeSubOrder.subOrderNumber}</strong> is currently at manufacturing stage: <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#991B1B' }}>{(activeSubOrder?.productionStatus || 'PO_ACCEPTED').replace(/_/g, ' ')}</span>.
-                <br />
-                Please navigate to <strong>Production Planning</strong> to complete production run, quality control inspection, and packaging.
-              </div>
-            </div>
-          ) : activeSubOrder?.shipment && activeSubOrder.shipment.shipmentStatus !== 'CLOSED' ? (
-            <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#92400E', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <AlertTriangle size={18} color="#D97706" /> Active Shipment Already Created
-              </div>
-              <p style={{ margin: 0, fontSize: 13, color: '#78350F', lineHeight: 1.5 }}>
-                Sub-Order <strong>{activeSubOrder.subOrderNumber}</strong> already has an active tracking record (Tracking #: <strong style={{ fontFamily: 'monospace' }}>{activeSubOrder.shipment.trackingNumber}</strong>, Status: <strong>{activeSubOrder.shipment.shipmentStatus.replace(/_/g, ' ')}</strong>).
-                <br />
-                Duplicate shipments cannot be created for the same active sub-order.
-              </p>
-              <div>
-                <button
-                  onClick={() => handleOpenSpecificShipment(activeSubOrder.shipment.id, activeSubOrder.shipment.trackingNumber)}
-                  style={{ padding: '8px 18px', borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}
-                >
-                  View Active Shipment →
-                </button>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleCreateShipmentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <form onSubmit={handleCreateShipmentSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               
               {/* Order Summary Box */}
               <div style={{ background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 8, padding: 16, fontSize: 12.5, color: '#0F766E', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
@@ -2602,7 +2554,6 @@ export const ShipmentModule: React.FC<ShipmentModuleProps> = ({ onNavigateTab })
               </div>
 
             </form>
-          )}
         </div>
       )}
 
