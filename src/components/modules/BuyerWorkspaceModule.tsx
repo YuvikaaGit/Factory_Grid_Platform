@@ -272,22 +272,13 @@ export const BuyerWorkspaceModule: React.FC = () => {
           </div>
 
           {/* Primary Action Hero Banner */}
-          <div className="ent-panel" style={{ padding: 24, background: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>
-                Ready to Initiate New Pharmaceutical Procurement?
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 640 }}>
-                Define target formulation specifications, quantities, and delivery terms. FactoryGrid AI automatically matches your requirement against verified WHO-GMP & CDSCO facilities.
-              </div>
+          <div className="ent-panel" style={{ padding: 24, background: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>
+              Ready to Initiate New Pharmaceutical Procurement?
             </div>
-            <button
-              onClick={() => setActiveTabLocal('CREATE_RFQ')}
-              className="ent-btn-primary"
-              style={{ padding: '12px 24px', fontSize: 14 }}
-            >
-              <Plus size={16} /> + Create New RFQ
-            </button>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 640 }}>
+              Define target formulation specifications, quantities, and delivery terms. FactoryGrid AI automatically matches your requirement against verified WHO-GMP & CDSCO facilities.
+            </div>
           </div>
 
           {/* Active Sourcing Pipeline Table */}

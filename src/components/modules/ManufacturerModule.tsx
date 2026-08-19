@@ -15,7 +15,8 @@ export const ManufacturerModule: React.FC = () => {
   const {
     manufacturers, mappings, products, orders, rfqs, addRFQ, addAuditLog, setActiveTab,
     selectedMfgIdForProfile, setSelectedMfgIdForProfile,
-    mfgProfileProductContext, setMfgProfileProductContext
+    mfgProfileProductContext, setMfgProfileProductContext,
+    mfgProfileInitialTab
   } = useApp();
   
   // ── Product-First Search & Requirement State ─────────────────────

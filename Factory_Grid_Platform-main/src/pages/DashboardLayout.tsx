@@ -168,6 +168,7 @@ export const BUYER_NAV_GROUPS: BuyerNavGroup[] = [
     label: 'PROCUREMENT',
     defaultExpanded: true,
     items: [
+      { id: 'manufacturers', label: 'Verified Manufacturers', icon: Factory },
       { id: 'rfqs', label: 'RFQ Center', icon: FileText, badge: 'rfq' },
       { id: 'quotes', label: 'Quote Comparison', icon: Tag },
     ],
