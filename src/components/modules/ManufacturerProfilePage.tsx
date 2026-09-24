@@ -196,7 +196,7 @@ export const ManufacturerProfilePage: React.FC<ManufacturerProfilePageProps> = (
 
               {/* Certification Badges Pills */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                {manufacturer.certifications.map(c => (
+                {(manufacturer.certifications ?? []).map(c => (
                   <span key={c.id} style={{
                     fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
                     background: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)'
@@ -632,7 +632,7 @@ export const ManufacturerProfilePage: React.FC<ManufacturerProfilePageProps> = (
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
-            {manufacturer.certifications.map(cert => (
+            {(manufacturer.certifications ?? []).map(cert => (
               <div key={cert.id} className="ent-panel" style={{ padding: 18, borderTop: '3px solid var(--c-success)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                   <div>

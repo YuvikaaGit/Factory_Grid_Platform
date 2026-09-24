@@ -9,6 +9,7 @@ import {
 import { MasterOrder, Invoice } from '../../types';
 import { UNIFIED_STORAGE_KEY } from './ProductionExecutionModule';
 import { RaiseQaModal, getStoredQaRequests } from './RaiseQaModal';
+import { AdvancePaymentSection } from '../common/AdvancePaymentSection';
 
 interface BuyerOrderTrackingModuleProps {
   initialViewMode?: 'ORDERS_LIST' | 'TRACKING_DETAIL';
@@ -777,6 +778,11 @@ export const BuyerOrderTrackingModule: React.FC<BuyerOrderTrackingModuleProps> =
 
   // Calculate Master Order Overall Status dynamically from sub-orders
   const getMasterOrderStatus = (ord: MasterOrder): string => {
+    if (ord.status === 'PENDING_ADMIN_APPROVAL') return 'PENDING ADMIN APPROVAL';
+    if (ord.status === 'PENDING_ADVANCE') return 'PENDING ADVANCE';
+    if (ord.status === 'CONFIRMED_RELEASED') {
+      if (!ord.subOrders || ord.subOrders.length === 0) return 'CONFIRMED & RELEASED';
+    }
     if (!ord.subOrders || ord.subOrders.length === 0) return ord.status || 'PO ACCEPTED';
     
     const subStatuses = ord.subOrders.map(sub => getSubOrderDetailedStatus(sub));
@@ -1689,8 +1695,25 @@ export const BuyerOrderTrackingModule: React.FC<BuyerOrderTrackingModuleProps> =
                 </div>
               </div>
 
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Order Value</div>
+              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B' }}>SELECT MO:</span>
+                  <select
+                    value={activeMasterOrder.id}
+                    onChange={(e) => {
+                      const found = orders.find(o => o.id === e.target.value);
+                      if (found) setSelectedOrder(found);
+                    }}
+                    style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 11.5, fontWeight: 700, color: '#0F766E', outline: 'none' }}
+                  >
+                    {orders.map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.orderNumber} ({o.status})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginTop: 4 }}>Total Order Value</div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace' }}>₹{activeMasterOrder.totalAmount.toLocaleString()}</div>
                 <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>Expected Delivery: <strong>{activeMasterOrder.expectedDeliveryDate}</strong></div>
               </div>
@@ -1706,6 +1729,9 @@ export const BuyerOrderTrackingModule: React.FC<BuyerOrderTrackingModuleProps> =
               </div>
             </div>
           </div>
+
+          {/* ADVANCE PAYMENT DESK (MASTER ORDER LEVEL) */}
+          <AdvancePaymentSection order={activeMasterOrder} />
 
           {/* 2. UNIFIED 14-STAGE LIFECYCLE STEPPER */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 22, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>

@@ -47,7 +47,49 @@ export interface ManufacturerRFQ {
 
 export type QuoteStatus = 'DRAFT' | 'SUBMITTED' | 'BUYER REVIEWING' | 'NEGOTIATION' | 'ACCEPTED' | 'REJECTED' | 'SUB-ORDER CREATED' | 'EXPIRED' | 'SELECTED' | 'NOT_SELECTED';
 
-export type MasterOrderStatus = 'OPEN' | 'SCHEDULED' | 'IN_PRODUCTION' | 'PACKAGING' | 'READY_TO_DISPATCH' | 'DISPATCHED' | 'IN_TRANSIT' | 'DELIVERED' | 'CLOSED' | 'ON_HOLD';
+export type MasterOrderStatus =
+  | 'PENDING_ADMIN_APPROVAL'
+  | 'REJECTED_BY_ADMIN'
+  | 'PENDING_ADVANCE'
+  | 'CONFIRMED_RELEASED'
+  | 'OPEN'
+  | 'SCHEDULED'
+  | 'IN_PRODUCTION'
+  | 'PACKAGING'
+  | 'READY_TO_DISPATCH'
+  | 'DISPATCHED'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'CLOSED'
+  | 'ON_HOLD'
+  | 'PENDING_RECEIPT'
+  | 'GOODS_RECEIVED';
+
+export type AdvanceMethod = 'PERCENTAGE' | 'FIXED_AMOUNT';
+
+export type AdvanceStatus =
+  | 'NOT_CONFIGURED'
+  | 'NOT_REQUIRED'
+  | 'PENDING'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'OVERPAID_REVIEW'
+  | 'REVERSED';
+
+export interface AdvancePaymentRecord {
+  id: string;
+  masterOrderId: string;
+  masterOrderNumber: string;
+  amount: number;
+  paymentMode: string;
+  reference: string;
+  paymentDate: string;
+  notes?: string;
+  createdAt: string;
+  status: 'RECORDED' | 'REVERSED';
+  reversedAt?: string;
+  reversalReason?: string;
+}
 
 export type SubOrderStatus = 'OPEN' | 'SCHEDULED' | 'IN_PRODUCTION' | 'PACKAGING' | 'READY_TO_DISPATCH' | 'DISPATCHED' | 'IN_TRANSIT' | 'DELIVERED';
 
@@ -63,13 +105,21 @@ export interface PaymentTimelineEvent {
 export interface PaymentRecord {
   id: string;
   invoiceId: string;
+  orderId?: string;
+  orderNumber?: string;
+  customerName?: string;
   amount: number;
   currency?: string;
   paymentMethod: string;
   paymentDate: string;
   reference: string;
-  status: 'COMPLETED' | 'PENDING' | 'SETTLED';
+  status: 'COMPLETED' | 'PENDING' | 'SETTLED' | 'FAILED';
+  verificationStatus?: 'VERIFIED' | 'FAILED' | 'PENDING';
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
   remarks?: string;
+  createdAt?: string;
   timeline?: PaymentTimelineEvent[];
 }
 
@@ -582,6 +632,32 @@ export interface MasterOrder {
   rfqNumber?: string;
   isGeneric?: boolean;
   orderType?: 'GENERIC' | 'BRANDED';
+  poStatus?: string;
+  // Advance Payment Fields (Client O2C Specification)
+  advanceRequired?: boolean;
+  advanceMethod?: AdvanceMethod;
+  advancePercentage?: number;
+  requiredAdvanceAmount?: number;
+  advanceReceived?: number;
+  advanceOutstanding?: number;
+  advanceStatus?: AdvanceStatus;
+  advancePaymentReference?: string;
+  advancePaymentDate?: string;
+  advancePaymentMode?: string;
+  advancePaymentNotes?: string;
+  advancePayments?: AdvancePaymentRecord[];
+  // Admin Approval Fields
+  adminApprovalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  poApprovalStatus?: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  adminRejectionReason?: string;
+  adminApprovedBy?: string;
+  adminApprovedAt?: string;
+  advanceDueDate?: string;
+  advanceNotes?: string;
+  // Razorpay Payment
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
 }
 
 export interface InvoiceLine {

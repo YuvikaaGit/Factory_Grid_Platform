@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   ShoppingBag, Package, CheckCircle2, Clock, X, Check, AlertCircle,
-  Building2, ArrowRight, Eye, AlertTriangle, Send, FileText, ChevronRight, RefreshCw, XCircle, Search, Download, Receipt
+  Building2, ArrowRight, Eye, AlertTriangle, Send, FileText, ChevronRight, RefreshCw, XCircle, Search, Download, Receipt, Lock
 } from 'lucide-react';
 import { ProformaInvoiceSection } from '../common/ProformaInvoiceSection';
 
@@ -314,16 +314,35 @@ export const ManufacturerSubOrderModule: React.FC = () => {
     return { open, awaiting, accepted, artwork, scheduled, inProd, qcPack, ready, completed };
   }, [allMyAssignedOrders]);
 
+  const getParentMasterOrder = (moNum?: string) => {
+    if (!moNum) return null;
+    return orders.find(o => o.orderNumber === moNum || o.id === moNum);
+  };
+
   // Handle Open Accept Modal
   const handleOpenAcceptModal = (code: string) => {
+    const targetObj = subOrdersState[code];
+    const parentMO = getParentMasterOrder(targetObj?.masterOrderNumber);
+    if (parentMO?.advanceRequired && (parentMO.advanceOutstanding ?? 0) > 0) {
+      alert(`🔒 Manufacturer Execution Blocked:\n\nRequired Advance Payment (₹${parentMO.advanceOutstanding?.toLocaleString()}) is outstanding on Master Order ${parentMO.orderNumber}.\n\nManufacturer acceptance and execution is locked until full advance is recorded.`);
+      return;
+    }
     setTargetActionSubOrderCode(code);
     setShowAcceptModal(true);
   };
 
   // Confirm Accept Action
   const handleConfirmAccept = () => {
-    const timeStr = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
     const code = targetActionSubOrderCode;
+    const targetObj = subOrdersState[code];
+    const parentMO = getParentMasterOrder(targetObj?.masterOrderNumber);
+    if (parentMO?.advanceRequired && (parentMO.advanceOutstanding ?? 0) > 0) {
+      alert(`🔒 Manufacturer Execution Blocked:\n\nRequired Advance Payment (₹${parentMO.advanceOutstanding?.toLocaleString()}) is outstanding on Master Order ${parentMO.orderNumber}.\n\nPO acceptance and manufacturing release cannot proceed until advance payment is fully received.`);
+      setShowAcceptModal(false);
+      return;
+    }
+
+    const timeStr = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
 
     setSubOrdersState(prev => {
       const updatedObj = {
@@ -794,7 +813,27 @@ export const ManufacturerSubOrderModule: React.FC = () => {
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, fontSize: 12.5 }}>
                 <div><strong>PO Number:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0F766E' }}>{activeDetailSubOrder.poNumber}</span></div>
                 <div><strong>Sub-Order Ref:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{activeDetailSubOrder.subOrderNumber}</span></div>
-                <div><strong>Parent Master Order:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{activeDetailSubOrder.masterOrderNumber}</span></div>
+                <div>
+                  <strong>Parent Master Order:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{activeDetailSubOrder.masterOrderNumber}</span>
+                  {(() => {
+                    const parentMO = getParentMasterOrder(activeDetailSubOrder.masterOrderNumber);
+                    if (!parentMO) return null;
+                    const isLocked = parentMO.advanceRequired && (parentMO.advanceOutstanding ?? 0) > 0;
+                    return (
+                      <div style={{ fontSize: 11, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, color: isLocked ? '#DC2626' : '#15803D' }}>
+                        {isLocked ? (
+                          <>
+                            <Lock size={12} /> Advance Outstanding: ₹{parentMO.advanceOutstanding?.toLocaleString()} (Execution Blocked)
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={12} /> Advance Cleared / Not Required
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
                 <div>
                   <strong>Customer / Buyer:</strong> <strong style={{ color: '#0F172A' }}>{activeDetailSubOrder.customerName}</strong>
                   <div style={{ fontSize: 11.5, color: '#0F766E', fontWeight: 700, fontFamily: 'monospace', marginTop: 1 }}>GST Number: {activeDetailSubOrder.buyerGst || '36APXPH0001A1Z5'}</div>
@@ -872,28 +911,42 @@ export const ManufacturerSubOrderModule: React.FC = () => {
                 </button>
 
                 <div style={{ display: 'flex', gap: 10 }}>
-                  {activeDetailSubOrder.status === 'Awaiting Acceptance' && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setViewDetailModal(false);
-                          handleOpenRejectModal(activeDetailSubOrder.subOrderNumber);
-                        }}
-                        style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#B91C1C', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        Reject Order
-                      </button>
-                      <button
-                        onClick={() => {
-                          setViewDetailModal(false);
-                          handleOpenAcceptModal(activeDetailSubOrder.subOrderNumber);
-                        }}
-                        style={{ padding: '9px 20px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFF', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}
-                      >
-                        Accept Purchase Order
-                      </button>
-                    </>
-                  )}
+                  {activeDetailSubOrder.status === 'Awaiting Acceptance' && (() => {
+                    const parentMO = getParentMasterOrder(activeDetailSubOrder.masterOrderNumber);
+                    const isLocked = parentMO?.advanceRequired && (parentMO.advanceOutstanding ?? 0) > 0;
+
+                    return (
+                      <>
+                        <button
+                          onClick={() => {
+                            setViewDetailModal(false);
+                            handleOpenRejectModal(activeDetailSubOrder.subOrderNumber);
+                          }}
+                          style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid #FCA5A5', background: '#FEF2F2', color: '#B91C1C', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          Reject Order
+                        </button>
+                        {isLocked ? (
+                          <div
+                            title={`Advance Outstanding: ₹${parentMO?.advanceOutstanding?.toLocaleString()}`}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 6, background: '#FEF3C7', border: '1px solid #FCD34D', color: '#92400E', fontSize: 12, fontWeight: 700 }}
+                          >
+                            <Lock size={14} /> Execution Locked (Advance Pending)
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setViewDetailModal(false);
+                              handleOpenAcceptModal(activeDetailSubOrder.subOrderNumber);
+                            }}
+                            style={{ padding: '9px 20px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFF', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}
+                          >
+                            Accept Purchase Order
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
                   <button onClick={() => setViewDetailModal(false)} style={{ padding: '9px 18px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
                     Close
                   </button>

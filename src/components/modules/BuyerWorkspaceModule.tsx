@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { RFQ, RFQLine, MasterOrder } from '../../types';
 import { Badge } from '../common/Badge';
+import { EnterpriseMetricBar } from '../common/EnterpriseMetricBar';
 import { AIMatchingModule } from './AIMatchingModule';
 
 export const BuyerWorkspaceModule: React.FC = () => {
@@ -383,105 +384,48 @@ export const BuyerWorkspaceModule: React.FC = () => {
       {activeTabLocal === 'DASHBOARD' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* 1. Key Procurement Summary (Compact KPI Row) */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-            {[
+          {/* 1. Key Procurement Summary (Enterprise Metric Bar) */}
+          <EnterpriseMetricBar
+            title="BUYER PROCUREMENT SUMMARY"
+            subtitle="Real-time status across active procurement sourcing cycles"
+            metrics={[
               {
                 label: 'Open RFQs',
                 value: openRfqsCount,
-                sub: 'Active in sourcing cycle',
-                icon: FileText,
-                accentColor: '#1D4ED8',
-                bgColor: 'rgba(29, 78, 216, 0.08)',
-                filterAction: () => navigateWithFilter('rfqs', 'PRICING_IN_PROGRESS'),
-                titleText: 'View Active RFQs'
+                subtext: 'Active in sourcing cycle',
+                valueColor: '#1D4ED8',
+                onClick: () => navigateWithFilter('rfqs', 'PRICING_IN_PROGRESS'),
               },
               {
                 label: 'Quotes Received',
                 value: quotesReceivedCount,
-                sub: 'Sealed manufacturer bids',
-                icon: Tag,
-                accentColor: '#0D9488',
-                bgColor: 'rgba(13, 148, 136, 0.08)',
-                filterAction: () => navigateWithFilter('quotes', 'SUBMITTED'),
-                titleText: 'View Received Quotes'
+                subtext: 'Sealed bids awaiting evaluation',
+                valueColor: '#0D9488',
+                onClick: () => navigateWithFilter('quotes', 'SUBMITTED'),
               },
               {
                 label: 'Orders In Progress',
                 value: ordersInProgressCount,
-                sub: 'Under production at plant',
-                icon: ShoppingBag,
-                accentColor: '#10B981',
-                bgColor: 'rgba(16, 185, 129, 0.08)',
-                filterAction: () => navigateWithFilter('orders', 'IN_PRODUCTION'),
-                titleText: 'View Orders In Production'
+                subtext: 'Under plant production',
+                valueColor: '#047857',
+                onClick: () => navigateWithFilter('orders', 'IN_PRODUCTION'),
               },
               {
                 label: 'Pending Approval',
                 value: pendingApprovalCount,
-                sub: 'Bids awaiting Buyer PO',
-                icon: Clock,
-                accentColor: '#F59E0B',
-                bgColor: 'rgba(245, 158, 11, 0.08)',
-                filterAction: () => navigateWithFilter('quotes', 'PENDING'),
-                titleText: 'View Quotes Awaiting Approval'
+                subtext: 'Bids awaiting Buyer PO',
+                valueColor: '#B45309',
+                onClick: () => navigateWithFilter('quotes', 'PENDING'),
               },
               {
                 label: 'Invoices Pending',
                 value: invoicesPendingCount,
-                sub: 'Accounts payable balance',
-                icon: Receipt,
-                accentColor: '#6366F1',
-                bgColor: 'rgba(99, 102, 241, 0.08)',
-                filterAction: () => navigateWithFilter('invoices', 'OPEN'),
-                titleText: 'View Pending Invoices'
+                subtext: 'Accounts payable balance',
+                valueColor: '#4F46E5',
+                onClick: () => navigateWithFilter('invoices', 'OPEN'),
               }
-            ].map((kpi, idx) => {
-              const Icon = kpi.icon;
-              return (
-                <div
-                  key={idx}
-                  onClick={kpi.filterAction}
-                  style={{
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 8,
-                    padding: '12px 14px',
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
-                    transition: 'all 0.15s ease',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = kpi.accentColor;
-                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.04)';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.02)';
-                  }}
-                  title={kpi.titleText}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>
-                      {kpi.label}
-                    </span>
-                    <div style={{ width: 24, height: 24, borderRadius: 5, background: kpi.bgColor, color: kpi.accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon size={13} />
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>
-                    {kpi.value}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {kpi.sub}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+            ]}
+          />
 
           {/* 2. Active RFQs Section (Main Section) */}
           <div className="ent-panel">

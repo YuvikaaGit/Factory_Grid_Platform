@@ -8,6 +8,7 @@ import {
   Building2, Factory, HelpCircle, ChevronRight, ChevronDown, Plus, Trash2,
   Download, UploadCloud, FileSpreadsheet, CheckCheck
 } from 'lucide-react';
+import { EnterpriseMetricBar } from '../common/EnterpriseMetricBar';
 
 export const MarginEngineModule: React.FC = () => {
   const {
@@ -750,10 +751,10 @@ BioCure Pharmaceuticals Ltd,BIO-MET-500,MET-500,Metformin SR 500mg Tablets,Perce
         </div>
       )}
 
-      {/* ── Top Header Bar ── */}
+      {/* ── Top Header Bar (Enterprise Flat Command Bar) ── */}
       <div style={{
-        background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24,
-        boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between',
+        background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: '18px 24px',
+        boxShadow: '0 1px 2px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between',
         alignItems: 'center', flexWrap: 'wrap', gap: 16
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -812,40 +813,17 @@ BioCure Pharmaceuticals Ltd,BIO-MET-500,MET-500,Metformin SR 500mg Tablets,Perce
         </div>
       </div>
 
-      {/* ── KPI Summary Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Configured Categories</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: 4 }}>
-            {metrics.configuredCount}
-          </div>
-          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Categories with active margins</div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Manufacturer Rules</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', marginTop: 4 }}>
-            {metrics.mfgRulesCount}
-          </div>
-          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Manufacturer & Mfg+Category rules</div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Active Margin Rules</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: '#2563EB', fontFamily: 'monospace', marginTop: 4 }}>
-            {metrics.activeRulesCount}
-          </div>
-          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Tiered multi-level commercial rules</div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Catalog SKUs Monitored</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: 4 }}>
-            {metrics.totalProducts}
-          </div>
-          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Products using margin hierarchy</div>
-        </div>
-      </div>
+      {/* ── KPI Summary Bar (Replaces 4 Floating Cards) ── */}
+      <EnterpriseMetricBar
+        title="MARGIN ENGINE GOVERNANCE OVERVIEW"
+        subtitle="Hierarchical Margin & Multi-Tier Pricing Rule Status"
+        metrics={[
+          { label: 'Configured Categories', value: metrics.configuredCount, sub: 'Active category margins', color: '#0F172A' },
+          { label: 'Manufacturer Rules', value: metrics.mfgRulesCount, sub: 'Manufacturer-specific rules', color: '#0F766E' },
+          { label: 'Active Margin Rules', value: metrics.activeRulesCount, sub: 'Tiered commercial rules', color: '#2563EB' },
+          { label: 'Catalog SKUs Monitored', value: metrics.totalProducts, sub: 'Products in margin hierarchy', color: '#0F172A' },
+        ]}
+      />
 
       {/* ── View Mode Navigation Tabs ── */}
       <div style={{ display: 'flex', borderBottom: '1px solid #CBD5E1', gap: 24 }}>

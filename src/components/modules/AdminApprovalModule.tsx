@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { EnterpriseMetricBar } from '../common/EnterpriseMetricBar';
 import { useApp } from '../../context/AppContext';
 import {
   Key, ShieldCheck, UserCheck, AlertCircle, RefreshCw, Search, CheckCircle2,
@@ -246,7 +247,7 @@ export const AdminApprovalModule: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingBottom: 48, background: '#F8FAFC', minHeight: '100vh' }}>
 
       {/* ── TOP HEADER BAR ────────────────────────────────────── */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '20px 24px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: '20px 24px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ width: 44, height: 44, borderRadius: 10, background: '#EFF6FF', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
             <Key size={24} />
@@ -286,56 +287,48 @@ export const AdminApprovalModule: React.FC = () => {
         </div>
       </div>
 
-      {/* ── QUICK KPI CARDS ───────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Organizations</span>
-            <Building2 size={16} style={{ color: '#2563EB' }} />
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#0F172A', marginTop: 8 }}>{metrics.total}</div>
-          <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 4 }}>Registered entities</div>
-        </div>
-
-        <div onClick={() => setFilterTab('PENDING')} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', cursor: 'pointer' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Pending Provision</span>
-            <Clock size={16} style={{ color: '#2563EB' }} />
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#2563EB', marginTop: 8 }}>{metrics.pending}</div>
-          <div style={{ fontSize: 11.5, color: '#2563EB', fontWeight: 600, marginTop: 4 }}>● Needs Action</div>
-        </div>
-
-        <div onClick={() => setFilterTab('PROVISIONED')} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', cursor: 'pointer' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Provisioned Users</span>
-            <UserCheck size={16} style={{ color: '#9333EA' }} />
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#9333EA', marginTop: 8 }}>{metrics.provisioned}</div>
-          <div style={{ fontSize: 11.5, color: '#9333EA', fontWeight: 600, marginTop: 4 }}>Active credentials</div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Roles</span>
-            <ShieldCheck size={16} style={{ color: '#16A34A' }} />
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#0F172A', marginTop: 8 }}>{metrics.roles}</div>
-          <div style={{ fontSize: 11.5, color: '#16A34A', fontWeight: 600, marginTop: 4 }}>✓ RBAC Active</div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '18px 20px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active Sessions</span>
-            <Server size={16} style={{ color: '#14B8A6' }} />
-          </div>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#0F172A', marginTop: 8 }}>{metrics.activeSessions}</div>
-          <div style={{ fontSize: 11.5, color: '#14B8A6', fontWeight: 600, marginTop: 4 }}>● Live Concurrent</div>
-        </div>
-      </div>
+      {/* ── QUICK KPI METRIC BAR ───────────────────────────────────── */}
+      <EnterpriseMetricBar
+        title="USER PROVISIONING & RBAC GOVERNANCE"
+        subtitle="Identity lifecycle, pending credentials, and active platform sessions"
+        metrics={[
+          {
+            label: 'Organizations',
+            value: metrics.total,
+            subtext: 'Registered entities',
+            valueColor: '#0F172A',
+          },
+          {
+            label: 'Pending Provision',
+            value: metrics.pending,
+            subtext: 'Needs Action',
+            valueColor: '#2563EB',
+            onClick: () => setFilterTab('PENDING'),
+          },
+          {
+            label: 'Provisioned Users',
+            value: metrics.provisioned,
+            subtext: 'Active credentials',
+            valueColor: '#9333EA',
+            onClick: () => setFilterTab('PROVISIONED'),
+          },
+          {
+            label: 'Active Roles',
+            value: metrics.roles,
+            subtext: 'RBAC Active',
+            valueColor: '#16A34A',
+          },
+          {
+            label: 'Active Sessions',
+            value: metrics.activeSessions,
+            subtext: 'Live Concurrent',
+            valueColor: '#0D9488',
+          }
+        ]}
+      />
 
       {/* ── ACTION TOOLBAR ───────────────────────────────────── */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '14px 20px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: '14px 20px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {[
             { id: 'PENDING', label: `Pending Provision (${metrics.pending})` },
@@ -378,7 +371,7 @@ export const AdminApprovalModule: React.FC = () => {
       </div>
 
       {/* ── MAIN DATA TABLE ──────────────────────────────────── */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
           <thead>
             <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: 11.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>

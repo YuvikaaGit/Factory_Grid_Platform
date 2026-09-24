@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Badge } from '../common/Badge';
+import { EnterpriseMetricBar } from '../common/EnterpriseMetricBar';
 import { RFQ, RFQLine, RFQStatus, Invoice, MasterOrder, Shipment } from '../../types';
 import {
   FileText, ShieldCheck, Package, AlertTriangle, Tag,
@@ -49,7 +50,7 @@ export const Dashboards: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48, background: '#F8FAFC', color: '#0F172A', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
       {/* ── 1. TOP HEADER: PLATFORM MONITORING DASHBOARD ───────────────── */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 24px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: '18px 24px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 800, color: '#4F46E5', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             <ShieldCheck size={14} /> Platform Command Console · Role: {currentRole}
@@ -74,47 +75,26 @@ export const Dashboards: React.FC = () => {
               placeholder="Search records..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              style={{ width: '100%', height: 36, paddingLeft: 34, paddingRight: 12, fontSize: 12, border: '1px solid #CBD5E1', borderRadius: 8, background: '#F8FAFC', outline: 'none' }}
+              style={{ width: '100%', height: 36, paddingLeft: 34, paddingRight: 12, fontSize: 12, border: '1px solid #CBD5E1', borderRadius: 6, background: '#F8FAFC', outline: 'none' }}
             />
           </div>
         </div>
       </div>
 
-      {/* ── 2. TOP KPI CARDS (7 MONITORING-ONLY CARDS) ────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-        {[
-          { label: 'ACTIVE RFQs', value: activeRfqsCount, sub: 'Active Sourcing RFQs', icon: FileText, color: '#2563EB', bg: '#EFF6FF', tab: 'rfqs' },
-          { label: 'QUOTES RECEIVED', value: quotesReceivedCount, sub: 'Manufacturer Quotes', icon: Tag, color: '#7C3AED', bg: '#F5F3FF', tab: 'quotes' },
-          { label: 'ACTIVE MASTER ORDERS', value: activeOrdersCount, sub: 'Master Order Records', icon: ShoppingBag, color: '#059669', bg: '#ECFDF5', tab: 'orders' },
-          { label: 'ORDERS IN PRODUCTION', value: inProductionCount, sub: 'Running Batches', icon: Cpu, color: '#0891B2', bg: '#CFFAFE', tab: 'orders' },
-          { label: 'ACTIVE SHIPMENTS', value: activeShipmentsCount, sub: 'In-Transit Shipments', icon: Truck, color: '#D97706', bg: '#FFFBEB', tab: 'shipments' },
-          { label: 'OUTSTANDING AR', value: `₹${totalArBalance.toLocaleString('en-IN')}`, sub: 'Unsettled Treasury AR', icon: Receipt, color: '#DC2626', bg: '#FEF2F2', tab: 'invoices' },
-          { label: 'PENDING COMPLIANCE', value: complianceItemsCount, sub: 'Verifications Pending', icon: ShieldCheck, color: '#4F46E5', bg: '#EEF2FF', tab: 'compliance' },
-        ].map((kpi, idx) => {
-          const Icon = kpi.icon;
-          return (
-            <div
-              key={idx}
-              onClick={() => setActiveTab(kpi.tab as any)}
-              style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = kpi.color; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.transform = 'none'; }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                <span style={{ fontSize: 10, fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{kpi.label}</span>
-                <div style={{ width: 26, height: 26, borderRadius: 6, background: kpi.bg, color: kpi.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={14} />
-                </div>
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>{kpi.value}</div>
-              <div style={{ fontSize: 10.5, color: '#94A3B8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <span>{kpi.sub}</span>
-                <ChevronRight size={11} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* ── 2. TOP METRICS SUMMARY BAR (Replaces 7 Floating Cards) ────── */}
+      <EnterpriseMetricBar
+        title="PLATFORM OPERATIONS MONITORING SUMMARY"
+        subtitle="Live Procurement, Fulfillment & Financial State"
+        metrics={[
+          { label: 'Active RFQs', value: activeRfqsCount, sub: 'Sourcing cycle', color: '#2563EB' },
+          { label: 'Quotes Received', value: quotesReceivedCount, sub: 'Manufacturer bids', color: '#7C3AED' },
+          { label: 'Master Orders', value: activeOrdersCount, sub: 'Active PO records', color: '#059669' },
+          { label: 'In Production', value: inProductionCount, sub: 'Running batches', color: '#0891B2' },
+          { label: 'Active Shipments', value: activeShipmentsCount, sub: 'In-transit fleet', color: '#D97706' },
+          { label: 'Outstanding AR', value: `₹${(totalArBalance / 100000).toFixed(1)}L`, sub: 'Unsettled treasury', color: '#DC2626' },
+          { label: 'Compliance Cases', value: complianceItemsCount, sub: 'Pending review', color: '#4F46E5' },
+        ]}
+      />
 
       {/* ── 3. MONITORING SECTIONS TABS ───────────────────────────────── */}
       <div style={{ display: 'flex', gap: 8, background: '#E2E8F0', padding: 4, borderRadius: 10, overflowX: 'auto' }}>

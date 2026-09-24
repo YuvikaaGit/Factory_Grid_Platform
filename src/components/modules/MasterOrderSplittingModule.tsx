@@ -5,9 +5,10 @@ import { RaiseQaModal, getStoredQaRequests } from './RaiseQaModal';
 import {
   ShoppingBag, Factory, CheckCircle2, Clock, ChevronRight, ChevronDown, AlertCircle,
   Package, ArrowRight, Layers, FileText, ShieldCheck, Eye, Search, Filter, Check, X, ArrowLeft, FileCheck, Send, Building2,
-  MapPin, RefreshCw, Edit, Plus, Upload, Download, Sparkles, Mail, Palette, Phone, Headphones, Info, Receipt
+  MapPin, RefreshCw, Edit, Plus, Upload, Download, Sparkles, Mail, Palette, Phone, Headphones, Info, Receipt, Lock
 } from 'lucide-react';
 import { ProformaInvoiceSection } from '../common/ProformaInvoiceSection';
+import { AdvancePaymentSection } from '../common/AdvancePaymentSection';
 
 export const MasterOrderSplittingModule: React.FC = () => {
   const {
@@ -1974,14 +1975,82 @@ export const MasterOrderSplittingModule: React.FC = () => {
                         <td style={{ padding: '12px 14px' }}>
                           <span
                             style={{
-                              fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
-                              background: isHeld ? '#FEF2F2' : (isCompleted ? '#DCFCE7' : '#FEF3C7'),
-                              color: isHeld ? '#DC2626' : (isCompleted ? '#15803D' : '#B45309'),
-                              border: isHeld ? '1px solid #FECACA' : (isCompleted ? '1px solid #86EFAC' : '1px solid #FCD34D')
+                              fontSize: 10.5, fontWeight: 800, padding: '3px 8px', borderRadius: 4, display: 'inline-block',
+                              background: isHeld
+                                ? '#FEF2F2'
+                                : order.status === 'CONFIRMED_RELEASED' || isCompleted
+                                ? '#DCFCE7'
+                                : order.status === 'PENDING_ADMIN_APPROVAL'
+                                ? '#FFF7ED'
+                                : order.status === 'PENDING_ADVANCE'
+                                ? '#FEF3C7'
+                                : '#EFF6FF',
+                              color: isHeld
+                                ? '#DC2626'
+                                : order.status === 'CONFIRMED_RELEASED' || isCompleted
+                                ? '#15803D'
+                                : order.status === 'PENDING_ADMIN_APPROVAL'
+                                ? '#C2410C'
+                                : order.status === 'PENDING_ADVANCE'
+                                ? '#B45309'
+                                : '#1D4ED8',
+                              border: isHeld
+                                ? '1px solid #FECACA'
+                                : order.status === 'CONFIRMED_RELEASED' || isCompleted
+                                ? '1px solid #86EFAC'
+                                : order.status === 'PENDING_ADMIN_APPROVAL'
+                                ? '1px solid #FFEDD5'
+                                : order.status === 'PENDING_ADVANCE'
+                                ? '1px solid #FCD34D'
+                                : '1px solid #BFDBFE'
                             }}
                           >
-                            {isHeld ? 'ON_HOLD' : order.status}
+                            {isHeld ? 'ON_HOLD' : (order.status || 'OPEN').replace(/_/g, ' ')}
                           </span>
+                          {order.advanceStatus && (
+                            <div style={{ marginTop: 4 }}>
+                              <span
+                                style={{
+                                  fontSize: 9.5, fontWeight: 800, padding: '1px 6px', borderRadius: 3,
+                                  background: order.advanceStatus === 'PAID'
+                                    ? '#DCFCE7'
+                                    : order.advanceStatus === 'PARTIALLY_PAID'
+                                    ? '#EFF6FF'
+                                    : order.advanceStatus === 'OVERPAID_REVIEW'
+                                    ? '#FEF2F2'
+                                    : order.advanceStatus === 'REVERSED'
+                                    ? '#FDF2F8'
+                                    : order.advanceStatus === 'NOT_REQUIRED'
+                                    ? '#F1F5F9'
+                                    : '#FEF3C7',
+                                  color: order.advanceStatus === 'PAID'
+                                    ? '#15803D'
+                                    : order.advanceStatus === 'PARTIALLY_PAID'
+                                    ? '#1D4ED8'
+                                    : order.advanceStatus === 'OVERPAID_REVIEW'
+                                    ? '#DC2626'
+                                    : order.advanceStatus === 'REVERSED'
+                                    ? '#9D174D'
+                                    : order.advanceStatus === 'NOT_REQUIRED'
+                                    ? '#475569'
+                                    : '#B45309',
+                                  border: order.advanceStatus === 'PAID'
+                                    ? '1px solid #86EFAC'
+                                    : order.advanceStatus === 'PARTIALLY_PAID'
+                                    ? '1px solid #BFDBFE'
+                                    : order.advanceStatus === 'OVERPAID_REVIEW'
+                                    ? '1px solid #FCA5A5'
+                                    : order.advanceStatus === 'REVERSED'
+                                    ? '1px solid #FBCFE8'
+                                    : order.advanceStatus === 'NOT_REQUIRED'
+                                    ? '1px solid #CBD5E1'
+                                    : '1px solid #FCD34D'
+                                }}
+                              >
+                                Adv: {order.advanceStatus.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: '12px 14px', fontWeight: 600, color: '#475569' }}>
                           3 Quotes
@@ -3540,7 +3609,26 @@ export const MasterOrderSplittingModule: React.FC = () => {
 
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Master Order Status</div>
-            <span style={{ fontSize: 12, fontWeight: 800, padding: '3px 10px', borderRadius: 4, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC', display: 'inline-block', marginTop: 4 }}>
+            <span
+              style={{
+                fontSize: 12, fontWeight: 800, padding: '3px 10px', borderRadius: 4, display: 'inline-block', marginTop: 4,
+                background: activeMasterOrder.status === 'CONFIRMED_RELEASED' || activeMasterOrder.status === 'CLOSED' || activeMasterOrder.status === 'DELIVERED'
+                  ? '#DCFCE7' : activeMasterOrder.status === 'PENDING_ADMIN_APPROVAL'
+                  ? '#FFF7ED' : activeMasterOrder.status === 'PENDING_ADVANCE'
+                  ? '#FEF3C7' : activeMasterOrder.isOnHold || activeMasterOrder.status === 'ON_HOLD'
+                  ? '#FEF2F2' : '#EFF6FF',
+                color: activeMasterOrder.status === 'CONFIRMED_RELEASED' || activeMasterOrder.status === 'CLOSED' || activeMasterOrder.status === 'DELIVERED'
+                  ? '#15803D' : activeMasterOrder.status === 'PENDING_ADMIN_APPROVAL'
+                  ? '#C2410C' : activeMasterOrder.status === 'PENDING_ADVANCE'
+                  ? '#B45309' : activeMasterOrder.isOnHold || activeMasterOrder.status === 'ON_HOLD'
+                  ? '#DC2626' : '#1D4ED8',
+                border: activeMasterOrder.status === 'CONFIRMED_RELEASED' || activeMasterOrder.status === 'CLOSED' || activeMasterOrder.status === 'DELIVERED'
+                  ? '1px solid #86EFAC' : activeMasterOrder.status === 'PENDING_ADMIN_APPROVAL'
+                  ? '1px solid #FFEDD5' : activeMasterOrder.status === 'PENDING_ADVANCE'
+                  ? '1px solid #FCD34D' : activeMasterOrder.isOnHold || activeMasterOrder.status === 'ON_HOLD'
+                  ? '1px solid #FCA5A5' : '1px solid #BFDBFE'
+              }}
+            >
               {activeMasterOrder.status || 'OPEN'}
             </span>
           </div>
@@ -3557,6 +3645,19 @@ export const MasterOrderSplittingModule: React.FC = () => {
             <div style={{ fontSize: 11, color: '#0F766E', marginTop: 2, fontWeight: 600 }}>Expected Delivery: 2026-09-02</div>
           </div>
         </div>
+
+        {/* ── ADVANCE PAYMENT SECTION (MASTER ORDER LEVEL) ── */}
+        <AdvancePaymentSection order={activeMasterOrder} />
+
+        {/* Advance Lock Notice on Manufacturer Sub-Orders */}
+        {(activeMasterOrder.status === 'PENDING_ADVANCE' || activeMasterOrder.status === 'PENDING_ADMIN_APPROVAL' || ((activeMasterOrder.advanceOutstanding ?? 0) > 0 && activeMasterOrder.advanceRequired !== false)) && (
+          <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 10, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10, color: '#92400E', fontSize: 12.5 }}>
+            <Lock size={16} style={{ color: '#B45309', flexShrink: 0 }} />
+            <div>
+              <strong>🔒 Manufacturer Execution Locked:</strong> Advance payment of <strong style={{ fontFamily: 'monospace' }}>₹{(activeMasterOrder.advanceOutstanding ?? 0).toLocaleString('en-IN')}</strong> is currently outstanding against Master Order {activeMasterOrder.orderNumber}. In accordance with O2C business governance, manufacturer execution and release cannot proceed while advance payment is outstanding.
+            </div>
+          </div>
+        )}
 
         {/* Manufacturer Sub-Order Cards Container */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -3777,20 +3878,37 @@ export const MasterOrderSplittingModule: React.FC = () => {
           >
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace' }}>MO-2026-1001</span>
-                <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4, background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' }}>
-                  {masterPoStatus}
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace' }}>{ord.orderNumber}</span>
+                <span
+                  style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
+                    background: ord.status === 'CONFIRMED_RELEASED' ? '#DCFCE7' : ord.status === 'PENDING_ADMIN_APPROVAL' ? '#FFF7ED' : ord.status === 'PENDING_ADVANCE' ? '#FEF3C7' : '#EFF6FF',
+                    color: ord.status === 'CONFIRMED_RELEASED' ? '#15803D' : ord.status === 'PENDING_ADMIN_APPROVAL' ? '#C2410C' : ord.status === 'PENDING_ADVANCE' ? '#B45309' : '#1D4ED8',
+                    border: ord.status === 'CONFIRMED_RELEASED' ? '1px solid #86EFAC' : ord.status === 'PENDING_ADMIN_APPROVAL' ? '1px solid #FFEDD5' : ord.status === 'PENDING_ADVANCE' ? '1px solid #FCD34D' : '1px solid #BFDBFE'
+                  }}
+                >
+                  {(ord.status || 'OPEN').replace(/_/g, ' ')}
                 </span>
               </div>
 
               <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: '0 0 6px 0' }}>{ord.customerName}</h3>
 
               <div style={{ fontSize: 12.5, color: '#475569', display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10 }}>
-                <div>Source Quote: <strong style={{ color: '#0F766E', fontFamily: 'monospace' }}>QUOTE-1001</strong></div>
-                <div>Product Lines: <strong style={{ color: '#0F172A' }}>4 Product Lines</strong></div>
-                <div>Sub-Orders: <strong style={{ color: '#0F766E' }}>3 Sub-Orders Created</strong></div>
-                <div>Purchase Orders: <strong style={{ color: '#0F766E' }}>3 / 3 POs Created</strong></div>
-                <div>Total Order Value: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>₹2,97,800</strong></div>
+                <div>Source Quote: <strong style={{ color: '#0F766E', fontFamily: 'monospace' }}>{ord.rfqNumber ? `QUOTE-${ord.rfqNumber.replace('RFQ-', '')}` : 'QUOTE-1001'}</strong></div>
+                <div>Sub-Orders: <strong style={{ color: '#0F766E' }}>{ord.subOrders?.length || 1} Sub-Orders</strong></div>
+                <div>Total Order Value: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>₹{ord.totalAmount?.toLocaleString('en-IN')}</strong></div>
+                {ord.advanceStatus && (
+                  <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ color: '#64748B' }}>Advance Status:</span>
+                    <strong style={{
+                      fontSize: 11, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+                      background: ord.advanceStatus === 'PAID' ? '#DCFCE7' : ord.advanceStatus === 'PARTIALLY_PAID' ? '#EFF6FF' : ord.advanceStatus === 'OVERPAID_REVIEW' ? '#FEF2F2' : ord.advanceStatus === 'NOT_REQUIRED' ? '#F1F5F9' : '#FEF3C7',
+                      color: ord.advanceStatus === 'PAID' ? '#15803D' : ord.advanceStatus === 'PARTIALLY_PAID' ? '#1D4ED8' : ord.advanceStatus === 'OVERPAID_REVIEW' ? '#DC2626' : ord.advanceStatus === 'NOT_REQUIRED' ? '#475569' : '#B45309'
+                    }}>
+                      {ord.advanceStatus.replace(/_/g, ' ')}
+                    </strong>
+                  </div>
+                )}
               </div>
             </div>
 

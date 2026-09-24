@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { EnterpriseMetricBar } from '../common/EnterpriseMetricBar';
 import { useApp } from '../../context/AppContext';
 import {
   BarChart3, TrendingUp, DollarSign, ShoppingBag, Receipt, Truck, Users, Factory, ShieldCheck, Filter, Calendar, AlertTriangle, ArrowUpRight, CheckCircle2, Clock, Award, Building2, Search, FileText, Check, Activity
@@ -175,7 +176,7 @@ export const AdminAnalyticsModule: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48, background: '#F8FAFC', color: '#0F172A' }}>
       
       {/* ── HEADER & DATE RANGE FILTER BAR ───────────────────────── */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.05)', flexWrap: 'wrap', gap: 14 }}>
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.05)', flexWrap: 'wrap', gap: 14 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <BarChart3 size={22} style={{ color: '#0F766E' }} />
@@ -216,37 +217,67 @@ export const AdminAnalyticsModule: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 1. TOP PLATFORM KPI CARDS ───────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        {[
-          { title: 'Total RFQs', val: totalRfqsCount, color: '#0F766E', icon: FileText, detail: `${activeRfqsCount} Active Requisitions` },
-          { title: 'Total Master Orders', val: totalMasterOrdersCount, color: '#1D4ED8', icon: ShoppingBag, detail: 'Multi-Sub-Order Contracts' },
-          { title: 'Total Procurement Value', val: `₹${(totalProcurementValue / 100000).toFixed(2)}L`, color: '#0D9488', icon: DollarSign, detail: 'Cumulative GMV Value' },
-          { title: 'Active Shipments', val: activeShipmentsCount, color: '#0284C7', icon: Truck, detail: 'In Transit & Dispatched' },
-          { title: 'Delivered Shipments', val: deliveredShipmentsCount, color: '#15803D', icon: CheckCircle2, detail: 'Verified GRN / POD' },
-          { title: 'Total Invoiced', val: `₹${(totalInvoicedAmount / 100000).toFixed(2)}L`, color: '#6B21A8', icon: Receipt, detail: `${filteredInvoices.length} Tax Invoices` },
-          { title: 'Payments Received', val: `₹${(totalPaymentsReceived / 100000).toFixed(2)}L`, color: '#16A34A', icon: CheckCircle2, detail: 'Remitted Collections' },
-          { title: 'Outstanding Balance', val: `₹${(totalOutstandingAmount / 100000).toFixed(2)}L`, color: '#DC2626', icon: AlertTriangle, detail: 'Accounts Receivable (AR)' },
-        ].map((kpi, idx) => {
-          const Icon = kpi.icon;
-          return (
-            <div key={idx} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, borderTop: `3px solid ${kpi.color}`, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#64748B', textTransform: 'uppercase' }}>{kpi.title}</span>
-                <Icon size={16} style={{ color: kpi.color }} />
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#0F172A', fontFamily: 'monospace' }}>{kpi.val}</div>
-              <div style={{ fontSize: 10.5, fontWeight: 600, color: '#64748B', marginTop: 4 }}>{kpi.detail}</div>
-            </div>
-          );
-        })}
-      </div>
+      {/* ── 1. KPI SUMMARY BAR (ENTERPRISE DENSE) ────────────────────────── */}
+      <EnterpriseMetricBar
+        title="ENTERPRISE PROCUREMENT & FINANCIAL ANALYTICS"
+        subtitle="Live platform metrics across orders, requisitions, shipments, and accounts receivable"
+        metrics={[
+          {
+            label: 'Total RFQs',
+            value: totalRfqsCount,
+            subtext: `${activeRfqsCount} Active Requisitions`,
+            valueColor: '#0F766E',
+          },
+          {
+            label: 'Master Orders',
+            value: totalMasterOrdersCount,
+            subtext: 'Contracts Created',
+            valueColor: '#1D4ED8',
+          },
+          {
+            label: 'Procurement GMV',
+            value: `₹${(totalProcurementValue / 100000).toFixed(2)}L`,
+            subtext: 'Cumulative Value',
+            valueColor: '#0D9488',
+          },
+          {
+            label: 'Active Shipments',
+            value: activeShipmentsCount,
+            subtext: 'In Transit / Dispatched',
+            valueColor: '#0284C7',
+          },
+          {
+            label: 'Delivered',
+            value: deliveredShipmentsCount,
+            subtext: 'Verified GRN / POD',
+            valueColor: '#15803D',
+          },
+          {
+            label: 'Total Invoiced',
+            value: `₹${(totalInvoicedAmount / 100000).toFixed(2)}L`,
+            subtext: `${filteredInvoices.length} Tax Invoices`,
+            valueColor: '#6B21A8',
+          },
+          {
+            label: 'Settled Collections',
+            value: `₹${(totalPaymentsReceived / 100000).toFixed(2)}L`,
+            subtext: 'Remitted Payments',
+            valueColor: '#16A34A',
+          },
+          {
+            label: 'Outstanding AR',
+            value: `₹${(totalOutstandingAmount / 100000).toFixed(2)}L`,
+            subtext: 'Accounts Receivable',
+            valueColor: '#DC2626',
+          }
+        ]}
+      />
 
       {/* ── 2 & 3. MONTHLY PROCUREMENT VALUE & RFQ STATUS DISTRIBUTION ────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
         
         {/* Monthly Procurement Value Trajectory */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', margin: 0 }}>Monthly Procurement Value Trend</h3>
@@ -275,7 +306,7 @@ export const AdminAnalyticsModule: React.FC = () => {
         </div>
 
         {/* RFQ Status Distribution Pie/Donut Chart */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', margin: 0, marginBottom: 12 }}>RFQ Lifecycle Breakdown</h3>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
@@ -310,7 +341,7 @@ export const AdminAnalyticsModule: React.FC = () => {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         
         {/* Master Order Workflow Status Overview */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
           <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', margin: 0, marginBottom: 14 }}>Order Fulfillment Pipeline</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {orderStatusCounts.map(st => (
@@ -331,7 +362,7 @@ export const AdminAnalyticsModule: React.FC = () => {
         </div>
 
         {/* Shipment Telemetry Status Breakdown */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
           <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', margin: 0, marginBottom: 14 }}>Shipment & Telemetry Status</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {shipmentStatusCounts.map(st => (
@@ -356,7 +387,7 @@ export const AdminAnalyticsModule: React.FC = () => {
       <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 20 }}>
         
         {/* Top Suppliers Leaderboard */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', margin: 0 }}>Top Performing Manufacturers</h3>
@@ -402,7 +433,7 @@ export const AdminAnalyticsModule: React.FC = () => {
 
         {/* Invoice & Payment Reconciliation */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
             <h3 style={{ fontSize: 14.5, fontWeight: 800, color: '#0F172A', margin: 0, marginBottom: 12 }}>Invoice & Payment Breakdown</h3>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -440,7 +471,7 @@ export const AdminAnalyticsModule: React.FC = () => {
           </div>
 
           {/* CDSCO & GST Verification Summary */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>Regulatory & Verification Summary</div>
               <ShieldCheck size={18} style={{ color: '#16A34A' }} />
@@ -462,7 +493,7 @@ export const AdminAnalyticsModule: React.FC = () => {
       </div>
 
       {/* ── 8. RECENT PROCUREMENT ACTIVITY STREAM ──────────────── */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.05)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 800, color: '#0F172A', marginBottom: 14 }}>
           <Activity size={18} style={{ color: '#0F766E' }} />
           <span>RECENT PLATFORM PROCUREMENT ACTIVITY</span>

@@ -17,7 +17,7 @@ import {
   LayoutDashboard, Users, Factory, Package, FileText, Tag, Award,
   ShoppingBag, Receipt, ShieldAlert, ShieldCheck, BarChart3, Bell, Settings,
   Search, ChevronDown, ChevronRight, Home, Menu, X, Sun, Moon, Sparkles, Command,
-  ChevronLeft, PanelLeftClose, PanelLeftOpen, Pin, Clock, Star, LogOut, Cpu, Truck, Landmark, UserCheck, PieChart, FileCheck, Key, Activity, Layers, Percent, RotateCcw
+  ChevronLeft, PanelLeftClose, PanelLeftOpen, Pin, Clock, Star, LogOut, Cpu, Truck, Landmark, UserCheck, PieChart, FileCheck, Key, Activity, Layers, Percent, RotateCcw, CreditCard
 } from 'lucide-react';
 import { CategoryMasterModule } from '../components/modules/CategoryMasterModule';
 import { MarginEngineModule } from '../components/modules/MarginEngineModule';
@@ -65,6 +65,7 @@ import { FactoryBuddyCommunicationDesk } from '../components/modules/FactoryBudd
 import { AccountMenuPopover } from '../components/common/AccountMenuPopover';
 import { ManufacturerOrderHistoryModule } from '../components/modules/ManufacturerOrderHistoryModule';
 import { ManufacturerSettingsModule } from '../components/modules/ManufacturerSettingsModule';
+import { BuyerAdvancePaymentsModule } from '../components/modules/BuyerAdvancePaymentsModule';
 
 export interface ManufacturerNavGroup {
   key: string;
@@ -201,6 +202,8 @@ export const BUYER_NAV_GROUPS: BuyerNavGroup[] = [
     defaultExpanded: true,
     items: [
       { id: 'invoices', label: 'Invoices & Payments', icon: Receipt },
+      { id: 'buyer-advance-payments', label: 'Advance Payments', icon: CreditCard, badge: 'advance' },
+      { id: 'payment-history', label: 'Payment History', icon: Clock },
     ],
   },
   {
@@ -416,6 +419,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
       return activeOrders;
     }
     if (badge === 'notif') return unreadNotifs;
+    if (badge === 'advance') {
+      // Count buyer orders with advance pending payment
+      return (orders || []).filter(o =>
+        o.advanceRequired !== false &&
+        o.status === 'PENDING_ADVANCE' &&
+        (o.advanceStatus === 'PENDING' || o.advanceStatus === 'PARTIALLY_PAID')
+      ).length;
+    }
     return 0;
   };
 
@@ -563,8 +574,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
       case 'my-orders': return <BuyerOrderTrackingModule initialViewMode="ORDERS_LIST" />;
       case 'shipments': return currentRole === 'BUYER' ? <BuyerOrderTrackingModule initialViewMode="TRACKING_DETAIL" /> : <ShipmentModule onNavigateTab={handleTabClick} />;
       case 'goods-received': return currentRole === 'SUPPLIER' ? <ShipmentModule onNavigateTab={handleTabClick} /> : <BuyerOrderTrackingModule initialViewMode="ORDERS_LIST" />;
-      case 'buyer-tracking': return <BuyerOrderTrackingModule initialViewMode="TRACKING_DETAIL" />;
-      case 'invoices': return <InvoiceModule />;
+      case 'invoices': return <InvoiceModule isPaymentHistoryMode={false} />;
+      case 'payment-history': return <InvoiceModule isPaymentHistoryMode={true} />;
+      case 'buyer-advance-payments': return <BuyerAdvancePaymentsModule />;
       case 'accounts': return <AccountsModule />;
       case 'compliance-verification':
       case 'customer-verification': return <CustomerVerificationModule />;

@@ -6,6 +6,7 @@ import {
   AlertTriangle, Cpu, Eye, X, Activity
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
+import { EnterpriseMetricBar } from '../common/EnterpriseMetricBar';
 
 export const ManufacturerDashboardModule: React.FC = () => {
   const {
@@ -405,121 +406,55 @@ export const ManufacturerDashboardModule: React.FC = () => {
         </div>
       </div>
 
-      {/* ── 2. Key Operational Metrics (Compact 6-Card Row) ────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-        {[
+      {/* ── 2. Key Operational Metrics (Enterprise Metric Bar) ────────── */}
+      <EnterpriseMetricBar
+        title="MANUFACTURING OPERATIONS SUMMARY"
+        subtitle="Live production pipeline, RFQ responses, and fulfillment status"
+        metrics={[
           {
             label: 'Assigned RFQs',
             value: assignedRfqs.length,
-            sub: 'Pending quote input',
-            icon: FileText,
-            accentColor: '#1D4ED8',
-            bgColor: 'rgba(29, 78, 216, 0.08)',
-            cta: 'View RFQs →',
-            onAction: () => setActiveTab('rfqs')
+            subtext: 'Pending quote input',
+            valueColor: '#1D4ED8',
+            onClick: () => setActiveTab('rfqs'),
           },
           {
             label: 'Quotes Submitted',
             value: submittedQuotes.length,
-            sub: 'Active & under review',
-            icon: Tag,
-            accentColor: '#0D9488',
-            bgColor: 'rgba(13, 148, 136, 0.08)',
-            cta: 'View Submissions →',
-            onAction: () => setActiveTab('quotes')
+            subtext: 'Active & under review',
+            valueColor: '#0D9488',
+            onClick: () => setActiveTab('quotes'),
           },
           {
             label: 'Active Purchase Orders',
             value: activeOrdersCount,
-            sub: 'Sub-orders assigned to plant',
-            icon: ShoppingBag,
-            accentColor: '#10B981',
-            bgColor: 'rgba(16, 185, 129, 0.08)',
-            cta: 'Order Management →',
-            onAction: () => setActiveTab('orders')
+            subtext: 'Sub-orders assigned',
+            valueColor: '#047857',
+            onClick: () => setActiveTab('orders'),
           },
           {
             label: 'Production in Progress',
             value: inProductionCount,
-            sub: 'Active batch runs on line',
-            icon: Cpu,
-            accentColor: '#D97706',
-            bgColor: 'rgba(217, 119, 6, 0.08)',
-            cta: 'Production Planning →',
-            onAction: () => setActiveTab('production-planning')
+            subtext: 'Active plant batch runs',
+            valueColor: '#D97706',
+            onClick: () => setActiveTab('production-planning'),
           },
           {
             label: 'Dispatch / Shipments',
             value: inTransitCount,
-            sub: `${readyToDispatchCount} ready · ${inTransitCount} in transit`,
-            icon: Truck,
-            accentColor: '#8B5CF6',
-            bgColor: 'rgba(139, 92, 246, 0.08)',
-            cta: 'Track Shipments →',
-            onAction: () => setActiveTab('shipments')
+            subtext: `${readyToDispatchCount} ready · ${inTransitCount} in transit`,
+            valueColor: '#7C3AED',
+            onClick: () => setActiveTab('shipments'),
           },
           {
             label: 'Invoices & Payments',
             value: pendingInvoicesCount,
-            sub: 'Pending clearance / open',
-            icon: Receipt,
-            accentColor: '#4F46E5',
-            bgColor: 'rgba(79, 70, 229, 0.08)',
-            cta: 'Invoices & Payments →',
-            onAction: () => setActiveTab('invoices')
+            subtext: 'Pending clearance / open',
+            valueColor: '#4F46E5',
+            onClick: () => setActiveTab('invoices'),
           }
-        ].map((card, idx) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={idx}
-              onClick={card.onAction}
-              style={{
-                background: '#FFFFFF',
-                border: '1px solid #E2E8F0',
-                borderRadius: 8,
-                padding: '12px 14px',
-                cursor: 'pointer',
-                boxShadow: '0 1px 2px rgba(15,23,42,0.02)',
-                transition: 'all 0.15s ease',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                minHeight: 92
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = card.accentColor;
-                e.currentTarget.style.boxShadow = '0 3px 8px rgba(15,23,42,0.05)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = '#E2E8F0';
-                e.currentTarget.style.boxShadow = '0 1px 2px rgba(15,23,42,0.02)';
-              }}
-              title={card.cta}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#64748B' }}>
-                  {card.label}
-                </span>
-                <div style={{ width: 24, height: 24, borderRadius: 5, background: card.bgColor, color: card.accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={13} />
-                </div>
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', lineHeight: 1.1, fontFamily: 'monospace' }}>
-                {card.value}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-                <span style={{ fontSize: 11, color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {card.sub}
-                </span>
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: card.accentColor, whiteSpace: 'nowrap' }}>
-                  {card.cta}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+        ]}
+      />
 
       {/* ── 3. Quick Actions Toolbar ────────────────────────────────── */}
       <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, boxShadow: '0 1px 2px rgba(15,23,42,0.02)' }}>

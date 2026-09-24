@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   UserRole, Customer, Manufacturer, Product, RFQ,
-  ManufacturerQuote, MasterOrder, Invoice, ComplianceCase,
+  ManufacturerQuote, MasterOrder, MasterOrderStatus, Invoice, ComplianceCase,
   NotificationItem, SubOrderStatus, ManufacturerProductMapping,
   BuyerOnboarding, ManufacturerOnboarding, Shipment, CRMLead,
   PaymentTransaction, AuditLog, CustomerVerificationRequest,
   CustomerVerificationStatus, CustomerVerificationDocument,
   UserProfile, OrganizationProfile, UserDocument, ProfileDocStatus, DocumentVersion,
-  CustomerClassification
+  CustomerClassification, AdvanceMethod, AdvanceStatus, AdvancePaymentRecord
 } from '../types';
 import {
   mockCustomers, mockManufacturers, mockProducts, mockRFQs,
@@ -165,7 +165,23 @@ interface AppContextType {
   updateInvoiceStatus: (invoiceId: string, status: InvoiceStatus) => void;
   deleteInvoice: (invoiceId: string) => void;
   sendInvoiceToCustomer: (invoiceId: string) => void;
-  recordInvoicePayment: (invoiceId: string, amount: number, method?: string, ref?: string, currency?: string, paymentDate?: string) => void;
+  recordInvoicePayment: (
+    invoiceId: string,
+    amount: number,
+    method?: string,
+    ref?: string,
+    currency?: string,
+    paymentDate?: string,
+    metadata?: {
+      razorpayOrderId?: string;
+      razorpayPaymentId?: string;
+      razorpaySignature?: string;
+      verificationStatus?: 'VERIFIED' | 'FAILED' | 'PENDING';
+      orderNumber?: string;
+      customerName?: string;
+      remarks?: string;
+    }
+  ) => void;
   submitBuyerOnboarding: (data: Omit<BuyerOnboarding, 'id' | 'status' | 'submittedDate'>) => void;
   submitManufacturerOnboarding: (data: Omit<ManufacturerOnboarding, 'id' | 'status' | 'submittedDate'>) => void;
   approveBuyerOnboarding: (id: string) => void;
@@ -173,6 +189,37 @@ interface AppContextType {
   updateShipmentStatus: (shipmentId: string, status: Shipment['status']) => void;
   addCRMInteraction: (leadId: string, summary: string, type: 'MEETING' | 'CALL' | 'EMAIL' | 'NOTE') => void;
   addAuditLog: (module: string, action: string) => void;
+  // Advance Payment Workflow Handlers (Client O2C Specification)
+  recordAdvancePayment: (
+    orderId: string,
+    payment: {
+      amount: number;
+      paymentMode: string;
+      reference: string;
+      paymentDate: string;
+      notes?: string;
+    }
+  ) => { success: boolean; error?: string; updatedOrder?: MasterOrder };
+  reverseAdvancePayment: (
+    orderId: string,
+    paymentId: string,
+    reversalReason: string
+  ) => { success: boolean; error?: string; updatedOrder?: MasterOrder };
+  approveMasterOrderAdmin: (
+    orderId: string,
+    options?: {
+      advanceRequired?: boolean;
+      advanceMethod?: AdvanceMethod;
+      advancePercentage?: number;
+      fixedAmount?: number;
+      advanceDueDate?: string;
+      advanceNotes?: string;
+    }
+  ) => { success: boolean; error?: string; updatedOrder?: MasterOrder };
+  rejectMasterOrderAdmin: (
+    orderId: string,
+    rejectionReason: string
+  ) => { success: boolean; error?: string; updatedOrder?: MasterOrder };
 
   // Customer Verification Workflow Handlers
   submitCustomerVerificationRequest: (reqData: Partial<CustomerVerificationRequest>) => void;
@@ -1871,6 +1918,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('REVISED_QUOTE', `Submitted revised quote for ${threadKey}: Unit Price ₹${finalPrice}`);
   };
 
+  const normalizeOrderAdvance = (order: MasterOrder): MasterOrder => {
+    if (order.status === 'PENDING_ADMIN_APPROVAL') {
+      const isApproved = order.adminApprovalStatus === 'APPROVED' || order.poApprovalStatus === 'APPROVED';
+      return {
+        ...order,
+        adminApprovalStatus: isApproved ? 'APPROVED' : (order.adminApprovalStatus || 'PENDING'),
+        poApprovalStatus: isApproved ? 'APPROVED' : (order.poApprovalStatus || 'PENDING_APPROVAL'),
+        advanceRequired: isApproved ? order.advanceRequired : undefined,
+        requiredAdvanceAmount: isApproved && order.advanceRequired ? (order.requiredAdvanceAmount || 0) : 0,
+        advanceReceived: order.advanceReceived || 0,
+        advanceOutstanding: isApproved && order.advanceRequired ? (order.advanceOutstanding || 0) : 0,
+        advanceStatus: order.advanceStatus || 'NOT_CONFIGURED',
+        advancePayments: order.advancePayments || []
+      };
+    }
+    if (order.advanceStatus && order.requiredAdvanceAmount !== undefined) return order;
+    const isAdvReq = order.advanceRequired ?? false;
+    const advMethod = order.advanceMethod ?? 'PERCENTAGE';
+    const advPct = order.advancePercentage ?? 30;
+    const reqAdv = isAdvReq
+      ? (advMethod === 'FIXED_AMOUNT' ? (order.requiredAdvanceAmount ?? 0) : Math.round(((order.totalAmount || 0) * advPct) / 100))
+      : 0;
+    const advRec = order.advanceReceived ?? (order.status === 'CLOSED' || order.status === 'DELIVERED' || order.status === 'GOODS_RECEIVED' || order.status === 'CONFIRMED_RELEASED' ? reqAdv : 0);
+    const advOut = Math.max(reqAdv - advRec, 0);
+    const advSt: AdvanceStatus = !isAdvReq
+      ? 'NOT_REQUIRED'
+      : (advRec >= reqAdv && reqAdv > 0 ? 'PAID' : (advRec > 0 ? 'PARTIALLY_PAID' : 'PENDING'));
+
+    return {
+      ...order,
+      advanceRequired: isAdvReq,
+      advanceMethod: advMethod,
+      advancePercentage: advPct,
+      requiredAdvanceAmount: reqAdv,
+      advanceReceived: advRec,
+      advanceOutstanding: advOut,
+      advanceStatus: advSt,
+      advancePayments: order.advancePayments || []
+    };
+  };
+
   const [orders, setOrders] = useState<MasterOrder[]>(() => {
     try {
       const saved = localStorage.getItem('fg_orders');
@@ -1879,11 +1967,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(parsed) && parsed.length > 0) {
           const savedIds = new Set(parsed.map((o: any) => o.id || o.orderNumber));
           const missingMocks = mockMasterOrders.filter(mo => !savedIds.has(mo.id) && !savedIds.has(mo.orderNumber));
-          return [...parsed, ...missingMocks];
+          return [...parsed.map(normalizeOrderAdvance), ...missingMocks.map(normalizeOrderAdvance)];
         }
       }
     } catch (e) { }
-    return mockMasterOrders;
+    return mockMasterOrders.map(normalizeOrderAdvance);
   });
 
   useEffect(() => {
@@ -2343,11 +2431,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerClassification: rfq.customerClassification || 'REGULAR',
       createdDate: new Date().toISOString().split('T')[0],
       expectedDeliveryDate: reqDeliveryDate,
-      status: 'OPEN',
+      status: 'PENDING_ADMIN_APPROVAL',
       totalAmount: Math.round(totalMasterAmount),
       subOrders,
       shippingAddress: rfq.deliveryLocation || 'Industrial Zone, Plot 14, Phase I, Delhi',
-      currency: 'INR'
+      currency: 'INR',
+      advanceRequired: true,
+      advanceMethod: 'PERCENTAGE',
+      advancePercentage: 30,
+      requiredAdvanceAmount: Math.round(totalMasterAmount * 0.3),
+      advanceReceived: 0,
+      advanceOutstanding: Math.round(totalMasterAmount * 0.3),
+      advanceStatus: 'PENDING',
+      advancePayments: []
     };
 
     setOrders(prev => {
@@ -2357,7 +2453,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {}
       return updated;
     });
-    addAuditLog('PO Engine', `Auto-generated Purchase Order ${autoPoNum} for RFQ ${rfq.rfqNumber} and sent to Admin for review.`);
+    addAuditLog('PO Engine', `Auto-generated Purchase Order ${autoPoNum} for RFQ ${rfq.rfqNumber}. Master Order ${masterOrdNum} created in PENDING_ADMIN_APPROVAL. 30% Required Advance: ₹${Math.round(totalMasterAmount * 0.3).toLocaleString()}.`);
     setRfqs(prev => prev.map(r => r.id === rfqId ? { ...r, status: 'APPROVED' } : r));
     setQuotes(prev => prev.map(q => {
       if (q.rfqId === rfqId || q.rfqNumber === rfq.rfqNumber) {
@@ -2859,7 +2955,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     method = 'RTGS',
     ref = 'RTGS-' + Date.now(),
     currency = 'INR',
-    paymentDate?: string
+    paymentDate?: string,
+    metadata?: {
+      razorpayOrderId?: string;
+      razorpayPaymentId?: string;
+      razorpaySignature?: string;
+      verificationStatus?: 'VERIFIED' | 'FAILED' | 'PENDING';
+      orderNumber?: string;
+      customerName?: string;
+      remarks?: string;
+    }
   ) => {
     if (currentRole === 'ADMIN') {
       alert("Admin access is strictly read-only monitoring & governance. Financial transaction execution is restricted to Accounts & Supplier roles.");
@@ -2873,24 +2978,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const timeStr = new Date().toLocaleString('en-US', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true });
       const pDate = paymentDate || new Date().toISOString().split('T')[0];
 
+      const existingPayments = Array.isArray(inv.payments) ? inv.payments : [];
+
+      // Idempotency Protection: Prevent duplicate payments when same Razorpay ID or reference arrives
+      const isDuplicate = existingPayments.some(p =>
+        (p.reference && p.reference === ref) ||
+        (metadata?.razorpayPaymentId && (p.razorpayPaymentId === metadata.razorpayPaymentId || p.reference === metadata.razorpayPaymentId))
+      );
+      if (isDuplicate) {
+        console.warn(`[Idempotent Payment Protection]: Payment reference ${ref} / ${metadata?.razorpayPaymentId} already processed for invoice ${inv.invoiceNumber}. Duplicate skipped.`);
+        return inv;
+      }
+
       const newRecord: PaymentRecord = {
         id: 'pay_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
         invoiceId: inv.id,
+        orderId: metadata?.razorpayOrderId || inv.masterOrderId,
+        orderNumber: metadata?.orderNumber || inv.orderNumber,
+        customerName: metadata?.customerName || inv.customerName,
         amount: validAmount,
         currency: curr,
         paymentMethod: method,
         paymentDate: pDate,
         reference: ref,
         status: 'COMPLETED',
-        remarks: 'Payment recorded in treasury ledger',
+        verificationStatus: metadata?.verificationStatus || (method === 'Razorpay' ? 'VERIFIED' : 'PENDING'),
+        razorpayOrderId: metadata?.razorpayOrderId,
+        razorpayPaymentId: metadata?.razorpayPaymentId || (method === 'Razorpay' ? ref : undefined),
+        razorpaySignature: metadata?.razorpaySignature,
+        remarks: metadata?.remarks || (method === 'Razorpay' ? 'Verified online Razorpay settlement' : 'Payment recorded in treasury ledger'),
         createdAt: new Date().toISOString(),
         timeline: [
-          { title: `${curr} ${validAmount.toLocaleString()} received in account`, timestamp: timeStr, status: 'COMPLETED', details: `Ref/UTR: ${ref}` },
-          { title: 'Payment ledger updated', timestamp: timeStr, status: 'COMPLETED' }
+          { title: `${curr} ${validAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} received via ${method}`, timestamp: timeStr, status: 'COMPLETED', details: `Ref: ${ref}` },
+          ...(metadata?.razorpayOrderId ? [{ title: `Razorpay Order ${metadata.razorpayOrderId} verified`, timestamp: timeStr, status: 'COMPLETED' as const }] : []),
+          { title: 'Payment ledger updated & balance recalculated', timestamp: timeStr, status: 'COMPLETED' }
         ]
       };
 
-      const existingPayments = Array.isArray(inv.payments) ? inv.payments : [];
       const updatedPayments = [...existingPayments, newRecord];
 
       const newPaid = Math.round(updatedPayments.reduce((acc, p) => acc + (p.amount || 0), 0) * 100) / 100;
@@ -2930,6 +3054,509 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     addAuditLog('Invoices & AR', `Recorded payment of ${currency || 'INR'} ${amount.toLocaleString()} for Invoice ${invoiceId}`);
+  };
+
+  // ── Advance Payment Workflow Handlers (Client O2C Specification) ──────────
+  const recordAdvancePayment = (
+    orderId: string,
+    payment: {
+      amount: number;
+      paymentMode: string;
+      reference: string;
+      paymentDate: string;
+      notes?: string;
+    }
+  ): { success: boolean; error?: string; updatedOrder?: MasterOrder } => {
+    // 1. Validate inputs
+    const amount = Number(payment.amount);
+    if (isNaN(amount) || amount <= 0) {
+      return { success: false, error: 'Payment amount must be greater than 0.' };
+    }
+    if (!payment.reference || !payment.reference.trim()) {
+      return { success: false, error: 'Payment reference (UTR / Transaction ID) is required.' };
+    }
+    if (!payment.paymentMode || !payment.paymentMode.trim()) {
+      return { success: false, error: 'Payment mode / source is required.' };
+    }
+    if (!payment.paymentDate || !payment.paymentDate.trim()) {
+      return { success: false, error: 'Payment date must be a valid date.' };
+    }
+
+    // 2. Find target order
+    const targetOrder = orders.find(o => o.id === orderId || o.orderNumber === orderId);
+    if (!targetOrder) {
+      return { success: false, error: `Master Order "${orderId}" not found.` };
+    }
+
+    // Check duplicate reference submission to prevent accidental double-clicks
+    const existingRef = (targetOrder.advancePayments || []).find(
+      p => p.status === 'RECORDED' && p.reference.toLowerCase().trim() === payment.reference.toLowerCase().trim()
+    );
+    if (existingRef) {
+      return {
+        success: false,
+        error: `A payment with reference "${payment.reference}" has already been recorded for this Master Order.`
+      };
+    }
+
+    // 3. Calculation rules
+    const masterTotal = targetOrder.totalAmount || 0;
+    const isAdvReq = targetOrder.advanceRequired !== false;
+    const advMethod = targetOrder.advanceMethod || 'PERCENTAGE';
+    const advPct = targetOrder.advancePercentage !== undefined ? targetOrder.advancePercentage : 30;
+
+    const requiredAdvance = targetOrder.requiredAdvanceAmount !== undefined
+      ? targetOrder.requiredAdvanceAmount
+      : (advMethod === 'FIXED_AMOUNT' ? (targetOrder.requiredAdvanceAmount || 0) : Math.round((masterTotal * advPct) / 100));
+
+    const prevReceived = targetOrder.advanceReceived || 0;
+    const newReceived = prevReceived + amount;
+    // Payment amount must not create an invalid negative outstanding balance
+    const newOutstanding = Math.max(requiredAdvance - newReceived, 0);
+
+    // 4. Status determination
+    let newAdvanceStatus: AdvanceStatus = 'PENDING';
+    let newOrderStatus: MasterOrderStatus = targetOrder.status;
+
+    if (!isAdvReq) {
+      newAdvanceStatus = 'NOT_REQUIRED';
+    } else if (newReceived > requiredAdvance) {
+      // Overpayment: Flag for Admin review, do not automatically release
+      newAdvanceStatus = 'OVERPAID_REVIEW';
+      if (targetOrder.status === 'PENDING_ADMIN_APPROVAL' || targetOrder.status === 'PENDING_ADVANCE') {
+        newOrderStatus = 'PENDING_ADVANCE';
+      }
+    } else if (newReceived === requiredAdvance || newOutstanding === 0) {
+      // Full advance received: PENDING_ADVANCE → CONFIRMED_RELEASED
+      newAdvanceStatus = 'PAID';
+      if (targetOrder.status === 'PENDING_ADVANCE' || targetOrder.status === 'PENDING_ADMIN_APPROVAL' || targetOrder.status === 'OPEN') {
+        newOrderStatus = 'CONFIRMED_RELEASED';
+      }
+    } else {
+      // Partial advance received: Master Order remains PENDING_ADVANCE
+      newAdvanceStatus = 'PARTIALLY_PAID';
+      if (targetOrder.status === 'PENDING_ADMIN_APPROVAL') {
+        newOrderStatus = 'PENDING_ADVANCE';
+      }
+    }
+
+    const paymentRecord: AdvancePaymentRecord = {
+      id: `adv-pay-${Date.now()}`,
+      masterOrderId: targetOrder.id,
+      masterOrderNumber: targetOrder.orderNumber,
+      amount: amount,
+      paymentMode: payment.paymentMode.trim(),
+      reference: payment.reference.trim(),
+      paymentDate: payment.paymentDate,
+      notes: payment.notes?.trim() || undefined,
+      createdAt: new Date().toISOString(),
+      status: 'RECORDED'
+    };
+
+    let updatedOrderObj: MasterOrder | undefined;
+
+    setOrders(prev => {
+      const updated = prev.map(ord => {
+        if (ord.id === targetOrder.id || ord.orderNumber === targetOrder.orderNumber) {
+          const u: MasterOrder = {
+            ...ord,
+            advanceRequired: isAdvReq,
+            advanceMethod: advMethod,
+            advancePercentage: advPct,
+            requiredAdvanceAmount: requiredAdvance,
+            advanceReceived: newReceived,
+            advanceOutstanding: newOutstanding,
+            advanceStatus: newAdvanceStatus,
+            advancePaymentReference: payment.reference.trim(),
+            advancePaymentDate: payment.paymentDate,
+            advancePaymentMode: payment.paymentMode.trim(),
+            advancePaymentNotes: payment.notes?.trim() || undefined,
+            advancePayments: [...(ord.advancePayments || []), paymentRecord],
+            status: newOrderStatus,
+            poStatus: newOrderStatus === 'CONFIRMED_RELEASED' ? 'CONFIRMED & RELEASED' : (newOrderStatus === 'PENDING_ADVANCE' ? 'AWAITING ADVANCE PAYMENT' : ord.poStatus),
+            updatedDate: new Date().toISOString().split('T')[0]
+          };
+          updatedOrderObj = u;
+          return u;
+        }
+        return ord;
+      });
+
+      try {
+        localStorage.setItem('fg_orders', JSON.stringify(updated));
+      } catch (e) {}
+
+      return updated;
+    });
+
+    const prevOutstanding = targetOrder.advanceOutstanding !== undefined ? targetOrder.advanceOutstanding : Math.max(requiredAdvance - prevReceived, 0);
+    addAuditLog(
+      'Advance Payment Desk',
+      `Advance Payment Recorded | Master Order: ${targetOrder.orderNumber} | Prev Received: ₹${prevReceived.toLocaleString()} | New Payment: ₹${amount.toLocaleString()} | New Cumulative Received: ₹${newReceived.toLocaleString()} | Prev Outstanding: ₹${prevOutstanding.toLocaleString()} | New Outstanding: ₹${newOutstanding.toLocaleString()} | Ref: ${payment.reference.trim()} | Mode: ${payment.paymentMode.trim()} | Date: ${payment.paymentDate} | Advance Status: ${newAdvanceStatus} | Master Order Status: ${newOrderStatus}`
+    );
+
+    const poRef = targetOrder.poNumber || targetOrder.orderNumber;
+    setNotifications(prev => [
+      {
+        id: `n_adv_admin_${Date.now()}`,
+        title: 'Advance Payment Received',
+        message: `Advance payment received for ${poRef}.`,
+        timestamp: 'Just now',
+        type: 'SUCCESS',
+        category: 'PAYMENT',
+        read: false
+      },
+      {
+        id: `n_adv_buyer_${Date.now() + 1}`,
+        title: 'Payment Successful',
+        message: 'Advance payment successfully received.',
+        timestamp: 'Just now',
+        type: 'SUCCESS',
+        category: 'PAYMENT',
+        read: false
+      },
+      ...(newOrderStatus === 'CONFIRMED_RELEASED' ? [{
+        id: `n_rel_buyer_${Date.now() + 2}`,
+        title: 'PO Confirmed & Released',
+        message: 'Your PO has been confirmed and released.',
+        timestamp: 'Just now',
+        type: 'SUCCESS' as const,
+        category: 'ORDER' as const,
+        read: false
+      }] : []),
+      ...prev
+    ]);
+
+    return { success: true, updatedOrder: updatedOrderObj };
+  };
+
+  const reverseAdvancePayment = (
+    orderId: string,
+    paymentId: string,
+    reversalReason: string
+  ): { success: boolean; error?: string; updatedOrder?: MasterOrder } => {
+    if (!reversalReason || !reversalReason.trim()) {
+      return { success: false, error: 'A mandatory reversal reason is required to reverse an advance payment.' };
+    }
+
+    const targetOrder = orders.find(o => o.id === orderId || o.orderNumber === orderId);
+    if (!targetOrder) {
+      return { success: false, error: `Master Order "${orderId}" not found.` };
+    }
+
+    const payments = targetOrder.advancePayments || [];
+    const targetPayment = payments.find(p => p.id === paymentId);
+    if (!targetPayment) {
+      return { success: false, error: `Advance payment ID "${paymentId}" not found.` };
+    }
+    if (targetPayment.status === 'REVERSED') {
+      return { success: false, error: 'This advance payment has already been reversed.' };
+    }
+
+    const nowIso = new Date().toISOString();
+    const updatedPayments = payments.map(p => {
+      if (p.id === paymentId) {
+        return {
+          ...p,
+          status: 'REVERSED' as const,
+          reversedAt: nowIso,
+          reversalReason: reversalReason.trim()
+        };
+      }
+      return p;
+    });
+
+    const activePayments = updatedPayments.filter(p => p.status === 'RECORDED');
+    const newReceived = activePayments.reduce((sum, p) => sum + p.amount, 0);
+    const requiredAdvance = targetOrder.requiredAdvanceAmount || 0;
+    const newOutstanding = Math.max(requiredAdvance - newReceived, 0);
+
+    let newAdvStatus: AdvanceStatus = 'PENDING';
+    if (newReceived === 0) {
+      newAdvStatus = 'REVERSED';
+    } else if (newReceived < requiredAdvance) {
+      newAdvStatus = 'PARTIALLY_PAID';
+    } else if (newReceived === requiredAdvance) {
+      newAdvStatus = 'PAID';
+    } else {
+      newAdvStatus = 'OVERPAID_REVIEW';
+    }
+
+    // If order was CONFIRMED_RELEASED and required advance is now outstanding,
+    // move order back into PENDING_ADVANCE and financial hold
+    let newOrderStatus = targetOrder.status;
+    let shouldHold = targetOrder.isOnHold;
+    let holdReason = targetOrder.holdReason;
+    let holdCount = targetOrder.holdCount || 0;
+
+    if (newOutstanding > 0 && targetOrder.status === 'CONFIRMED_RELEASED') {
+      newOrderStatus = 'PENDING_ADVANCE';
+      shouldHold = true;
+      holdReason = `Financial Hold: Advance payment (${targetPayment.reference}) was reversed. Outstanding advance: ₹${newOutstanding.toLocaleString()}. Reason: ${reversalReason.trim()}`;
+      holdCount += 1;
+    }
+
+    let updatedOrderObj: MasterOrder | undefined;
+
+    setOrders(prev => {
+      const updated = prev.map(ord => {
+        if (ord.id === targetOrder.id || ord.orderNumber === targetOrder.orderNumber) {
+          const u: MasterOrder = {
+            ...ord,
+            advanceReceived: newReceived,
+            advanceOutstanding: newOutstanding,
+            advanceStatus: newAdvStatus,
+            advancePayments: updatedPayments,
+            status: newOrderStatus,
+            isOnHold: shouldHold,
+            holdReason: holdReason,
+            holdCount: holdCount,
+            updatedDate: nowIso.split('T')[0]
+          };
+          updatedOrderObj = u;
+          return u;
+        }
+        return ord;
+      });
+
+      try {
+        localStorage.setItem('fg_orders', JSON.stringify(updated));
+      } catch (e) {}
+
+      return updated;
+    });
+
+    const prevReceived = targetOrder.advanceReceived || 0;
+    const prevOutstanding = targetOrder.advanceOutstanding || 0;
+    addAuditLog(
+      'Advance Payment Desk',
+      `Advance Payment Reversal | Master Order: ${targetOrder.orderNumber} | Reversed: ₹${targetPayment.amount.toLocaleString()} (Ref: ${targetPayment.reference}) | Prev Received: ₹${prevReceived.toLocaleString()} → New Received: ₹${newReceived.toLocaleString()} | Prev Outstanding: ₹${prevOutstanding.toLocaleString()} → New Outstanding: ₹${newOutstanding.toLocaleString()} | Reason: ${reversalReason.trim()} | New Status: ${newOrderStatus}`
+    );
+
+    return { success: true, updatedOrder: updatedOrderObj };
+  };
+
+  const approveMasterOrderAdmin = (
+    orderId: string,
+    options?: {
+      advanceRequired?: boolean;
+      advanceMethod?: AdvanceMethod;
+      advancePercentage?: number;
+      fixedAmount?: number;
+      advanceDueDate?: string;
+      advanceNotes?: string;
+    }
+  ): { success: boolean; error?: string; updatedOrder?: MasterOrder } => {
+    const targetOrder = orders.find(o => o.id === orderId || o.orderNumber === orderId);
+    if (!targetOrder) {
+      return { success: false, error: `Master Order "${orderId}" not found.` };
+    }
+
+    const isAdvReq = options?.advanceRequired !== undefined
+      ? options.advanceRequired
+      : (targetOrder.advanceRequired !== undefined ? targetOrder.advanceRequired : true);
+
+    const advMethod = options?.advanceMethod || targetOrder.advanceMethod || 'PERCENTAGE';
+    const advPct = options?.advancePercentage !== undefined ? options.advancePercentage : (targetOrder.advancePercentage || 30);
+    const masterTotal = targetOrder.totalAmount || 0;
+
+    let reqAdvance = 0;
+    if (isAdvReq) {
+      if (advMethod === 'FIXED_AMOUNT') {
+        reqAdvance = options?.fixedAmount !== undefined ? options.fixedAmount : (targetOrder.requiredAdvanceAmount || 0);
+      } else {
+        reqAdvance = Math.round((masterTotal * advPct) / 100);
+      }
+    }
+
+    const received = targetOrder.advanceReceived || 0;
+    const outstanding = Math.max(reqAdvance - received, 0);
+
+    let nextOrderStatus: MasterOrderStatus;
+    let nextAdvStatus: AdvanceStatus;
+
+    if (!isAdvReq) {
+      // Advance is NOT required: Master Order moves directly to CONFIRMED_RELEASED
+      nextOrderStatus = 'CONFIRMED_RELEASED';
+      nextAdvStatus = 'NOT_REQUIRED';
+    } else {
+      // Advance IS required: Master Order moves to PENDING_ADVANCE
+      if (received >= reqAdvance && reqAdvance > 0) {
+        nextOrderStatus = 'CONFIRMED_RELEASED';
+        nextAdvStatus = 'PAID';
+      } else if (received > 0) {
+        nextOrderStatus = 'PENDING_ADVANCE';
+        nextAdvStatus = 'PARTIALLY_PAID';
+      } else {
+        nextOrderStatus = 'PENDING_ADVANCE';
+        nextAdvStatus = 'PENDING';
+      }
+    }
+
+    let updatedOrderObj: MasterOrder | undefined;
+
+    setOrders(prev => {
+      const updated = prev.map(ord => {
+        if (ord.id === targetOrder.id || ord.orderNumber === targetOrder.orderNumber) {
+          const u: MasterOrder = {
+            ...ord,
+            status: nextOrderStatus,
+            adminApprovalStatus: 'APPROVED',
+            poApprovalStatus: 'APPROVED',
+            poStatus: nextOrderStatus === 'CONFIRMED_RELEASED' ? 'CONFIRMED & RELEASED' : 'AWAITING ADVANCE PAYMENT',
+            adminApprovedBy: 'Admin',
+            adminApprovedAt: new Date().toISOString(),
+            advanceRequired: isAdvReq,
+            advanceMethod: advMethod,
+            advancePercentage: isAdvReq ? advPct : undefined,
+            requiredAdvanceAmount: reqAdvance,
+            advanceOutstanding: outstanding,
+            advanceStatus: nextAdvStatus,
+            advanceDueDate: options?.advanceDueDate,
+            advanceNotes: options?.advanceNotes,
+            updatedDate: new Date().toISOString().split('T')[0]
+          };
+          updatedOrderObj = u;
+          return u;
+        }
+        return ord;
+      });
+
+      try {
+        localStorage.setItem('fg_orders', JSON.stringify(updated));
+      } catch (e) {}
+
+      return updated;
+    });
+
+    addAuditLog(
+      'Admin Governance',
+      `Admin Approval Granted | Master Order: ${targetOrder.orderNumber} | Advance Required: ${isAdvReq ? 'YES' : 'NO'} | Required Advance: ₹${reqAdvance.toLocaleString()} | Master Order Status: ${nextOrderStatus} | Advance Status: ${nextAdvStatus}`
+    );
+
+    const poRef = targetOrder.poNumber || targetOrder.orderNumber;
+    setNotifications(prev => [
+      {
+        id: `n_appr_admin_${Date.now()}`,
+        title: 'PO Approved',
+        message: `${poRef} approved.`,
+        timestamp: 'Just now',
+        type: 'SUCCESS',
+        category: 'ORDER',
+        read: false
+      },
+      {
+        id: `n_appr_buyer_${Date.now() + 1}`,
+        title: 'PO Approved',
+        message: 'Your PO has been approved.',
+        timestamp: 'Just now',
+        type: 'SUCCESS',
+        category: 'ORDER',
+        read: false
+      },
+      ...(isAdvReq ? [
+        {
+          id: `n_adv_req_admin_${Date.now() + 2}`,
+          title: 'Advance Payment Requested',
+          message: `Advance payment request created for ${poRef}.`,
+          timestamp: 'Just now',
+          type: 'INFO' as const,
+          category: 'PAYMENT' as const,
+          read: false
+        },
+        {
+          id: `n_adv_req_buyer_${Date.now() + 3}`,
+          title: 'Advance Payment Required',
+          message: `Advance payment of ₹${reqAdvance.toLocaleString()} is required for ${poRef}.`,
+          timestamp: 'Just now',
+          type: 'WARNING' as const,
+          category: 'PAYMENT' as const,
+          read: false
+        }
+      ] : [
+        {
+          id: `n_rel_direct_buyer_${Date.now() + 4}`,
+          title: 'PO Confirmed & Released',
+          message: 'Your PO has been confirmed and released.',
+          timestamp: 'Just now',
+          type: 'SUCCESS' as const,
+          category: 'ORDER' as const,
+          read: false
+        }
+      ]),
+      ...prev
+    ]);
+
+    return { success: true, updatedOrder: updatedOrderObj };
+  };
+
+  const rejectMasterOrderAdmin = (
+    orderId: string,
+    rejectionReason: string
+  ): { success: boolean; error?: string; updatedOrder?: MasterOrder } => {
+    if (!rejectionReason || !rejectionReason.trim()) {
+      return { success: false, error: 'A mandatory rejection reason is required.' };
+    }
+
+    const targetOrder = orders.find(o => o.id === orderId || o.orderNumber === orderId);
+    if (!targetOrder) {
+      return { success: false, error: `Master Order "${orderId}" not found.` };
+    }
+
+    let updatedOrderObj: MasterOrder | undefined;
+
+    setOrders(prev => {
+      const updated = prev.map(ord => {
+        if (ord.id === targetOrder.id || ord.orderNumber === targetOrder.orderNumber) {
+          const u: MasterOrder = {
+            ...ord,
+            status: 'REJECTED_BY_ADMIN',
+            adminApprovalStatus: 'REJECTED',
+            adminRejectionReason: rejectionReason.trim(),
+            adminApprovedBy: 'Admin',
+            adminApprovedAt: new Date().toISOString(),
+            updatedDate: new Date().toISOString().split('T')[0]
+          };
+          updatedOrderObj = u;
+          return u;
+        }
+        return ord;
+      });
+      try {
+        localStorage.setItem('fg_orders', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    addAuditLog(
+      'Admin Governance',
+      `Admin Rejection | Master Order: ${targetOrder.orderNumber} | Reason: ${rejectionReason.trim()} | PO: ${targetOrder.poNumber || targetOrder.orderNumber}`
+    );
+
+    const poRefRej = targetOrder.poNumber || targetOrder.orderNumber;
+    setNotifications(prev => [
+      {
+        id: `n_rej_buyer_${Date.now()}`,
+        title: 'PO Rejected',
+        message: `Your PO ${poRefRej} has been rejected. Reason: ${rejectionReason.trim()}`,
+        timestamp: 'Just now',
+        type: 'ERROR',
+        category: 'ORDER',
+        read: false
+      },
+      {
+        id: `n_rej_admin_${Date.now() + 1}`,
+        title: 'PO Rejection Recorded',
+        message: `${poRefRej} rejected.`,
+        timestamp: 'Just now',
+        type: 'INFO',
+        category: 'ORDER',
+        read: false
+      },
+      ...prev
+    ]);
+
+    return { success: true, updatedOrder: updatedOrderObj };
   };
 
   const submitBuyerOnboarding = (data: Omit<BuyerOnboarding, 'id' | 'status' | 'submittedDate'>) => {
@@ -3587,6 +4214,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addInvoice, updateInvoice, updateInvoiceStatus, recordInvoicePayment, submitBuyerOnboarding, submitManufacturerOnboarding,
       approveBuyerOnboarding, approveManufacturerOnboarding, updateShipmentStatus,
       addCRMInteraction, addAuditLog,
+      recordAdvancePayment, reverseAdvancePayment, approveMasterOrderAdmin, rejectMasterOrderAdmin,
       submitCustomerVerificationRequest, assignComplianceOfficer,
       approveCustomerVerification, rejectCustomerVerification,
       requestMoreCustomerDocs, resubmitCustomerDocs, updateCustomerClassification,

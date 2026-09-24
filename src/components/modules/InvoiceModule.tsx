@@ -9,6 +9,7 @@ import {
   Building2, UserCheck, Shield, History, Send, Download, CreditCard
 } from 'lucide-react';
 import { initiateRazorpayCheckout, verifyRazorpaySignature } from '../../services/razorpayService';
+import { EnterpriseMetricBar } from '../common/EnterpriseMetricBar';
 
 // ─── Types & Interfaces ───────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ interface EditFormState {
 interface InvoiceModuleProps {
   initialViewMode?: 'LIST' | 'WORKSPACE' | 'DETAILS';
   initialData?: InitialInvoiceContextData;
+  isPaymentHistoryMode?: boolean;
   onComplete?: (createdInvoice: Invoice) => void;
   onCancel?: () => void;
 }
@@ -246,7 +248,7 @@ const StatusChip: React.FC<{ inv: Invoice }> = ({ inv }) => {
   const today = new Date().toISOString().split('T')[0];
   const isOverdue = inv.status === 'OVERDUE' || (inv.dueDate && inv.dueDate < today && bal > 0);
 
-  const hasPdf = Boolean(inv.uploadedFileUrl || inv.uploadedFileName);
+  const hasPdf = Boolean(inv.uploadedFileUrl || inv.uploadedFileName || (inv.lines && inv.lines.length > 0));
 
   if (bal <= 0 && total > 0) {
     return (
@@ -258,7 +260,7 @@ const StatusChip: React.FC<{ inv: Invoice }> = ({ inv }) => {
   if (paid > 0 && bal > 0) {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #93C5FD' }}>
-        <Clock size={12} /> PARTIALLY PAID
+        <Clock size={12} /> PARTIALLY_PAID
       </span>
     );
   }
@@ -278,8 +280,8 @@ const StatusChip: React.FC<{ inv: Invoice }> = ({ inv }) => {
   }
 
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#F0FDF4', color: '#16A34A', border: '1px solid #BBF7D0' }}>
-      <FileCheck size={12} /> INVOICE UPLOADED
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 800, background: '#F0FDFA', color: '#0F766E', border: '1px solid #99F6E4' }}>
+      <FileCheck size={12} /> OUTSTANDING
     </span>
   );
 };
@@ -914,6 +916,7 @@ const FullInvoiceCreationWorkspace: React.FC<{
 export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
   initialViewMode = 'LIST',
   initialData,
+  isPaymentHistoryMode = false,
   onComplete,
   onCancel
 }) => {
@@ -926,6 +929,25 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
   const isBuyer = currentRole === 'BUYER';
   const isManufacturer = currentRole === 'SUPPLIER';
   const isAdmin = currentRole === 'ADMIN';
+
+  // Sub-tab: LEDGER (Invoice Ledger) vs PAYMENT_HISTORY (Payment History view)
+  const [activeSubTab, setActiveSubTab] = useState<'LEDGER' | 'PAYMENT_HISTORY'>(
+    isPaymentHistoryMode ? 'PAYMENT_HISTORY' : 'LEDGER'
+  );
+
+  useEffect(() => {
+    setActiveSubTab(isPaymentHistoryMode ? 'PAYMENT_HISTORY' : 'LEDGER');
+  }, [isPaymentHistoryMode]);
+
+  // Payment History State
+  const [paymentHistorySearch, setPaymentHistorySearch] = useState('');
+  const [paymentHistoryMethodFilter, setPaymentHistoryMethodFilter] = useState<'ALL' | 'Razorpay' | 'NEFT' | 'RTGS'>('ALL');
+  const [selectedPaymentForDetails, setSelectedPaymentForDetails] = useState<(PaymentRecord & {
+    invoiceNumber: string;
+    orderNumber: string;
+    supplierName: string;
+    invoiceTotal: number;
+  }) | null>(null);
 
   // View state: LIST | WORKSPACE | DETAILS
   const [viewState, setViewState] = useState<'LIST' | 'WORKSPACE' | 'DETAILS'>(initialViewMode);
@@ -954,6 +976,66 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Flattened actual recorded payments from invoices
+  const recordedPayments = useMemo(() => {
+    const list: Array<PaymentRecord & {
+      invoiceNumber: string;
+      orderNumber: string;
+      supplierName: string;
+      invoiceTotal: number;
+    }> = [];
+
+    invoices.forEach(inv => {
+      if (isBuyer) {
+        const isMyCustomer = !inv.customerId || inv.customerId === 'c1' || inv.customerName.toLowerCase().includes('apex');
+        if (!isMyCustomer) return;
+      }
+
+      if (Array.isArray(inv.payments)) {
+        inv.payments.forEach(p => {
+          list.push({
+            ...p,
+            invoiceNumber: inv.invoiceNumber,
+            orderNumber: p.orderNumber || inv.orderNumber,
+            supplierName: inv.manufacturerName || 'SunBio LifeSciences Ltd',
+            invoiceTotal: inv.totalAmount
+          });
+        });
+      }
+    });
+
+    return list.sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+  }, [invoices, isBuyer]);
+
+  const filteredPayments = useMemo(() => {
+    return recordedPayments.filter(p => {
+      const q = paymentHistorySearch.toLowerCase().trim();
+      const matchSearch = q === '' ||
+        (p.id || '').toLowerCase().includes(q) ||
+        (p.invoiceNumber || '').toLowerCase().includes(q) ||
+        (p.orderNumber || '').toLowerCase().includes(q) ||
+        (p.reference || '').toLowerCase().includes(q) ||
+        (p.paymentMethod || '').toLowerCase().includes(q) ||
+        (p.razorpayPaymentId || '').toLowerCase().includes(q) ||
+        (p.razorpayOrderId || '').toLowerCase().includes(q) ||
+        (p.supplierName || '').toLowerCase().includes(q);
+
+      if (!matchSearch) return false;
+
+      if (paymentHistoryMethodFilter !== 'ALL') {
+        if (paymentHistoryMethodFilter === 'Razorpay' && !p.paymentMethod.toLowerCase().includes('razorpay')) return false;
+        if (paymentHistoryMethodFilter === 'NEFT' && !p.paymentMethod.toUpperCase().includes('NEFT')) return false;
+        if (paymentHistoryMethodFilter === 'RTGS' && !p.paymentMethod.toUpperCase().includes('RTGS') && !p.paymentMethod.toLowerCase().includes('bank')) return false;
+      }
+
+      return true;
+    });
+  }, [recordedPayments, paymentHistorySearch, paymentHistoryMethodFilter]);
+
+  const totalPaymentsAmount = recordedPayments.filter(p => p.status !== 'FAILED').reduce((acc, p) => acc + (p.amount || 0), 0);
+  const razorpayPaymentsCount = recordedPayments.filter(p => (p.paymentMethod || '').toLowerCase().includes('razorpay')).length;
+  const wirePaymentsCount = recordedPayments.filter(p => !(p.paymentMethod || '').toLowerCase().includes('razorpay')).length;
 
   // Customer / Order-Specific Upload Modal State
   const [uploadTargetInvoice, setUploadTargetInvoice] = useState<Invoice | null>(null);
@@ -1080,17 +1162,23 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
   const handleTriggerRazorpay = async (inv: Invoice, e?: React.MouseEvent, customAmt?: number) => {
     if (e) e.stopPropagation();
 
-    // Strict validation: Invoice PDF must be uploaded
-    const hasPdf = Boolean(inv.uploadedFileUrl || inv.uploadedFileName);
+    // Validation: Invoice PDF or line items must be present
+    const hasPdf = Boolean(inv.uploadedFileUrl || inv.uploadedFileName || (inv.lines && inv.lines.length > 0));
     if (!hasPdf) {
       alert("⚠ Awaiting Invoice PDF!\n\nOnline payment cannot be initiated because the supplier/manufacturer has not uploaded the official tax invoice PDF yet.");
       return;
     }
 
+    // Default to the current outstanding balance, NEVER the original invoice total
     const payAmt = typeof customAmt === 'number' ? customAmt : inv.balanceAmount;
 
     if (payAmt <= 0) {
       showToast("❌ Balance due is ₹0. Invoice is already fully paid.");
+      return;
+    }
+
+    if (payAmt > inv.balanceAmount) {
+      showToast(`❌ Payment amount (₹${payAmt.toLocaleString('en-IN')}) cannot exceed current outstanding balance (₹${inv.balanceAmount.toLocaleString('en-IN')}).`);
       return;
     }
 
@@ -1117,11 +1205,20 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
             'Razorpay',
             response.razorpay_payment_id,
             inv.currency || 'INR',
-            new Date().toISOString().split('T')[0]
+            new Date().toISOString().split('T')[0],
+            {
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+              verificationStatus: 'VERIFIED',
+              orderNumber: inv.orderNumber,
+              customerName: inv.customerName,
+              remarks: `Razorpay Online Payment: ${response.razorpay_order_id}`
+            }
           );
 
           const newBal = Math.max(0, inv.balanceAmount - payAmt);
-          const statusText = newBal === 0 ? 'PAID' : 'PARTIALLY PAID';
+          const statusText = newBal === 0 ? 'PAID' : 'PARTIALLY_PAID';
           showToast(`✔ Razorpay Payment Verified! Ref: ${response.razorpay_payment_id}. Status: ${statusText}`);
           setShowPaymentModal(null);
         } else {
@@ -1512,11 +1609,18 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
               </button>
             )}
 
-            {/* PAY NOW BUTTON FOR BUYER (Inside Invoice Preview header: Shown when balanceAmount > 0 AND PDF is uploaded) */}
-            {isBuyer && bal > 0 && Boolean(inv.uploadedFileUrl || inv.uploadedFileName) && (
+            {/* PAY NOW BUTTON FOR BUYER (Inside Invoice Preview header: Shown when balanceAmount > 0) */}
+            {isBuyer && bal > 0 && Boolean(inv.uploadedFileUrl || inv.uploadedFileName || (inv.lines && inv.lines.length > 0)) && (
               <button onClick={(e) => handleTriggerRazorpay(inv, e)} style={{ height: 36, padding: '0 18px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.25)' }}>
-                <CreditCard size={14} /> Pay Now
+                <CreditCard size={14} /> Pay Now (₹{bal.toLocaleString('en-IN')})
               </button>
+            )}
+
+            {/* If balance is 0 for Buyer, show PAID IN FULL */}
+            {isBuyer && bal === 0 && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#15803D', fontSize: 12.5, fontWeight: 800 }}>
+                <Check size={14} /> PAID IN FULL
+              </span>
             )}
 
             {/* Send to Customer Button (Top Header - Only shown when NOT sent and not paid/partially paid) */}
@@ -1597,7 +1701,7 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                 </div>
 
                 {isBuyer ? (
-                  Boolean(inv.uploadedFileUrl || inv.uploadedFileName) ? (
+                  Boolean(inv.uploadedFileUrl || inv.uploadedFileName || (inv.lines && inv.lines.length > 0)) ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       <button onClick={(e) => handleTriggerRazorpay(inv, e)} style={{ width: '100%', height: 42, borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, boxShadow: '0 2px 6px rgba(15,118,110,0.25)' }}>
                         <Shield size={16} /> Pay ₹{bal.toLocaleString('en-IN')} via Razorpay →
@@ -1616,6 +1720,18 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                     <Banknote size={15} /> Record Payment Received
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* INVOICE SETTLED CARD FOR BUYER (When balance === 0) */}
+            {isBuyer && bal === 0 && (
+              <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#15803D', fontWeight: 800, fontSize: 14 }}>
+                  <Check size={18} /> Invoice Fully Settled
+                </div>
+                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 4, lineHeight: 1.5 }}>
+                  All dues for this invoice have been paid and verified through Razorpay. Outstanding balance is ₹0.00.
+                </div>
               </div>
             )}
 
@@ -1642,6 +1758,14 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                       {p.reference && (
                         <div style={{ color: '#475569', fontSize: 11, fontFamily: 'monospace', marginTop: 3 }}>
                           Ref/ID: <strong>{p.reference}</strong>
+                          {p.verificationStatus && (
+                            <span style={{ marginLeft: 6, color: '#15803D', fontWeight: 700 }}>({p.verificationStatus})</span>
+                          )}
+                        </div>
+                      )}
+                      {p.razorpayOrderId && (
+                        <div style={{ color: '#64748B', fontSize: 10.5, fontFamily: 'monospace', marginTop: 2 }}>
+                          Razorpay Order: <strong>{p.razorpayOrderId}</strong>
                         </div>
                       )}
                     </div>
@@ -1780,159 +1904,283 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
         </div>
       )}
 
-      {/* Header Bar */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '20px 24px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+      {/* Header Bar (Enterprise Flat Command Bar) */}
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: '18px 24px', boxShadow: '0 1px 2px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 10, background: '#EFF6FF', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
-            <Receipt size={22} />
+          <div style={{ width: 40, height: 40, borderRadius: 6, background: '#EFF6FF', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB' }}>
+            <Receipt size={20} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748B' }}>
               <span>FactoryGrid</span><ChevronRight size={12} /><span>{currentRole === 'BUYER' ? 'buyer' : currentRole === 'SUPPLIER' ? 'supplier' : 'admin'}</span><ChevronRight size={12} />
-              <span style={{ color: '#2563EB', fontWeight: 600 }}>Invoices & Payments</span>
+              <span style={{ color: '#2563EB', fontWeight: 600 }}>{activeSubTab === 'PAYMENT_HISTORY' ? 'Payment History' : 'Invoices & Payments'}</span>
             </div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '2px 0 0', letterSpacing: '-0.02em' }}>
-              {isBuyer ? 'Buyer Tax Invoices & Payments' : isManufacturer ? 'Manufacturer Tax Invoices Workspace' : 'Admin Tax Invoices & AR Ledger Monitor'}
+              {activeSubTab === 'PAYMENT_HISTORY'
+                ? (isBuyer ? 'Buyer Payment History' : 'Payment History Ledger')
+                : (isBuyer ? 'Buyer Tax Invoices & Payments' : isManufacturer ? 'Manufacturer Tax Invoices Workspace' : 'Admin Tax Invoices & AR Ledger Monitor')}
             </h1>
             <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 1 }}>
-              {isBuyer
-                ? 'B2B pharmaceutical tax invoice management, Razorpay online checkout, partial payments, and treasury settlement ledger.'
-                : isManufacturer
-                ? 'B2B pharmaceutical tax invoice generation, customer billing, and payment collection ledger.'
-                : 'Read-only platform invoice surveillance, payment tracking, and audit monitoring.'}
+              {activeSubTab === 'PAYMENT_HISTORY'
+                ? 'Strictly view-only audit log of recorded payments, Razorpay online gateway transactions, and direct bank settlements.'
+                : (isBuyer
+                  ? 'B2B pharmaceutical tax invoice management, Razorpay online checkout, partial payments, and treasury settlement ledger.'
+                  : isManufacturer
+                  ? 'B2B pharmaceutical tax invoice generation, customer billing, and payment collection ledger.'
+                  : 'Read-only platform invoice surveillance, payment tracking, and audit monitoring.')}
             </div>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
-            <input type="text" placeholder="Search invoice#, partner, order..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: 260, height: 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5, outline: 'none', background: '#FFFFFF' }} />
-          </div>
-        </div>
-      </div>
-
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-        {[
-          { label: 'Total Invoiced', value: `₹${totalInvoiced.toLocaleString('en-IN')}`, sub: `${invoices.length} total issued`, color: '#2563EB', bg: '#EFF6FF', border: '#BFDBFE', icon: <Receipt size={16} /> },
-          { label: isBuyer ? 'Amount Paid' : 'Payment Received', value: `₹${totalPaid.toLocaleString('en-IN')}`, sub: `↑ ${collectionRate}% collection rate`, color: '#16A34A', bg: '#F0FDF4', border: '#86EFAC', icon: <Check size={16} /> },
-          { label: 'Outstanding Balance', value: `₹${totalOutstanding.toLocaleString('en-IN')}`, sub: `${invoices.filter(i => i.balanceAmount > 0).length} pending settlements`, color: '#D97706', bg: '#FFFBEB', border: '#FCD34D', icon: <AlertCircle size={16} /> },
-          { label: 'Partially Paid', value: `${invoices.filter(i => i.paidAmount > 0 && i.balanceAmount > 0).length} Invoices`, sub: 'Active installment plans', color: '#1D4ED8', bg: '#DBEAFE', border: '#93C5FD', icon: <Clock size={16} /> },
-        ].map((card, i) => (
-          <div key={i} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{card.label}</span>
-              <div style={{ width: 30, height: 30, borderRadius: 7, background: card.bg, border: `1px solid ${card.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: card.color }}>{card.icon}</div>
+          {activeSubTab === 'LEDGER' ? (
+            <div style={{ position: 'relative' }}>
+              <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+              <input type="text" placeholder="Search invoice#, partner, order..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: 260, height: 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5, outline: 'none', background: '#FFFFFF' }} />
             </div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: card.color }}>{card.value}</div>
-            <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>{card.sub}</div>
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+              <input type="text" placeholder="Search payment ID, invoice#, ref..." value={paymentHistorySearch} onChange={e => setPaymentHistorySearch(e.target.value)} style={{ width: 280, height: 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12.5, outline: 'none', background: '#FFFFFF' }} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Module Sub-Tabs Switcher */}
+      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #E2E8F0', paddingBottom: 2 }}>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('LEDGER')}
+          style={{
+            padding: '9px 18px',
+            borderRadius: '8px 8px 0 0',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            border: activeSubTab === 'LEDGER' ? '1px solid #0F766E' : '1px solid #E2E8F0',
+            borderBottom: activeSubTab === 'LEDGER' ? '2px solid #0F766E' : '1px solid transparent',
+            background: activeSubTab === 'LEDGER' ? '#F0FDFA' : '#FFFFFF',
+            color: activeSubTab === 'LEDGER' ? '#0F766E' : '#64748B',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            transition: 'all 120ms ease'
+          }}
+        >
+          <Receipt size={14} />
+          Invoice Ledger ({invoices.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('PAYMENT_HISTORY')}
+          style={{
+            padding: '9px 18px',
+            borderRadius: '8px 8px 0 0',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            border: activeSubTab === 'PAYMENT_HISTORY' ? '1px solid #0F766E' : '1px solid #E2E8F0',
+            borderBottom: activeSubTab === 'PAYMENT_HISTORY' ? '2px solid #0F766E' : '1px solid transparent',
+            background: activeSubTab === 'PAYMENT_HISTORY' ? '#F0FDFA' : '#FFFFFF',
+            color: activeSubTab === 'PAYMENT_HISTORY' ? '#0F766E' : '#64748B',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            transition: 'all 120ms ease'
+          }}
+        >
+          <History size={14} />
+          Payment History ({recordedPayments.length})
+        </button>
+      </div>
+
+      {activeSubTab === 'PAYMENT_HISTORY' ? (
+        <>
+          {/* Payment History Compact Summary Bar */}
+          <EnterpriseMetricBar
+            title="PAYMENT SUMMARY"
+            subtitle="Recorded Settlements & Treasury Audit"
+            metrics={[
+              { label: 'Total Settled Amount', value: `₹${totalPaymentsAmount.toLocaleString('en-IN')}`, sub: `${recordedPayments.length} recorded payments`, color: '#0F766E' },
+              { label: 'Razorpay Online', value: `${razorpayPaymentsCount} Payments`, sub: 'Direct gateway settlements', color: '#2563EB' },
+              { label: 'Bank Wire / NEFT / RTGS', value: `${wirePaymentsCount} Payments`, sub: 'Bank treasury settlements', color: '#7C3AED' },
+              { label: 'Settlement Status', value: '100% Audited', sub: 'Verified financial trail', color: '#16A34A' },
+            ]}
+          />
+
+          {/* Payment History Filter Bar */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                { id: 'ALL', label: `All Payment Records (${recordedPayments.length})` },
+                { id: 'Razorpay', label: `Razorpay Online (${razorpayPaymentsCount})` },
+                { id: 'NEFT', label: `NEFT Transfers (${recordedPayments.filter(p => (p.paymentMethod || '').toUpperCase().includes('NEFT')).length})` },
+                { id: 'RTGS', label: `RTGS / Wire (${recordedPayments.filter(p => (p.paymentMethod || '').toUpperCase().includes('RTGS') || (p.paymentMethod || '').toLowerCase().includes('bank')).length})` },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setPaymentHistoryMethodFilter(tab.id as any)}
+                  style={{
+                    height: 32,
+                    padding: '0 12px',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: paymentHistoryMethodFilter === tab.id ? 700 : 500,
+                    background: paymentHistoryMethodFilter === tab.id ? '#0F766E' : 'transparent',
+                    color: paymentHistoryMethodFilter === tab.id ? '#FFFFFF' : '#475569',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 120ms ease'
+                  }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>
+              Showing {filteredPayments.length} of {recordedPayments.length} payments
+            </div>
           </div>
-        ))}
-      </div>
 
-      {/* Filters Bar */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {[
-            { id: 'ALL', label: `All Invoices (${invoices.length})` },
-            { id: 'GENERATED', label: `Generated (${invoices.filter(i => i.status === 'GENERATED').length})` },
-            { id: 'UNSENT_DRAFT', label: `Unsent Drafts (${invoices.filter(i => !i.sentToCustomer).length})` },
-            { id: 'SENT_TO_CUSTOMER', label: `Sent to Customer (${invoices.filter(i => i.sentToCustomer).length})` },
-            { id: 'PARTIALLY_PAID', label: `Partially Paid (${invoices.filter(i => i.paidAmount > 0 && i.balanceAmount > 0).length})` },
-            { id: 'PAID', label: `Paid (${invoices.filter(i => i.balanceAmount === 0).length})` },
-            { id: 'OVERDUE', label: `Overdue (${invoices.filter(i => i.status === 'OVERDUE' || (i.dueDate && i.dueDate < todayStr && i.balanceAmount > 0)).length})` },
-          ].map(tab => (
-            <button key={tab.id} onClick={() => setStatusFilter(tab.id)} style={{ height: 32, padding: '0 12px', borderRadius: 8, fontSize: 12, fontWeight: statusFilter === tab.id ? 700 : 500, background: statusFilter === tab.id ? '#2563EB' : 'transparent', color: statusFilter === tab.id ? '#FFFFFF' : '#475569', border: 'none', cursor: 'pointer', transition: 'all 120ms ease' }}>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Invoices Table */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
-        <div style={{ padding: '12px 18px', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>Invoices Ledger</span>
-          <span style={{ fontSize: 12, color: '#64748B' }}>Showing {filteredInvoices.length} of {invoices.length} invoices</span>
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
-            <thead>
-              <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                <th style={{ padding: '11px 16px' }}>Invoice #</th>
-                <th style={{ padding: '11px 14px' }}>{isBuyer ? 'Supplier / Manufacturer' : 'Customer / Buyer'}</th>
-                <th style={{ padding: '11px 14px' }}>Order / PO Ref</th>
-                <th style={{ padding: '11px 14px' }}>Invoice Total</th>
-                <th style={{ padding: '11px 14px' }}>Amount Paid</th>
-                <th style={{ padding: '11px 14px' }}>Balance Due</th>
-                <th style={{ padding: '11px 14px' }}>Due Date</th>
-                <th style={{ padding: '11px 14px' }}>Invoice Status</th>
-                <th style={{ padding: '11px 16px', textAlign: 'right', minWidth: 160, width: 170 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredInvoices.length === 0 ? (
-                <tr><td colSpan={9} style={{ padding: '36px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>No invoices found matching criteria.</td></tr>
-              ) : (
-                filteredInvoices.map(inv => {
-                  const sym = getCurrencySymbol(inv.currency);
-                  const isPaid = inv.balanceAmount === 0 && inv.totalAmount > 0;
-                  const isPartial = inv.paidAmount > 0 && inv.balanceAmount > 0;
-                  const isSent = Boolean(inv.sentToCustomer);
-                  const hasPdf = Boolean(inv.uploadedFileUrl || inv.uploadedFileName);
-
-                  return (
-                    <tr key={inv.id} style={{ borderBottom: '1px solid #F1F5F9', cursor: 'pointer', transition: 'background 0.1s' }}
-                      onClick={() => { setSelectedInvoiceForDetails(inv); setViewState('DETAILS'); }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#FAFBFC'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
-                    >
-                      <td style={{ padding: '14px 16px' }}>
-                        <div style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', fontSize: 13 }}>{inv.invoiceNumber}</div>
-                        <div style={{ fontSize: 10.5, color: '#64748B', marginTop: 2 }}>Issued: {inv.invoiceDate}</div>
-                      </td>
-                      <td style={{ padding: '14px 14px' }}>
-                        <div style={{ fontWeight: 700, color: '#0F172A' }}>{isBuyer ? (inv.manufacturerName || 'SunBio LifeSciences Ltd') : inv.customerName}</div>
-                        <div style={{ fontSize: 11, color: '#64748B', marginTop: 2, fontFamily: 'monospace' }}>{inv.customerCode || 'CUS-2026-001'}</div>
-                      </td>
-                      <td style={{ padding: '14px 14px' }}>
-                        <div style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F766E', fontSize: 12.5 }}>{inv.orderNumber}</div>
-                        <div style={{ fontSize: 11, color: '#64748B', marginTop: 2, fontFamily: 'monospace' }}>{inv.subOrderNumber || 'SO-1001-01'}</div>
-                      </td>
-                      <td style={{ padding: '14px 14px', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
-                        {sym}{inv.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td style={{ padding: '14px 14px', fontWeight: 700, fontFamily: 'monospace', color: '#16A34A' }}>
-                        {sym}{inv.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td style={{ padding: '14px 14px' }}>
-                        <div style={{ fontWeight: 800, fontFamily: 'monospace', color: isPaid ? '#16A34A' : '#DC2626' }}>
-                          {sym}{inv.balanceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          {/* Payment History Records Table (STRICTLY VIEW ONLY - NO PAY NOW BUTTON) */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, boxShadow: '0 1px 2px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 18px', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle2 size={16} style={{ color: '#0F766E' }} />
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>Recorded Payment Transactions</span>
+              </div>
+              <span style={{ fontSize: 11.5, color: '#64748B' }}>Audit trail of completed payments (View Only)</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <th style={{ padding: '11px 16px' }}>Payment ID & Date</th>
+                    <th style={{ padding: '11px 14px' }}>Invoice #</th>
+                    <th style={{ padding: '11px 14px' }}>Order / PO Ref</th>
+                    <th style={{ padding: '11px 14px' }}>Supplier / Beneficiary</th>
+                    <th style={{ padding: '11px 14px' }}>Payment Amount</th>
+                    <th style={{ padding: '11px 14px' }}>Payment Method</th>
+                    <th style={{ padding: '11px 14px' }}>Gateway / Ref ID</th>
+                    <th style={{ padding: '11px 14px' }}>Payment Status</th>
+                    <th style={{ padding: '11px 16px', textAlign: 'right', minWidth: 130 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPayments.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} style={{ padding: '40px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 22, background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', color: '#94A3B8' }}>
+                          <History size={20} />
                         </div>
-                        {isPartial && (
-                          <div style={{ marginTop: 3 }}>
-                            <div style={{ width: 80, height: 4, borderRadius: 2, background: '#E2E8F0', overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${Math.round((inv.paidAmount / inv.totalAmount) * 100)}%`, background: '#3B82F6', borderRadius: 2 }} />
-                            </div>
-                          </div>
-                        )}
+                        No payment records found matching your filters.
                       </td>
-                      <td style={{ padding: '14px 14px', fontSize: 12.5, color: '#475569' }}>{inv.dueDate}</td>
-                      <td style={{ padding: '14px 14px' }}><StatusChip inv={inv} /></td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
-                        {isBuyer ? (
-                          hasPdf ? (
+                    </tr>
+                  ) : (
+                    filteredPayments.map(p => {
+                      const isRazorpay = (p.paymentMethod || '').toLowerCase().includes('razorpay');
+                      const isCompleted = p.status === 'COMPLETED' || (p.status as string) === 'SUCCESS' || (p.status as string) === 'PAID';
+                      const isFailed = p.status === 'FAILED';
+                      const isCancelled = (p.status as string) === 'CANCELLED';
+
+                      return (
+                        <tr
+                          key={p.id}
+                          style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.1s' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#FAFBFC'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
+                        >
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', fontSize: 13 }}>{p.id}</div>
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <Clock size={11} /> {p.paymentDate}
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            <div style={{ fontWeight: 700, fontFamily: 'monospace', color: '#2563EB', fontSize: 12.5 }}>{p.invoiceNumber}</div>
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                              Inv Total: ₹{(p.invoiceTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            <div style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F766E', fontSize: 12.5 }}>{p.orderNumber}</div>
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Confirmed PO</div>
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            <div style={{ fontWeight: 700, color: '#0F172A' }}>{p.supplierName}</div>
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Beneficiary</div>
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            <div style={{ fontWeight: 800, fontFamily: 'monospace', color: isFailed ? '#DC2626' : '#16A34A', fontSize: 14 }}>
+                              ₹{p.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </div>
+                            <div style={{ fontSize: 10.5, color: '#64748B', marginTop: 1 }}>{p.currency || 'INR'}</div>
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: isRazorpay ? '#EFF6FF' : '#F8FAFC',
+                              color: isRazorpay ? '#2563EB' : '#334155',
+                              border: `1px solid ${isRazorpay ? '#BFDBFE' : '#CBD5E1'}`
+                            }}>
+                              {isRazorpay ? <CreditCard size={12} /> : <Banknote size={12} />}
+                              {p.paymentMethod}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            {p.razorpayPaymentId ? (
+                              <div>
+                                <div style={{ fontWeight: 700, fontFamily: 'monospace', color: '#0F172A', fontSize: 11.5 }}>
+                                  {p.razorpayPaymentId}
+                                </div>
+                                {p.razorpayOrderId && (
+                                  <div style={{ fontSize: 10.5, color: '#64748B', fontFamily: 'monospace', marginTop: 2 }}>
+                                    {p.razorpayOrderId}
+                                  </div>
+                                )}
+                              </div>
+                            ) : p.reference ? (
+                              <div style={{ fontWeight: 700, fontFamily: 'monospace', color: '#475569', fontSize: 11.5 }}>
+                                {p.reference}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#94A3B8', fontSize: 11.5 }}>—</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            {isCompleted ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#15803D', fontSize: 11, fontWeight: 800 }}>
+                                <Check size={11} /> SUCCESS
+                              </span>
+                            ) : isFailed ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 11, fontWeight: 800 }}>
+                                <X size={11} /> FAILED
+                              </span>
+                            ) : isCancelled ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: '#F1F5F9', border: '1px solid #CBD5E1', color: '#475569', fontSize: 11, fontWeight: 800 }}>
+                                CANCELLED
+                              </span>
+                            ) : (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: '#FFFBEB', border: '1px solid #FDE68A', color: '#B45309', fontSize: 11, fontWeight: 800 }}>
+                                <Clock size={11} /> PENDING
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            {/* Strictly [ View Payment ] button - NO Pay Now button */}
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedInvoiceForDetails(inv);
-                                setViewState('DETAILS');
-                              }}
+                              onClick={() => setSelectedPaymentForDetails(p)}
                               style={{
                                 height: 30,
-                                padding: '0 14px',
+                                padding: '0 12px',
                                 borderRadius: 6,
                                 border: '1px solid #0F766E',
                                 background: '#F0FDFA',
@@ -1942,142 +2190,326 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
                                 cursor: 'pointer',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: 6,
+                                gap: 5,
                                 boxShadow: '0 1px 2px rgba(15,118,110,0.1)'
                               }}
                             >
-                              <Eye size={13} /> View Invoice
+                              <Eye size={13} /> View Payment
                             </button>
-                          ) : (
-                            <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>
-                              Awaiting Invoice PDF
-                            </span>
-                          )
-                        ) : (
-                          /* Supplier / Admin View */
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', width: '100%' }}>
-                            {hasPdf ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedInvoiceForDetails(inv);
-                                    setViewState('DETAILS');
-                                  }}
-                                  style={{
-                                    height: 28,
-                                    width: 148,
-                                    padding: '0 10px',
-                                    borderRadius: 6,
-                                    border: '1px solid #0F766E',
-                                    background: '#F0FDFA',
-                                    fontSize: 11.5,
-                                    fontWeight: 700,
-                                    color: '#0F766E',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 5
-                                  }}
-                                >
-                                  <Eye size={13} /> View Invoice
-                                </button>
-                                {isManufacturer && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleOpenUploadModalForInvoice(inv, e)}
-                                    style={{
-                                      height: 28,
-                                      width: 148,
-                                      padding: '0 10px',
-                                      borderRadius: 6,
-                                      border: '1px solid #CBD5E1',
-                                      background: '#FFFFFF',
-                                      fontSize: 11.5,
-                                      fontWeight: 600,
-                                      color: '#2563EB',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      gap: 5
-                                    }}
-                                  >
-                                    <Upload size={13} /> Replace PDF
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                {isManufacturer ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleOpenUploadModalForInvoice(inv, e)}
-                                    style={{
-                                      height: 28,
-                                      width: 148,
-                                      padding: '0 10px',
-                                      borderRadius: 6,
-                                      border: 'none',
-                                      background: '#2563EB',
-                                      fontSize: 11.5,
-                                      fontWeight: 800,
-                                      color: '#FFFFFF',
-                                      cursor: 'pointer',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      gap: 5,
-                                      boxShadow: '0 1px 3px rgba(37,99,235,0.2)'
-                                    }}
-                                  >
-                                    <Upload size={13} /> Upload Invoice PDF
-                                  </button>
-                                ) : (
-                                  <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', width: 148 }}>
-                                    Awaiting Invoice PDF
-                                  </span>
-                                )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Invoice Ledger Compact Summary Bar */}
+          <EnterpriseMetricBar
+            title="INVOICE LEDGER SUMMARY"
+            subtitle="Receivables & Tax Invoices Overview"
+            metrics={[
+              { label: 'Total Invoiced', value: `₹${totalInvoiced.toLocaleString('en-IN')}`, sub: `${invoices.length} total issued`, color: '#2563EB' },
+              { label: isBuyer ? 'Amount Paid' : 'Payment Received', value: `₹${totalPaid.toLocaleString('en-IN')}`, sub: `↑ ${collectionRate}% collection rate`, color: '#16A34A' },
+              { label: 'Outstanding Balance', value: `₹${totalOutstanding.toLocaleString('en-IN')}`, sub: `${invoices.filter(i => i.balanceAmount > 0).length} pending settlements`, color: '#D97706' },
+              { label: 'Partially Paid', value: `${invoices.filter(i => i.paidAmount > 0 && i.balanceAmount > 0).length} Invoices`, sub: 'Active installment plans', color: '#1D4ED8' },
+            ]}
+          />
 
-                                {!isBuyer && inv.balanceAmount > 0 && !isAdmin && isSent && (
+          {/* Filters Bar */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                { id: 'ALL', label: `All Invoices (${invoices.length})` },
+                { id: 'GENERATED', label: `Generated (${invoices.filter(i => i.status === 'GENERATED').length})` },
+                { id: 'UNSENT_DRAFT', label: `Unsent Drafts (${invoices.filter(i => !i.sentToCustomer).length})` },
+                { id: 'SENT_TO_CUSTOMER', label: `Sent to Customer (${invoices.filter(i => i.sentToCustomer).length})` },
+                { id: 'PARTIALLY_PAID', label: `Partially Paid (${invoices.filter(i => i.paidAmount > 0 && i.balanceAmount > 0).length})` },
+                { id: 'PAID', label: `Paid (${invoices.filter(i => i.balanceAmount === 0).length})` },
+                { id: 'OVERDUE', label: `Overdue (${invoices.filter(i => i.status === 'OVERDUE' || (i.dueDate && i.dueDate < todayStr && i.balanceAmount > 0)).length})` },
+              ].map(tab => (
+                <button key={tab.id} onClick={() => setStatusFilter(tab.id)} style={{ height: 32, padding: '0 12px', borderRadius: 6, fontSize: 12, fontWeight: statusFilter === tab.id ? 700 : 500, background: statusFilter === tab.id ? '#2563EB' : 'transparent', color: statusFilter === tab.id ? '#FFFFFF' : '#475569', border: 'none', cursor: 'pointer', transition: 'all 120ms ease' }}>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Invoices Table */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 6, boxShadow: '0 1px 2px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 18px', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>Invoices Ledger</span>
+              <span style={{ fontSize: 12, color: '#64748B' }}>Showing {filteredInvoices.length} of {invoices.length} invoices</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <th style={{ padding: '11px 16px' }}>Invoice #</th>
+                    <th style={{ padding: '11px 14px' }}>{isBuyer ? 'Supplier / Manufacturer' : 'Customer / Buyer'}</th>
+                    <th style={{ padding: '11px 14px' }}>Order / PO Ref</th>
+                    <th style={{ padding: '11px 14px' }}>Invoice Total</th>
+                    <th style={{ padding: '11px 14px' }}>Amount Paid</th>
+                    <th style={{ padding: '11px 14px' }}>Balance Due</th>
+                    <th style={{ padding: '11px 14px' }}>Due Date</th>
+                    <th style={{ padding: '11px 14px' }}>Invoice Status</th>
+                    <th style={{ padding: '11px 16px', textAlign: 'right', minWidth: 200, width: 220 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInvoices.length === 0 ? (
+                    <tr><td colSpan={9} style={{ padding: '36px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>No invoices found matching criteria.</td></tr>
+                  ) : (
+                    filteredInvoices.map(inv => {
+                      const sym = getCurrencySymbol(inv.currency);
+                      const isPaid = inv.balanceAmount === 0 && inv.totalAmount > 0;
+                      const isPartial = inv.paidAmount > 0 && inv.balanceAmount > 0;
+                      const isSent = Boolean(inv.sentToCustomer);
+                      const hasPdf = Boolean(inv.uploadedFileUrl || inv.uploadedFileName || (inv.lines && inv.lines.length > 0));
+
+                      return (
+                        <tr key={inv.id} style={{ borderBottom: '1px solid #F1F5F9', cursor: 'pointer', transition: 'background 0.1s' }}
+                          onClick={() => { setSelectedInvoiceForDetails(inv); setViewState('DETAILS'); }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#FAFBFC'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
+                        >
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F172A', fontSize: 13 }}>{inv.invoiceNumber}</div>
+                            <div style={{ fontSize: 10.5, color: '#64748B', marginTop: 2 }}>Issued: {inv.invoiceDate}</div>
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            <div style={{ fontWeight: 700, color: '#0F172A' }}>{isBuyer ? (inv.manufacturerName || 'SunBio LifeSciences Ltd') : inv.customerName}</div>
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2, fontFamily: 'monospace' }}>{inv.customerCode || 'CUS-2026-001'}</div>
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            <div style={{ fontWeight: 800, fontFamily: 'monospace', color: '#0F766E', fontSize: 12.5 }}>{inv.orderNumber}</div>
+                            <div style={{ fontSize: 11, color: '#64748B', marginTop: 2, fontFamily: 'monospace' }}>{inv.subOrderNumber || 'SO-1001-01'}</div>
+                          </td>
+                          <td style={{ padding: '14px 14px', fontWeight: 800, fontFamily: 'monospace', color: '#0F172A' }}>
+                            {sym}{inv.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '14px 14px', fontWeight: 700, fontFamily: 'monospace', color: '#16A34A' }}>
+                            {sym}{inv.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            <div style={{ fontWeight: 800, fontFamily: 'monospace', color: isPaid ? '#16A34A' : '#DC2626' }}>
+                              {sym}{inv.balanceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </div>
+                            {isPartial && (
+                              <div style={{ marginTop: 3 }}>
+                                <div style={{ width: 80, height: 4, borderRadius: 2, background: '#E2E8F0', overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${Math.round((inv.paidAmount / inv.totalAmount) * 100)}%`, background: '#3B82F6', borderRadius: 2 }} />
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: '14px 14px', fontSize: 12.5, color: '#475569' }}>{inv.dueDate}</td>
+                          <td style={{ padding: '14px 14px' }}><StatusChip inv={inv} /></td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                            {isBuyer ? (
+                              hasPdf ? (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                                   <button
                                     type="button"
-                                    onClick={(e) => handleOpenPaymentModal(inv, e)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedInvoiceForDetails(inv);
+                                      setViewState('DETAILS');
+                                    }}
                                     style={{
-                                      height: 28,
-                                      width: 148,
-                                      padding: '0 10px',
+                                      height: 30,
+                                      padding: '0 12px',
                                       borderRadius: 6,
-                                      border: '1px solid #CBD5E1',
-                                      background: '#FFFFFF',
-                                      fontSize: 11.5,
+                                      border: '1px solid #0F766E',
+                                      background: '#F0FDFA',
+                                      fontSize: 12,
                                       fontWeight: 700,
                                       color: '#0F766E',
                                       cursor: 'pointer',
-                                      display: 'flex',
+                                      display: 'inline-flex',
                                       alignItems: 'center',
-                                      justifyContent: 'center',
-                                      gap: 5
+                                      gap: 5,
+                                      boxShadow: '0 1px 2px rgba(15,118,110,0.1)'
                                     }}
                                   >
-                                    <Banknote size={12} /> Record Payment
+                                    <Eye size={13} /> View Invoice
                                   </button>
+
+                                  {inv.balanceAmount > 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleTriggerRazorpay(inv, e)}
+                                      style={{
+                                        height: 30,
+                                        padding: '0 12px',
+                                        borderRadius: 6,
+                                        border: 'none',
+                                        background: 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)',
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        color: '#FFFFFF',
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 5,
+                                        boxShadow: '0 2px 4px rgba(15,118,110,0.2)'
+                                      }}
+                                    >
+                                      <CreditCard size={13} /> Pay Now
+                                    </button>
+                                  ) : (
+                                    <span style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      padding: '4px 8px',
+                                      borderRadius: 6,
+                                      background: '#F0FDF4',
+                                      border: '1px solid #BBF7D0',
+                                      color: '#15803D',
+                                      fontSize: 11,
+                                      fontWeight: 800
+                                    }}>
+                                      ✓ PAID
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>
+                                  Awaiting Invoice PDF
+                                </span>
+                              )
+                            ) : (
+                              /* Supplier / Admin View */
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', width: '100%' }}>
+                                {hasPdf ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedInvoiceForDetails(inv);
+                                        setViewState('DETAILS');
+                                      }}
+                                      style={{
+                                        height: 28,
+                                        width: 148,
+                                        padding: '0 10px',
+                                        borderRadius: 6,
+                                        border: '1px solid #0F766E',
+                                        background: '#F0FDFA',
+                                        fontSize: 11.5,
+                                        fontWeight: 700,
+                                        color: '#0F766E',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 5
+                                      }}
+                                    >
+                                      <Eye size={13} /> View Invoice
+                                    </button>
+                                    {isManufacturer && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleOpenUploadModalForInvoice(inv, e)}
+                                        style={{
+                                          height: 28,
+                                          width: 148,
+                                          padding: '0 10px',
+                                          borderRadius: 6,
+                                          border: '1px solid #CBD5E1',
+                                          background: '#FFFFFF',
+                                          fontSize: 11.5,
+                                          fontWeight: 600,
+                                          color: '#2563EB',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: 5
+                                        }}
+                                      >
+                                        <Upload size={13} /> Replace PDF
+                                      </button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    {isManufacturer ? (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleOpenUploadModalForInvoice(inv, e)}
+                                        style={{
+                                          height: 28,
+                                          width: 148,
+                                          padding: '0 10px',
+                                          borderRadius: 6,
+                                          border: 'none',
+                                          background: '#2563EB',
+                                          fontSize: 11.5,
+                                          fontWeight: 800,
+                                          color: '#FFFFFF',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: 5,
+                                          boxShadow: '0 1px 3px rgba(37,99,235,0.2)'
+                                        }}
+                                      >
+                                        <Upload size={13} /> Upload Invoice PDF
+                                      </button>
+                                    ) : (
+                                      <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', width: 148 }}>
+                                        Awaiting Invoice PDF
+                                      </span>
+                                    )}
+
+                                    {!isBuyer && inv.balanceAmount > 0 && !isAdmin && isSent && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleOpenPaymentModal(inv, e)}
+                                        style={{
+                                          height: 28,
+                                          width: 148,
+                                          padding: '0 10px',
+                                          borderRadius: 6,
+                                          border: '1px solid #CBD5E1',
+                                          background: '#FFFFFF',
+                                          fontSize: 11.5,
+                                          fontWeight: 700,
+                                          color: '#0F766E',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          justifyContent: 'center',
+                                          gap: 5
+                                        }}
+                                      >
+                                        <Banknote size={12} /> Record Payment
+                                      </button>
+                                    )}
+                                  </>
                                 )}
-                              </>
+                              </div>
                             )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* MODAL: CUSTOMER & ORDER-SPECIFIC INVOICE PDF UPLOAD */}
       {uploadTargetInvoice && (
@@ -2324,6 +2756,185 @@ export const InvoiceModule: React.FC<InvoiceModuleProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL: VIEW PAYMENT TRANSACTION DETAILS (STRICTLY VIEW-ONLY RECEIPT) */}
+      {selectedPaymentForDetails && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10020,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20
+          }}
+          onClick={() => setSelectedPaymentForDetails(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 620,
+              background: '#FFFFFF',
+              border: '1px solid #CBD5E1',
+              borderRadius: 14,
+              padding: 26,
+              boxShadow: '0 20px 48px rgba(15, 23, 42, 0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 14, borderBottom: '1px solid #E2E8F0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#F0FDFA', border: '1px solid #99F6E4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F766E' }}>
+                  <Shield size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: 0 }}>Payment Transaction Details</h3>
+                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 1 }}>
+                    Payment ID: <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F172A' }}>{selectedPaymentForDetails.id}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPaymentForDetails(null)}
+                style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Payment Amount Card */}
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Settled Amount</div>
+                <div style={{ fontSize: 26, fontWeight: 900, fontFamily: 'monospace', color: selectedPaymentForDetails.status === 'FAILED' ? '#DC2626' : '#16A34A', marginTop: 2 }}>
+                  ₹{selectedPaymentForDetails.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  background: selectedPaymentForDetails.status === 'FAILED' ? '#FEF2F2' : '#F0FDF4',
+                  color: selectedPaymentForDetails.status === 'FAILED' ? '#B91C1C' : '#15803D',
+                  border: `1px solid ${selectedPaymentForDetails.status === 'FAILED' ? '#FECACA' : '#BBF7D0'}`
+                }}>
+                  {selectedPaymentForDetails.status === 'FAILED' ? <X size={13} /> : <Check size={13} />}
+                  {selectedPaymentForDetails.status === 'FAILED' ? 'PAYMENT FAILED' : 'PAYMENT SUCCESSFUL'}
+                </span>
+                <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 5 }}>
+                  {selectedPaymentForDetails.currency || 'INR'} • {selectedPaymentForDetails.paymentDate}
+                </div>
+              </div>
+            </div>
+
+            {/* Details Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ background: '#FFFFFF', border: '1px solid #F1F5F9', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Invoice Reference</div>
+                <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'monospace', color: '#2563EB', marginTop: 4 }}>
+                  {selectedPaymentForDetails.invoiceNumber}
+                </div>
+                <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                  Total: ₹{(selectedPaymentForDetails.invoiceTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #F1F5F9', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Master Order / PO Reference</div>
+                <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'monospace', color: '#0F766E', marginTop: 4 }}>
+                  {selectedPaymentForDetails.orderNumber}
+                </div>
+                <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>Confirmed PO Reference</div>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #F1F5F9', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Beneficiary / Supplier</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', marginTop: 4 }}>
+                  {selectedPaymentForDetails.supplierName}
+                </div>
+                <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>Pharmaceutical Manufacturer</div>
+              </div>
+
+              <div style={{ background: '#FFFFFF', border: '1px solid #F1F5F9', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Payment Method</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {(selectedPaymentForDetails.paymentMethod || '').toLowerCase().includes('razorpay') ? <CreditCard size={14} style={{ color: '#2563EB' }} /> : <Banknote size={14} style={{ color: '#0F766E' }} />}
+                  {selectedPaymentForDetails.paymentMethod}
+                </div>
+                <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                  {selectedPaymentForDetails.verificationStatus || 'VERIFIED'}
+                </div>
+              </div>
+            </div>
+
+            {/* Gateway & Settlement Details */}
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Settlement & Gateway Audit Information</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
+                <div>
+                  <span style={{ color: '#64748B' }}>Razorpay Payment ID:</span>
+                  <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F172A', marginTop: 1 }}>
+                    {selectedPaymentForDetails.razorpayPaymentId || ((selectedPaymentForDetails.paymentMethod || '').toLowerCase().includes('razorpay') ? selectedPaymentForDetails.reference : '—')}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ color: '#64748B' }}>Razorpay Order ID:</span>
+                  <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F172A', marginTop: 1 }}>
+                    {selectedPaymentForDetails.razorpayOrderId || '—'}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ color: '#64748B' }}>UTR / Reference Number:</span>
+                  <div style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F172A', marginTop: 1 }}>
+                    {selectedPaymentForDetails.reference || '—'}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ color: '#64748B' }}>Settlement Notes:</span>
+                  <div style={{ fontWeight: 600, color: '#0F172A', marginTop: 1 }}>
+                    {selectedPaymentForDetails.remarks || 'Electronic payment processed.'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer (Strictly View-Only: No payment forms or Pay Now actions) */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 6, borderTop: '1px solid #E2E8F0' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedPaymentForDetails(null)}
+                style={{
+                  height: 38,
+                  padding: '0 20px',
+                  borderRadius: 8,
+                  border: '1px solid #CBD5E1',
+                  background: '#FFFFFF',
+                  color: '#475569',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Close Receipt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

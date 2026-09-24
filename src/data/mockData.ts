@@ -2422,6 +2422,351 @@ export const mockQuotes: ManufacturerQuote[] = [
 ];
 
 export const mockMasterOrders: MasterOrder[] = [
+  // ── Scenario 1: PO-2026-6101: Pending Approval, Advance Not Yet Decided ──
+  {
+    id: 'mo-6101',
+    orderNumber: 'MO-2026-6101',
+    poNumber: 'PO-2026-6101',
+    poStatus: 'PENDING_APPROVAL',
+    adminApprovalStatus: 'PENDING',
+    poApprovalStatus: 'PENDING_APPROVAL',
+    rfqId: 'rfq-6101',
+    rfqNumber: 'RFQ-2026-6101',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    customerClassification: 'REGULAR',
+    createdDate: '2026-09-18',
+    expectedDeliveryDate: '2026-10-05',
+    status: 'PENDING_ADMIN_APPROVAL',
+    totalAmount: 1000000,
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: 'Payment Terms To Be Confirmed on Approval',
+    currency: 'INR',
+    advanceRequired: undefined,
+    advanceMethod: 'PERCENTAGE',
+    advancePercentage: 30,
+    requiredAdvanceAmount: 0,
+    advanceReceived: 0,
+    advanceOutstanding: 0,
+    advanceStatus: 'NOT_CONFIGURED',
+    advancePayments: [],
+    subOrders: [
+      {
+        id: 'so-6101-01',
+        subOrderNumber: 'SO-2026-6101-01',
+        masterOrderId: 'mo-6101',
+        masterOrderNumber: 'MO-2026-6101',
+        poNumber: 'PO-SO-2026-6101-01',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'OPEN',
+        totalAmount: 650000,
+        startDate: '2026-09-18',
+        expectedDeliveryDate: '2026-10-05',
+        lines: [
+          { id: 'sol-6101-1', productId: 'p6', productName: 'Paracetamol 500mg Tablets', dosageForm: 'Tablet', quantity: 50000, unitPrice: 9.66, totalPrice: 483000 },
+          { id: 'sol-6101-2', productId: 'p3', productName: 'Azithromycin 500mg Tablets', dosageForm: 'Tablet', quantity: 10000, unitPrice: 16.70, totalPrice: 167000 }
+        ]
+      },
+      {
+        id: 'so-6101-02',
+        subOrderNumber: 'SO-2026-6101-02',
+        masterOrderId: 'mo-6101',
+        masterOrderNumber: 'MO-2026-6101',
+        poNumber: 'PO-SO-2026-6101-02',
+        manufacturerId: 'm2',
+        manufacturerName: 'Cipla Partner Formulations Ltd',
+        status: 'OPEN',
+        totalAmount: 350000,
+        startDate: '2026-09-18',
+        expectedDeliveryDate: '2026-10-05',
+        lines: [
+          { id: 'sol-6101-3', productId: 'p4', productName: 'Pantoprazole 40mg + Domperidone 30mg SR Capsules', dosageForm: 'Capsule', quantity: 24138, unitPrice: 14.50, totalPrice: 350000 }
+        ]
+      }
+    ]
+  },
+
+  // ── Scenario 2: PO-2026-6102: Approved, 30% Advance Required (₹3,00,000), Payment Pending (0 Paid) ──
+  {
+    id: 'mo-6102',
+    orderNumber: 'MO-2026-6102',
+    poNumber: 'PO-2026-6102',
+    poStatus: 'APPROVED',
+    adminApprovalStatus: 'APPROVED',
+    rfqId: 'rfq-6102',
+    rfqNumber: 'RFQ-2026-6102',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    customerClassification: 'REGULAR',
+    createdDate: '2026-09-16',
+    expectedDeliveryDate: '2026-10-02',
+    status: 'PENDING_ADVANCE',
+    totalAmount: 1000000,
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: '30% Advance + Net 30',
+    currency: 'INR',
+    advanceRequired: true,
+    advanceMethod: 'PERCENTAGE',
+    advancePercentage: 30,
+    requiredAdvanceAmount: 300000,
+    advanceReceived: 0,
+    advanceOutstanding: 300000,
+    advanceStatus: 'PENDING',
+    advanceDueDate: '2026-09-30',
+    advancePayments: [],
+    subOrders: [
+      {
+        id: 'so-6102-01',
+        subOrderNumber: 'SO-2026-6102-01',
+        masterOrderId: 'mo-6102',
+        masterOrderNumber: 'MO-2026-6102',
+        poNumber: 'PO-SO-2026-6102-01',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'OPEN',
+        totalAmount: 1000000,
+        startDate: '2026-09-16',
+        expectedDeliveryDate: '2026-10-02',
+        lines: [
+          { id: 'sol-6102-1', productId: 'p1', productName: 'Amoxyclav 625mg Tablets', dosageForm: 'Tablet', quantity: 22222, unitPrice: 45.00, totalPrice: 1000000 }
+        ]
+      }
+    ]
+  },
+
+  // ── Scenario 3: PO-2026-6103: Approved, 30% Advance Required, Paid (₹3,00,000), Confirmed & Released ──
+  {
+    id: 'mo-6103',
+    orderNumber: 'MO-2026-6103',
+    poNumber: 'PO-2026-6103',
+    poStatus: 'APPROVED',
+    adminApprovalStatus: 'APPROVED',
+    rfqId: 'rfq-6103',
+    rfqNumber: 'RFQ-2026-6103',
+    customerId: 'c4',
+    customerName: 'Zenith Global Pharma Exporters',
+    customerCode: 'CUS000104',
+    customerClassification: 'REGULAR',
+    createdDate: '2026-09-14',
+    expectedDeliveryDate: '2026-09-30',
+    status: 'CONFIRMED_RELEASED',
+    totalAmount: 1000000,
+    shippingAddress: 'Export Zone Terminal 3, Nhava Sheva Port, Navi Mumbai - 400707',
+    billingAddress: 'Zenith House, Nariman Point, Mumbai - 400021',
+    paymentTerms: '30% Advance + 70% Irrevocable LC',
+    currency: 'INR',
+    advanceRequired: true,
+    advanceMethod: 'PERCENTAGE',
+    advancePercentage: 30,
+    requiredAdvanceAmount: 300000,
+    advanceReceived: 300000,
+    advanceOutstanding: 0,
+    advanceStatus: 'PAID',
+    advancePaymentReference: 'UTR-ICICI-882319',
+    advancePaymentDate: '2026-09-17',
+    advancePaymentMode: 'Razorpay',
+    advancePayments: [
+      {
+        id: 'adv-pay-6103-1',
+        masterOrderId: 'mo-6103',
+        masterOrderNumber: 'MO-2026-6103',
+        amount: 300000,
+        paymentMode: 'Razorpay',
+        reference: 'pay_rzp_mock_6103_demo',
+        paymentDate: '2026-09-17',
+        notes: 'Full 30% required advance received and verified via Razorpay',
+        createdAt: '2026-09-17T14:15:00Z',
+        status: 'RECORDED'
+      }
+    ],
+    subOrders: [
+      {
+        id: 'so-6103-01',
+        subOrderNumber: 'SO-2026-6103-01',
+        masterOrderId: 'mo-6103',
+        masterOrderNumber: 'MO-2026-6103',
+        poNumber: 'PO-SO-2026-6103-01',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'SCHEDULED',
+        totalAmount: 1000000,
+        startDate: '2026-09-17',
+        expectedDeliveryDate: '2026-09-30',
+        lines: [
+          { id: 'sol-6103-1', productId: 'p5', productName: 'Ciprofloxacin 500mg Tablets', dosageForm: 'Tablet', quantity: 55555, unitPrice: 18.00, totalPrice: 1000000 }
+        ]
+      }
+    ]
+  },
+
+  // ── Scenario 4: PO-2026-6104: Approved, Advance Not Required, Confirmed & Released ──
+  {
+    id: 'mo-6104',
+    orderNumber: 'MO-2026-6104',
+    poNumber: 'PO-2026-6104',
+    poStatus: 'APPROVED',
+    adminApprovalStatus: 'APPROVED',
+    rfqId: 'rfq-6104',
+    rfqNumber: 'RFQ-2026-6104',
+    customerId: 'c5',
+    customerName: 'MediPlus Healthcare (Special Party Demo)',
+    customerCode: 'CUS000105',
+    customerClassification: 'SPECIAL_PARTY',
+    createdDate: '2026-09-15',
+    expectedDeliveryDate: '2026-10-01',
+    status: 'CONFIRMED_RELEASED',
+    totalAmount: 500000,
+    shippingAddress: 'MediPlus Central Hub, Sector 18, Gurugram, Haryana - 122015',
+    billingAddress: 'MediPlus Healthcare Corp, Cyber City, Phase II, Gurugram - 122002',
+    paymentTerms: 'Special Party Direct Settlement (Net 60)',
+    currency: 'INR',
+    advanceRequired: false,
+    advanceMethod: 'PERCENTAGE',
+    advancePercentage: 0,
+    requiredAdvanceAmount: 0,
+    advanceReceived: 0,
+    advanceOutstanding: 0,
+    advanceStatus: 'NOT_REQUIRED',
+    advancePayments: [],
+    subOrders: [
+      {
+        id: 'so-6104-01',
+        subOrderNumber: 'SO-2026-6104-01',
+        masterOrderId: 'mo-6104',
+        masterOrderNumber: 'MO-2026-6104',
+        poNumber: 'PO-SO-2026-6104-01',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'SCHEDULED',
+        totalAmount: 500000,
+        startDate: '2026-09-16',
+        expectedDeliveryDate: '2026-10-01',
+        lines: [
+          { id: 'sol-6104-1', productId: 'p3', productName: 'Azithromycin 500mg Tablets', dosageForm: 'Tablet', quantity: 33333, unitPrice: 15.00, totalPrice: 500000 }
+        ]
+      }
+    ]
+  },
+
+  // ── Scenario 2: PO-2026-6105: PO Approved, Advance Required Decision Visible (Case 2) ──
+  {
+    id: 'mo-6105',
+    orderNumber: 'MO-2026-6105',
+    poNumber: 'PO-2026-6105',
+    poStatus: 'APPROVED',
+    adminApprovalStatus: 'APPROVED',
+    poApprovalStatus: 'APPROVED',
+    rfqId: 'rfq-6105',
+    rfqNumber: 'RFQ-2026-6105',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    customerClassification: 'REGULAR',
+    createdDate: '2026-09-20',
+    expectedDeliveryDate: '2026-10-10',
+    status: 'PENDING_ADMIN_APPROVAL',
+    totalAmount: 800000,
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: 'Payment Terms To Be Configured',
+    currency: 'INR',
+    advanceRequired: undefined,
+    advanceMethod: 'PERCENTAGE',
+    advancePercentage: 30,
+    requiredAdvanceAmount: 0,
+    advanceReceived: 0,
+    advanceOutstanding: 0,
+    advanceStatus: 'NOT_CONFIGURED',
+    advancePayments: [],
+    subOrders: [
+      {
+        id: 'so-6105-01',
+        subOrderNumber: 'SO-2026-6105-01',
+        masterOrderId: 'mo-6105',
+        masterOrderNumber: 'MO-2026-6105',
+        poNumber: 'PO-SO-2026-6105-01',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'OPEN',
+        totalAmount: 800000,
+        startDate: '2026-09-20',
+        expectedDeliveryDate: '2026-10-10',
+        lines: [
+          { id: 'sol-6105-1', productId: 'p2', productName: 'Paracetamol 650mg ER Tablets', dosageForm: 'Tablet', quantity: 69565, unitPrice: 11.50, totalPrice: 800000 }
+        ]
+      }
+    ]
+  },
+
+  // ── Scenario 4: PO-2026-6106: Approved + Advance Required = YES + Partial Payment (Case 4) ──
+  {
+    id: 'mo-6106',
+    orderNumber: 'MO-2026-6106',
+    poNumber: 'PO-2026-6106',
+    poStatus: 'APPROVED',
+    adminApprovalStatus: 'APPROVED',
+    poApprovalStatus: 'APPROVED',
+    rfqId: 'rfq-6106',
+    rfqNumber: 'RFQ-2026-6106',
+    customerId: 'c1',
+    customerName: 'Apex Pharma PCD Franchise',
+    customerCode: 'CUS000101',
+    customerClassification: 'REGULAR',
+    createdDate: '2026-09-17',
+    expectedDeliveryDate: '2026-10-08',
+    status: 'PENDING_ADVANCE',
+    totalAmount: 1000000,
+    shippingAddress: 'Industrial Zone, Plot 14, Phase I, New Delhi - 110020',
+    billingAddress: 'Apex Corporate Office, Barakhamba Road, Connaught Place, New Delhi - 110001',
+    paymentTerms: '30% Advance + Net 30',
+    currency: 'INR',
+    advanceRequired: true,
+    advanceMethod: 'PERCENTAGE',
+    advancePercentage: 30,
+    requiredAdvanceAmount: 300000,
+    advanceReceived: 150000,
+    advanceOutstanding: 150000,
+    advanceStatus: 'PARTIALLY_PAID',
+    advanceDueDate: '2026-09-30',
+    advancePayments: [
+      {
+        id: 'adv-pay-6106-1',
+        masterOrderId: 'mo-6106',
+        masterOrderNumber: 'MO-2026-6106',
+        amount: 150000,
+        paymentMode: 'Razorpay',
+        reference: 'pay_rzp_mock_6106_partial',
+        paymentDate: '2026-09-19',
+        notes: 'Partial advance payment (50% of required advance) verified via Razorpay',
+        createdAt: '2026-09-19T11:20:00Z',
+        status: 'RECORDED'
+      }
+    ],
+    subOrders: [
+      {
+        id: 'so-6106-01',
+        subOrderNumber: 'SO-2026-6106-01',
+        masterOrderId: 'mo-6106',
+        masterOrderNumber: 'MO-2026-6106',
+        poNumber: 'PO-SO-2026-6106-01',
+        manufacturerId: 'm1',
+        manufacturerName: 'SunBio LifeSciences Ltd',
+        status: 'OPEN',
+        totalAmount: 1000000,
+        startDate: '2026-09-17',
+        expectedDeliveryDate: '2026-10-08',
+        lines: [
+          { id: 'sol-6106-1', productId: 'p1', productName: 'Amoxyclav 625mg Tablets', dosageForm: 'Tablet', quantity: 22222, unitPrice: 45.00, totalPrice: 1000000 }
+        ]
+      }
+    ]
+  },
+
   {
     id: 'mo-5870',
     orderNumber: 'MO-2026-5870',
@@ -2875,6 +3220,11 @@ export const mockInvoices: Invoice[] = [
     customerCode: 'CUS000101',
     manufacturerId: 'm1',
     manufacturerName: 'SunBio LifeSciences Ltd',
+    creationMethod: 'UPLOAD',
+    uploadedFileName: 'INV-2026-4407.pdf',
+    uploadedFileUrl: '/invoices/INV-2026-4407.pdf',
+    uploadedFileSize: '980 KB',
+    uploadedFileType: 'PDF Document',
     invoiceDate: '2026-08-28',
     dueDate: '2026-09-28',
     subtotal: 24000,
@@ -2891,12 +3241,16 @@ export const mockInvoices: Invoice[] = [
       {
         id: 'pay-4407-1',
         invoiceId: 'inv-4407',
+        orderId: 'mo1',
+        orderNumber: 'MO-2026-1001',
+        customerName: 'Apex Pharma PCD Franchise',
         amount: 26880,
         currency: 'INR',
         paymentMethod: 'RTGS / Bank Transfer',
         paymentDate: '2026-08-28',
         reference: 'UTR-RTGS-884920',
         status: 'COMPLETED',
+        verificationStatus: 'VERIFIED',
         remarks: 'Full payment received upon goods delivery'
       }
     ]
@@ -2914,6 +3268,11 @@ export const mockInvoices: Invoice[] = [
     customerCode: 'CUS000101',
     manufacturerId: 'm2',
     manufacturerName: 'Cipla Partner Formulations Ltd',
+    creationMethod: 'UPLOAD',
+    uploadedFileName: 'INV-2026-4408.pdf',
+    uploadedFileUrl: '/invoices/INV-2026-4408.pdf',
+    uploadedFileSize: '1.24 MB',
+    uploadedFileType: 'PDF Document',
     invoiceDate: '2026-08-27',
     dueDate: '2026-09-28',
     subtotal: 43500,
@@ -2941,6 +3300,11 @@ export const mockInvoices: Invoice[] = [
     customerCode: 'CUS000101',
     manufacturerId: 'm1',
     manufacturerName: 'SunBio LifeSciences Ltd',
+    creationMethod: 'UPLOAD',
+    uploadedFileName: 'INV-2026-4401.pdf',
+    uploadedFileUrl: '/invoices/INV-2026-4401.pdf',
+    uploadedFileSize: '1.45 MB',
+    uploadedFileType: 'PDF Document',
     invoiceDate: '2026-08-04',
     dueDate: '2026-09-18',
     subtotal: 154199.99,
@@ -2958,12 +3322,16 @@ export const mockInvoices: Invoice[] = [
       {
         id: 'pay_demo_1',
         invoiceId: 'inv1',
+        orderId: 'mo1',
+        orderNumber: 'MO-2026-1001',
+        customerName: 'Apex Pharma PCD Franchise',
         amount: 70000,
         currency: 'INR',
         paymentMethod: 'NEFT',
         paymentDate: '2026-08-04',
         reference: 'UTR-458373',
         status: 'COMPLETED',
+        verificationStatus: 'VERIFIED',
         remarks: 'First partial payment'
       }
     ]
@@ -2979,6 +3347,11 @@ export const mockInvoices: Invoice[] = [
     customerCode: 'CUS000101',
     manufacturerId: 'm1',
     manufacturerName: 'SunBio LifeSciences Ltd',
+    creationMethod: 'UPLOAD',
+    uploadedFileName: 'INV-2026-4402.pdf',
+    uploadedFileUrl: '/invoices/INV-2026-4402.pdf',
+    uploadedFileSize: '2.10 MB',
+    uploadedFileType: 'PDF Document',
     invoiceDate: '2026-06-15',
     dueDate: '2026-08-14',
     subtotal: 500000,
@@ -3007,6 +3380,11 @@ export const mockInvoices: Invoice[] = [
     customerCode: 'CUS000101',
     manufacturerId: 'm1',
     manufacturerName: 'SunBio LifeSciences Ltd',
+    creationMethod: 'UPLOAD',
+    uploadedFileName: 'INV-2026-4819.pdf',
+    uploadedFileUrl: '/invoices/INV-2026-4819.pdf',
+    uploadedFileSize: '860 KB',
+    uploadedFileType: 'PDF Document',
     invoiceDate: '2026-08-10',
     dueDate: '2026-09-10',
     subtotal: 25700,
@@ -3023,12 +3401,16 @@ export const mockInvoices: Invoice[] = [
       {
         id: 'pay_4819_1',
         invoiceId: 'inv3',
+        orderId: 'mo1',
+        orderNumber: 'MO-2026-1001',
+        customerName: 'Apex Pharma PCD Franchise',
         amount: 23456,
         currency: 'INR',
         paymentMethod: 'Bank Transfer',
         paymentDate: '2026-08-12',
         reference: 'UTR-987412',
         status: 'COMPLETED',
+        verificationStatus: 'VERIFIED',
         remarks: 'Initial advance payment'
       }
     ]

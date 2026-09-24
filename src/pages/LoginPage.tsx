@@ -164,7 +164,7 @@ function EnterpriseIsoIllustration() {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
-  const { setCurrentRole, setActiveTab, login, twoFactorState, verify2FAAttempt, useRecoveryCode } = useApp();
+  const { setCurrentRole, setActiveTab, login, twoFactorState, verify2FAAttempt, useRecoveryCode: consumeRecoveryCode } = useApp();
 
   const [activeCategory, setActiveCategory] = useState<CategoryType>('BUYER_COMPANY');
   const [isRegistering, setIsRegistering] = useState(false);
@@ -289,7 +289,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
       return;
     }
 
-    const res = useRecoveryCode(recoveryCodeInput);
+    const res = consumeRecoveryCode(recoveryCodeInput);
     if (res.success && pendingRole) {
       login(pendingRole);
       setStep2FA('NONE');

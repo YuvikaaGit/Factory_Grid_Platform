@@ -136,7 +136,7 @@ export const ManufacturerModule: React.FC = () => {
       let aiScore = 82;
       if (bestMatchedProduct) aiScore += 6;
       if (mfg.complianceStatus === 'APPROVED') aiScore += 4;
-      if (mfg.certifications.some(c => c.name.includes('WHO-GMP'))) aiScore += 3;
+      if (mfg.certifications?.some(c => c.name.includes('WHO-GMP'))) aiScore += 3;
       if (pastRelationship.hasHistory) aiScore += 3;
 
       // Cap at 96%
@@ -167,7 +167,7 @@ export const ManufacturerModule: React.FC = () => {
     let result = matchedMfgResults.filter(({ mfg, matchedProduct, mapping, pastRelationship }) => {
       // Certification Filter
       if (certFilter !== 'ALL') {
-        if (!mfg.certifications.some(c => c.name.toUpperCase().includes(certFilter.toUpperCase()))) {
+        if (!mfg.certifications?.some(c => c.name.toUpperCase().includes(certFilter.toUpperCase()))) {
           return false;
         }
       }

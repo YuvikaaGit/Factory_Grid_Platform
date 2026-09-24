@@ -35,3 +35,6 @@ original_b6b7_*.tsx
 restored_full_landing_*.tsx
 extracted_landing.txt
 step_*.txt
+
+# Local workspace mirror
+Factory_Grid_Platform-main/
