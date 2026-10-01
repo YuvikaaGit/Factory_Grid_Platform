@@ -249,78 +249,116 @@ export const BrandVerificationModule: React.FC = () => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingBottom: 48, background: '#F8FAFC', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 32, background: '#F8FAFC', minHeight: '100vh' }}>
 
-      {/* ── TOP HEADER BAR ────────────────────────────────────── */}
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, padding: '20px 24px', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 10, background: '#EFF6FF', border: '1px solid #BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1D4ED8' }}>
-            <Award size={24} />
+      {/* ── STANDARD ENTERPRISE PAGE HEADER ──────────────────────── */}
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          {/* Breadcrumb */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748B', marginBottom: 4 }}>
+            <span>Compliance Workflow</span>
+            <ChevronRight size={12} />
+            <span style={{ color: '#1D4ED8', fontWeight: 600 }}>Brand Verification Workflow</span>
           </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748B', fontWeight: 500 }}>
-              <span>Compliance Workflow</span>
-              <ChevronRight size={12} />
-              <span style={{ color: '#1D4ED8', fontWeight: 600 }}>Brand Verification Workflow</span>
-            </div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', margin: '2px 0 0', letterSpacing: '-0.02em' }}>
+
+          {/* Title with small icon */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Award size={18} style={{ color: '#1D4ED8', flexShrink: 0 }} />
+            <h1 style={{ fontSize: 18, fontWeight: 700, color: '#0F172A', margin: 0, letterSpacing: '-0.01em' }}>
               Brand Authorization & Verification Desk
             </h1>
-            <div style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>
-              Verification of Letter of Authorization (LOA), Brand Ownership, and Artwork Formulations for Pharma Manufacturing.
-            </div>
+          </div>
+
+          {/* Description */}
+          <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 3 }}>
+            Verification of Letter of Authorization (LOA), Brand Ownership, and Artwork Formulations for Pharma Manufacturing.
           </div>
         </div>
       </div>
 
-      {/* ── KPI STRIP BAR ─────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
+      {/* ── COMPACT HORIZONTAL STATISTICS ROW ─────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
         {[
-          { id: 'ALL', label: 'Total Brands', count: counts.all, color: '#0F172A' },
-          { id: 'UNDER_REVIEW', label: 'Under Review', count: counts.underReview, color: '#1D4ED8' },
-          { id: 'APPROVED', label: 'Brand Approved', count: counts.approved, color: '#10B981' },
-          { id: 'AUTH_REQUIRED', label: 'Auth Required', count: counts.authRequired, color: '#DB2777' },
-          { id: 'REJECTED', label: 'Brand Rejected', count: counts.rejected, color: '#DC2626' },
-        ].map(t => (
-          <div
-            key={t.id}
-            onClick={() => setActiveTab(t.id as any)}
-            style={{
-              background: '#FFFFFF', border: activeTab === t.id ? `2px solid ${t.color}` : '1px solid #E2E8F0',
-              borderRadius: 12, padding: '16px 18px', cursor: 'pointer', boxShadow: '0 1px 3px rgba(15,23,42,0.04)'
-            }}
-          >
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>{t.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: t.color, marginTop: 6 }}>{t.count}</div>
-          </div>
-        ))}
+          { id: 'ALL', label: 'Total Brands', count: counts.all, color: '#0F172A', activeBg: '#F8FAFC' },
+          { id: 'UNDER_REVIEW', label: 'Under Review', count: counts.underReview, color: '#1D4ED8', activeBg: '#EFF6FF' },
+          { id: 'APPROVED', label: 'Brand Approved', count: counts.approved, color: '#059669', activeBg: '#ECFDF5' },
+          { id: 'AUTH_REQUIRED', label: 'Auth Required', count: counts.authRequired, color: '#DB2777', activeBg: '#FDF2F8' },
+          { id: 'REJECTED', label: 'Brand Rejected', count: counts.rejected, color: '#DC2626', activeBg: '#FEF2F2' },
+        ].map(t => {
+          const isSelected = activeTab === t.id;
+          return (
+            <div
+              key={t.id}
+              onClick={() => setActiveTab(t.id as any)}
+              style={{
+                background: isSelected ? t.activeBg : '#FFFFFF',
+                border: isSelected ? `1.5px solid ${t.color}` : '1px solid #E2E8F0',
+                borderRadius: 8,
+                padding: '9px 14px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                  {t.label}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: t.color, marginTop: 2, lineHeight: 1.2 }}>
+                  {t.count}
+                </div>
+              </div>
+              {isSelected && (
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: t.color }} />
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {/* ── REGULATORY NOTICE: GENERIC MEDICINES EXEMPTION ────── */}
-      <div style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 12, padding: '14px 20px', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 8, background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#166534', flexShrink: 0, marginTop: 2 }}>
-          <ShieldCheck size={20} />
-        </div>
+      {/* ── STATUTORY EXEMPTION NOTICE (STANDARD ENTERPRISE ALERT BANNER) ── */}
+      <div style={{
+        background: '#F0FDF4',
+        border: '1px solid #BBF7D0',
+        borderLeft: '4px solid #16A34A',
+        borderRadius: 6,
+        padding: '10px 14px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10
+      }}>
+        <ShieldCheck size={16} style={{ color: '#16A34A', marginTop: 2, flexShrink: 0 }} />
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#166534' }}>
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#166534' }}>
               Statutory Exemption Notice: Generic Medicines (Molecule-Based Procurement)
             </span>
-            <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: '#DCFCE7', color: '#15803D', border: '1px solid #86EFAC' }}>
+            <span style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '1px 6px',
+              borderRadius: 4,
+              background: '#DCFCE7',
+              color: '#15803D',
+              border: '1px solid #86EFAC',
+              letterSpacing: '0.02em'
+            }}>
               NO BRAND CERTIFICATE / LOA REQUIRED
             </span>
           </div>
-          <div style={{ fontSize: 12.5, color: '#15803D', lineHeight: 1.5, marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: '#15803D', lineHeight: 1.5, marginTop: 3 }}>
             Generic medicine requisitions are identified primarily by standard chemical molecule and internal price list rates. Under FactoryGrid compliance protocols and CDSCO / Drugs &amp; Cosmetics Rules, non-proprietary generic molecules are <strong>exempt</strong> from Trademark Licensing Agreements, Brand Owner LOAs, and Trademark Registration checks. Compliance is validated strictly via WHO-GMP manufacturing plant licenses (Form 25/28) and COA batch testing.
           </div>
         </div>
       </div>
 
       {/* ── MAIN CONTENT GRID ─────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 360px) 1fr', gap: 16, alignItems: 'start' }}>
 
         {/* LEFT BRAND LIST */}
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ padding: 16, borderBottom: '1px solid #E2E8F0', background: '#F8FAFC' }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', marginBottom: 10 }}>Pharma Brand Cases</div>
             <div style={{ position: 'relative' }}>
@@ -373,10 +411,10 @@ export const BrandVerificationModule: React.FC = () => {
 
         {/* RIGHT BRAND REVIEW WORKSPACE */}
         {selectedRecord ? (
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', flexDirection: 'column', gap: 20, padding: 24 }}>
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 16, padding: 18 }}>
 
             {/* SUMMARY CARD */}
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 12, fontWeight: 800, color: '#1D4ED8', background: '#EFF6FF', padding: '2px 8px', borderRadius: 4, fontFamily: 'monospace' }}>
@@ -569,10 +607,10 @@ export const BrandVerificationModule: React.FC = () => {
       {/* ── DOCUMENT PREVIEW MODAL ────────────────────────────────── */}
       {viewingDoc && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(3px)' }}>
-          <div style={{ width: '100%', maxWidth: 640, background: '#FFFFFF', borderRadius: 14, overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
-            <div style={{ padding: '16px 20px', background: '#0F172A', color: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ width: '100%', maxWidth: 640, background: '#FFFFFF', borderRadius: 8, overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+            <div style={{ padding: '14px 18px', background: '#0F172A', color: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 800 }}>Digitized Brand Document Viewer</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>Digitized Brand Document Viewer</div>
                 <div style={{ fontSize: 11.5, color: '#94A3B8' }}>{viewingDoc.docType} • {viewingDoc.fileName}</div>
               </div>
               <button onClick={() => setViewingDoc(null)} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
@@ -580,19 +618,19 @@ export const BrandVerificationModule: React.FC = () => {
               </button>
             </div>
 
-            <div style={{ padding: 24, background: '#F8FAFC' }}>
-              <div style={{ border: '2px dashed #CBD5E1', padding: 24, borderRadius: 10, background: '#FFFFFF', textAlign: 'center' }}>
-                <FileText size={44} style={{ color: '#1D4ED8', margin: '0 auto 12px' }} />
-                <h4 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: '0 0 6px 0' }}>{viewingDoc.docType}</h4>
+            <div style={{ padding: 20, background: '#F8FAFC' }}>
+              <div style={{ border: '2px dashed #CBD5E1', padding: 20, borderRadius: 8, background: '#FFFFFF', textAlign: 'center' }}>
+                <FileText size={40} style={{ color: '#1D4ED8', margin: '0 auto 10px' }} />
+                <h4 style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', margin: '0 0 4px 0' }}>{viewingDoc.docType}</h4>
                 <div style={{ fontSize: 12, color: '#64748B', fontFamily: 'monospace' }}>File: {viewingDoc.fileName}</div>
                 <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 4 }}>Uploaded: {viewingDoc.uploadedAt} • Size: {viewingDoc.fileSize}</div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 20, textAlign: 'left', fontSize: 12 }}>
-                  <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginTop: 16, textAlign: 'left', fontSize: 12 }}>
+                  <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 6, border: '1px solid #E2E8F0' }}>
                     <div style={{ color: '#64748B', fontSize: 11, fontWeight: 600 }}>SUBMISSION STATUS</div>
                     <div style={{ fontWeight: 800, color: '#10B981', marginTop: 2 }}>✓ {viewingDoc.status}</div>
                   </div>
-                  <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                  <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 6, border: '1px solid #E2E8F0' }}>
                     <div style={{ color: '#64748B', fontSize: 11, fontWeight: 600 }}>AUTHORIZATION SEAL</div>
                     <div style={{ fontWeight: 700, color: '#10B981', marginTop: 2 }}>✓ Notarized LOA Audited</div>
                   </div>
@@ -600,8 +638,8 @@ export const BrandVerificationModule: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ padding: '14px 20px', background: '#F1F5F9', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #E2E8F0' }}>
-              <button onClick={() => setViewingDoc(null)} style={{ padding: '6px 18px', fontSize: 12.5, fontWeight: 700, borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', cursor: 'pointer' }}>
+            <div style={{ padding: '12px 18px', background: '#F1F5F9', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #E2E8F0' }}>
+              <button onClick={() => setViewingDoc(null)} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', cursor: 'pointer' }}>
                 Close Viewer
               </button>
             </div>
@@ -612,21 +650,21 @@ export const BrandVerificationModule: React.FC = () => {
       {/* ── DECISION MODALS ───────────────────────────────────── */}
       {decisionModal === 'APPROVE' && selectedRecord && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)' }}>
-          <div style={{ width: '100%', maxWidth: 480, background: '#FFFFFF', borderRadius: 14, padding: 24 }}>
+          <div style={{ width: '100%', maxWidth: 480, background: '#FFFFFF', borderRadius: 8, padding: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#10B981', fontWeight: 800, fontSize: 16 }}>
               <CheckCircle2 size={20} /> Approve Brand Authorization
             </div>
             <div style={{ fontSize: 13, color: '#334155', marginTop: 12 }}>
               Are you sure you want to approve brand authorization for <strong>"{selectedRecord.brandName}"</strong> ({selectedRecord.customerName})?
             </div>
-            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: 12, marginTop: 12, fontSize: 12, color: '#166534' }}>
+            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6, padding: 10, marginTop: 12, fontSize: 12, color: '#166534' }}>
               Status will become <strong>BRAND APPROVED</strong> and contract manufacturing order creation will be unlocked.
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-              <button onClick={() => setDecisionModal(null)} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+              <button onClick={() => setDecisionModal(null)} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 Cancel
               </button>
-              <button onClick={handleExecuteApprove} style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#10B981', color: '#FFF', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>
+              <button onClick={handleExecuteApprove} style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: '#10B981', color: '#FFF', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 Confirm & Approve Brand →
               </button>
             </div>
@@ -636,19 +674,19 @@ export const BrandVerificationModule: React.FC = () => {
 
       {decisionModal === 'REQUEST_AUTH' && selectedRecord && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)' }}>
-          <div style={{ width: '100%', maxWidth: 500, background: '#FFFFFF', borderRadius: 14, padding: 24 }}>
+          <div style={{ width: '100%', maxWidth: 500, background: '#FFFFFF', borderRadius: 8, padding: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#DB2777', fontWeight: 800, fontSize: 16 }}>
               <AlertCircle size={20} /> Request Authorization Letter (LOA)
             </div>
             <div style={{ marginTop: 12 }}>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 4 }}>Authorization Request Notes *</label>
-              <textarea rows={4} required placeholder="e.g. Please submit fresh notarized LOA from trademark holder..." value={requestAuthNotesInput} onChange={e => setRequestAuthNotesInput(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #CBD5E1', fontSize: 12 }} />
+              <textarea rows={4} required placeholder="e.g. Please submit fresh notarized LOA from trademark holder..." value={requestAuthNotesInput} onChange={e => setRequestAuthNotesInput(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 12 }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
-              <button onClick={() => setDecisionModal(null)} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => setDecisionModal(null)} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 Cancel
               </button>
-              <button onClick={handleExecuteRequestAuth} style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#DB2777', color: '#FFF', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>
+              <button onClick={handleExecuteRequestAuth} style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: '#DB2777', color: '#FFF', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 Send Authorization Request →
               </button>
             </div>
@@ -658,7 +696,7 @@ export const BrandVerificationModule: React.FC = () => {
 
       {decisionModal === 'REJECT' && selectedRecord && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(3px)' }}>
-          <div style={{ width: '100%', maxWidth: 480, background: '#FFFFFF', borderRadius: 14, padding: 24 }}>
+          <div style={{ width: '100%', maxWidth: 480, background: '#FFFFFF', borderRadius: 8, padding: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#DC2626', fontWeight: 800, fontSize: 16 }}>
               <XCircle size={20} /> Reject Brand Authorization
             </div>
@@ -667,10 +705,10 @@ export const BrandVerificationModule: React.FC = () => {
               <textarea rows={3} required placeholder="Enter brand rejection reason..." value={rejectionReasonInput} onChange={e => setRejectionReasonInput(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 12 }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
-              <button onClick={() => setDecisionModal(null)} style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => setDecisionModal(null)} style={{ padding: '7px 14px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 Cancel
               </button>
-              <button onClick={handleExecuteReject} style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#DC2626', color: '#FFF', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>
+              <button onClick={handleExecuteReject} style={{ padding: '7px 18px', borderRadius: 6, border: 'none', background: '#DC2626', color: '#FFF', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                 Confirm Rejection
               </button>
             </div>

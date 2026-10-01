@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   FileText, CheckCircle2, XCircle, RefreshCw, Download, Printer,
-  Building2, ShieldCheck, Clock, Layers, ArrowRight, X, AlertCircle,
+  Building2, ShieldCheck, Clock, Layers, ArrowRight, X, AlertCircle, Info,
   Truck, Receipt, Check, File, ChevronRight, DollarSign, MessageSquare, ShoppingBag
 } from 'lucide-react';
 import { RFQ } from '../../types';
@@ -20,7 +20,7 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
 }) => {
   const {
     rfqs, manufacturers, selectQuoteAndCreateOrder, addAuditLog,
-    setActiveTab, currentRole, getApplicableMargin, platformFeeConfig
+    setActiveTab, currentRole, getApplicableMargin
   } = useApp();
 
   const [transparencyMode, setTransparencyMode] = useState<'BUYER' | 'ADMIN'>(
@@ -53,13 +53,10 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
     });
   }
 
-  // Commercial Calculations with STRICT Product-Level Margin & SEPARATE Platform Fee
+  // Commercial Calculations with Product-Level Margin 
   let totalBaseAmount = 0;
   let totalMarginAmount = 0;
-  let totalPlatformFeeAmount = 0;
   let subtotal = 0;
-
-  const feeRate = platformFeeConfig?.feeValue ?? 2.0;
 
   const productSummaryItems = activeRfq?.lines.map(line => {
     const fallbackSel = activeRfq.isGeneric
@@ -67,7 +64,7 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
       : { mfgId: 'm1', mfgName: 'SunBio LifeSciences Ltd', price: 38.50 };
     const sel = selections[line.id] || fallbackSel;
 
-    const baseUnitPrice = sel.price;
+    const baseUnitPrice = Number(sel.price ?? 38.50) || 0;
     const resolvedMargin = getApplicableMargin(line.productId, sel.mfgId);
 
     let marginUnitPrice = 0;
@@ -81,53 +78,44 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
       marginLabel = `${pct}% (+₹${marginUnitPrice.toFixed(2)})`;
     }
 
-    // Platform Fee: strictly separated from margin, applied to (base + margin)
-    const platformFeeUnitPrice = Math.round(((baseUnitPrice + marginUnitPrice) * (feeRate / 100)) * 100) / 100;
-    const commercialUnitPrice = Math.round((baseUnitPrice + marginUnitPrice + platformFeeUnitPrice) * 100) / 100;
+    // Commercial Unit Price is strictly base + margin 
+    const commercialUnitPrice = Math.round((baseUnitPrice + marginUnitPrice) * 100) / 100;
 
-    const lineBase = line.quantity * baseUnitPrice;
-    const lineMargin = line.quantity * marginUnitPrice;
-    const lineFee = line.quantity * platformFeeUnitPrice;
-    const lineSubtotal = line.quantity * commercialUnitPrice;
+    const lineQty = Number(line.quantity ?? 0);
+    const lineBase = lineQty * baseUnitPrice;
+    const lineMargin = lineQty * marginUnitPrice;
+    const lineSubtotal = lineQty * commercialUnitPrice;
+    const netPrice = lineSubtotal;
 
     totalBaseAmount += lineBase;
     totalMarginAmount += lineMargin;
-    totalPlatformFeeAmount += lineFee;
     subtotal += lineSubtotal;
-
-    const discount = lineSubtotal * 0.025; // 2.5% discount
-    const gst = (lineSubtotal - discount) * 0.12; // 12% GST
-    const netPrice = lineSubtotal - discount + gst;
 
     return {
       id: line.id,
       productId: line.productId,
-      productName: line.productName,
-      dosageForm: line.dosageForm,
-      mfgName: sel.mfgName,
-      quantity: line.quantity,
+      productName: line.productName || 'Product',
+      dosageForm: line.dosageForm || 'Tablet',
+      mfgName: sel.mfgName || 'Manufacturer',
+      quantity: lineQty,
       baseUnitPrice,
       marginUnitPrice,
       marginLabel,
       marginType: resolvedMargin.marginType,
-      platformFeeUnitPrice,
       commercialUnitPrice,
       unitPrice: commercialUnitPrice,
       lineBase,
       lineMargin,
-      lineFee,
-      discount: Math.round(discount),
-      gst: Math.round(gst),
       netPrice: Math.round(netPrice),
       leadTime: activeRfq.isGeneric ? '7 Days (Direct Dispatch)' : '14 Days',
       deliveryDate: line.requiredDate || '2026-09-02'
     };
   }) || [];
 
-  const gstTotal = Math.round(subtotal * 0.12);
-  const freightTotal = 35000;
-  const otherCharges = 0;
-  const grandTotal = Math.round(subtotal + gstTotal + freightTotal + otherCharges);
+  const safeSubtotal = Number(subtotal ?? 0);
+  const grandTotal = Math.round(safeSubtotal);
+  const safeTotalBase = Number(totalBaseAmount ?? 0);
+  const safeTotalMargin = Number(totalMarginAmount ?? 0);
 
   // Component Workflow States: PENDING_APPROVAL | APPROVED | REJECTED | ORDER_CREATED
   const [quotationStatus, setQuotationStatus] = useState<'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'ORDER_CREATED'>('PENDING_APPROVAL');
@@ -311,14 +299,8 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
 
         <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Subtotal</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: 4 }}>₹{subtotal.toLocaleString()}</div>
-          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Excluding GST & Freight</div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>GST & Freight</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: '#475569', fontFamily: 'monospace', marginTop: 4 }}>₹{(gstTotal + freightTotal).toLocaleString()}</div>
-          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>12% GST + Cold-chain shipping</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: 4 }}>₹{safeSubtotal.toLocaleString()}</div>
+          <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Total product quotation value</div>
         </div>
 
         <div style={{ background: '#FFFFFF', border: '1px solid #0F766E', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
@@ -379,14 +361,11 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
                     <>
                       <th style={{ padding: '12px 12px', fontSize: 11, fontWeight: 700, color: '#475569' }}>Base Price</th>
                       <th style={{ padding: '12px 12px', fontSize: 11, fontWeight: 700, color: '#0F766E' }}>Product Margin</th>
-                      <th style={{ padding: '12px 12px', fontSize: 11, fontWeight: 700, color: '#D97706' }}>Platform Fee ({feeRate}%)</th>
                       <th style={{ padding: '12px 12px', fontSize: 11, fontWeight: 700, color: '#0F172A' }}>Commercial Unit Price</th>
                     </>
                   ) : (
                     <>
                       <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, color: '#475569' }}>Commercial Unit Price</th>
-                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, color: '#D97706' }}>Platform Fee</th>
-                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, color: '#475569' }}>GST (12%)</th>
                       <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, color: '#475569' }}>Delivery Schedule</th>
                     </>
                   )}
@@ -404,13 +383,13 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
                       <span style={{ fontWeight: 700, color: '#0F766E' }}>{item.mfgName}</span>
                     </td>
                     <td style={{ padding: '12px 14px', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
-                      {item.quantity.toLocaleString()} Units
+                      {(Number(item.quantity) || 0).toLocaleString()} Units
                     </td>
 
                     {transparencyMode === 'ADMIN' ? (
                       <>
                         <td style={{ padding: '12px 12px', color: '#475569', fontFamily: 'monospace' }}>
-                          ₹{item.baseUnitPrice.toFixed(2)}
+                          ₹{(Number(item.baseUnitPrice) || 0).toFixed(2)}
                         </td>
                         <td style={{ padding: '12px 12px' }}>
                           <span style={{
@@ -420,23 +399,14 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
                             {item.marginLabel}
                           </span>
                         </td>
-                        <td style={{ padding: '12px 12px', color: '#B45309', fontWeight: 700, fontFamily: 'monospace' }}>
-                          +₹{item.platformFeeUnitPrice.toFixed(2)}
-                        </td>
                         <td style={{ padding: '12px 12px', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
-                          ₹{item.commercialUnitPrice.toFixed(2)}
+                          ₹{(Number(item.commercialUnitPrice) || 0).toFixed(2)}
                         </td>
                       </>
                     ) : (
                       <>
                         <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0F172A' }}>
-                          ₹{item.commercialUnitPrice.toFixed(2)}
-                        </td>
-                        <td style={{ padding: '12px 14px', color: '#B45309', fontWeight: 600 }}>
-                          ₹{item.lineFee.toLocaleString()} <span style={{ fontSize: 10.5, color: '#64748B' }}>({feeRate}%)</span>
-                        </td>
-                        <td style={{ padding: '12px 14px', color: '#475569' }}>
-                          ₹{item.gst.toLocaleString()}
+                          ₹{(Number(item.commercialUnitPrice) || 0).toFixed(2)}
                         </td>
                         <td style={{ padding: '12px 14px', fontWeight: 600, color: '#1D4ED8' }}>
                           {item.leadTime}
@@ -445,7 +415,7 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
                     )}
 
                     <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, color: '#0F766E', fontFamily: 'monospace' }}>
-                      ₹{item.netPrice.toLocaleString()}
+                      ₹{(Number(item.netPrice) || 0).toLocaleString()}
                     </td>
                   </tr>
                 ))}
@@ -463,27 +433,15 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
               <span>Base Product Value:</span>
-              <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{totalBaseAmount.toLocaleString()}</span>
+              <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{safeTotalBase.toLocaleString()}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
               <span>Product Margins:</span>
-              <span style={{ fontWeight: 700, color: '#0F766E' }}>+₹{totalMarginAmount.toLocaleString()}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569', background: '#FEF3C7', padding: '4px 6px', borderRadius: 4 }}>
-              <span style={{ fontWeight: 700, color: '#92400E' }}>Platform Fee ({feeRate}%):</span>
-              <span style={{ fontWeight: 800, color: '#B45309' }}>+₹{totalPlatformFeeAmount.toLocaleString()}</span>
+              <span style={{ fontWeight: 700, color: '#0F766E' }}>+₹{safeTotalMargin.toLocaleString()}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
               <span>Commercial Subtotal:</span>
-              <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{subtotal.toLocaleString()}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-              <span>Total GST (12%):</span>
-              <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{gstTotal.toLocaleString()}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-              <span>Cold-Chain Shipping:</span>
-              <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{freightTotal.toLocaleString()}</span>
+              <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{safeSubtotal.toLocaleString()}</span>
             </div>
             <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, color: '#0F766E' }}>
               <span>Grand Total:</span>
@@ -517,6 +475,23 @@ export const CustomerQuotationModule: React.FC<CustomerQuotationModuleProps> = (
           </div>
         </div>
 
+      </div>
+
+      {/* ── Subtle Professional Informational Note ── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '12px 16px',
+        background: '#FFFFFF',
+        border: '1px solid #E2E8F0',
+        borderRadius: 8,
+        fontSize: 12.5,
+        color: '#64748B',
+        boxShadow: '0 1px 2px rgba(15,23,42,0.02)'
+      }}>
+        <Info size={16} style={{ color: '#0F766E', flexShrink: 0 }} />
+        <span>Note: The final payable amount may vary slightly due to applicable taxes, delivery charges, or other final adjustments at the time of payment.</span>
       </div>
 
       {/* ── APPROVAL CONFIRMATION DIALOG MODAL ─────────────────── */}

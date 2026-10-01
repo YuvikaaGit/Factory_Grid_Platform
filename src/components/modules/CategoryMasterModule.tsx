@@ -1,1365 +1,667 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { CategoryMaster, SubCategoryMaster, SubSubCategoryMaster } from '../../types';
+import { ProductType, Category, LifecycleStatus } from '../../types';
 import {
-  Layers, Search, Plus, Edit3, CheckCircle2, AlertTriangle,
-  X, Power, Percent, ShieldAlert, ArrowLeft, ChevronRight, FolderTree
+  FolderTree, Layers, Search, Plus, Edit3, Trash2, CheckCircle2,
+  AlertTriangle, X, Power, ArrowLeft, ChevronRight, ChevronDown,
+  Sparkles, Check, Info, FileText, Table, ListTree, Filter, Tag
 } from 'lucide-react';
 
 export const CategoryMasterModule: React.FC = () => {
   const {
-    currentRole,
-    categories,
-    addCategory,
-    updateCategory,
-    getCategoryMargin,
-    getCategoryMarginConfig,
-    setActiveTab,
-    subCategories,
-    addSubCategory,
-    updateSubCategory,
-    subSubCategories,
-    addSubSubCategory,
-    updateSubSubCategory
+    productTypes,
+    addProductType,
+    updateProductType,
+    deleteProductType,
+    toggleProductTypeStatus,
+    unifiedCategories,
+    addUnifiedCategory,
+    updateUnifiedCategory,
+    deleteUnifiedCategory,
+    toggleUnifiedCategoryStatus,
+    setActiveTab
   } = useApp();
 
-  // ── Active Navigation State:
-  // selectedCategoryForSubCats = null -> Category Master (Level 1)
-  // selectedCategoryForSubCats != null && selectedSubCategoryForSubSubCats == null -> Sub-Category Management Page (Level 2)
-  // selectedCategoryForSubCats != null && selectedSubCategoryForSubSubCats != null -> Sub-Sub-Category Management Page (Level 3)
-  const [selectedCategoryForSubCats, setSelectedCategoryForSubCats] = useState<CategoryMaster | null>(null);
-  const [selectedSubCategoryForSubSubCats, setSelectedSubCategoryForSubSubCats] = useState<SubCategoryMaster | null>(null);
+  // ── TOP NAVIGATION TABS ──
+  // Active master: 'PRODUCT_TYPE' (Product Type Master) | 'CATEGORY' (Category Master)
+  const [activeMasterTab, setActiveMasterTab] = useState<'PRODUCT_TYPE' | 'CATEGORY'>('CATEGORY');
 
-  // ── Global Toast ──
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+  // Category Master View Mode: 'TABLE' (Default canonical table) | 'TREE' (Visual hierarchy grouped from single collection)
+  const [categoryViewMode, setCategoryViewMode] = useState<'TABLE' | 'TREE'>('TABLE');
 
-  // ── Category Master View States (Level 1) ──
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'Active' | 'Inactive'>('ALL');
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<CategoryMaster | null>(null);
-  const [categoryFormData, setCategoryFormData] = useState({
+  // Filters for Category Master
+  const [categoryPtFilter, setCategoryPtFilter] = useState<string>('ALL');
+  const [categorySearchTerm, setCategorySearchTerm] = useState<string>('');
+  const [categoryStatusFilter, setCategoryStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+
+  // Filters for Product Type Master
+  const [productTypeSearch, setProductTypeSearch] = useState('');
+  const [ptStatusFilter, setPtStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+
+  // Expanded nodes for Hierarchy View
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set([
+    'cat:Drugs',
+    'sub:Drugs:Tablets',
+    'sub:Drugs:Capsules',
+    'cat:Dietary Supplements',
+    'cat:Clinical Skincare',
+    'cat:Classical Ayurvedic'
+  ]));
+
+  const toggleExpand = (nodeKey: string) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeKey)) next.delete(nodeKey);
+      else next.add(nodeKey);
+      return next;
+    });
+  };
+
+  const expandAll = (keys: string[]) => {
+    setExpandedNodes(new Set(keys));
+  };
+
+  const collapseAll = () => {
+    setExpandedNodes(new Set());
+  };
+
+  // Toast Notification State
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Helper: Get Product Type Name & Code
+  const getPt = (ptId: string) => {
+    return (productTypes || []).find(t => t.product_type_id === ptId || t.id === ptId);
+  };
+
+  const formatMasterDate = (dateStr?: string): string => {
+    if (!dateStr) return '—';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // ── MODAL STATES ──
+
+  // 1. Product Type Modal
+  const [isPtModalOpen, setIsPtModalOpen] = useState(false);
+  const [editingPt, setEditingPt] = useState<ProductType | null>(null);
+  const [ptFormData, setPtFormData] = useState({
     name: '',
     code: '',
     description: '',
-    status: 'Active' as 'Active' | 'Inactive'
+    lifecycle_status: 'ACTIVE' as LifecycleStatus,
+    display_order: 1
   });
-  const [categoryFormError, setCategoryFormError] = useState<string | null>(null);
+  const [ptFormError, setPtFormError] = useState<string | null>(null);
 
-  // ── Sub-Category Management View States (Level 2) ──
-  const [subSearchTerm, setSubSearchTerm] = useState('');
-  const [subStatusFilter, setSubStatusFilter] = useState<'ALL' | 'Active' | 'Inactive'>('ALL');
-  const [isSubModalOpen, setIsSubModalOpen] = useState(false);
-  const [editingSubCategory, setEditingSubCategory] = useState<SubCategoryMaster | null>(null);
-  const [deactivateConfirmSubCat, setDeactivateConfirmSubCat] = useState<SubCategoryMaster | null>(null);
-  const [subFormData, setSubFormData] = useState({
-    name: '',
-    code: '',
+  // 2. Category Modal (ONE CATEGORY MODEL)
+  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
+  const [editingCat, setEditingCat] = useState<Category | null>(null);
+  const [catFormData, setCatFormData] = useState({
+    product_type_id: '',
+    category: '',
+    sub_category: '',
+    sub_sub_category: '',
+    category_code: '',
     description: '',
-    status: 'Active' as 'Active' | 'Inactive'
+    lifecycle_status: 'ACTIVE' as LifecycleStatus,
+    display_order: 1
   });
-  const [subFormError, setSubFormError] = useState<string | null>(null);
+  const [catFormError, setCatFormError] = useState<string | null>(null);
 
-  // ── Sub-Sub-Category Management View States (Level 3) ──
-  const [subSubSearchTerm, setSubSubSearchTerm] = useState('');
-  const [subSubStatusFilter, setSubSubStatusFilter] = useState<'ALL' | 'Active' | 'Inactive'>('ALL');
-  const [isSubSubModalOpen, setIsSubSubModalOpen] = useState(false);
-  const [editingSubSubCategory, setEditingSubSubCategory] = useState<SubSubCategoryMaster | null>(null);
-  const [deactivateConfirmSubSubCat, setDeactivateConfirmSubSubCat] = useState<SubSubCategoryMaster | null>(null);
-  const [subSubFormData, setSubSubFormData] = useState({
-    name: '',
-    code: '',
-    description: '',
-    status: 'Active' as 'Active' | 'Inactive'
-  });
-  const [subSubFormError, setSubSubFormError] = useState<string | null>(null);
+  // 3. Delete Confirmation Modal
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
+    type: 'PRODUCT_TYPE' | 'CATEGORY';
+    id: string;
+    code?: string;
+    name: string;
+    details?: string;
+  } | null>(null);
 
-  // ── URL ROUTING & DEEP LINK SYNCHRONIZATION ──
-  useEffect(() => {
-    const syncFromUrl = () => {
-      if (typeof window === 'undefined') return;
-      const path = window.location.pathname.toLowerCase();
+  // ── FILTERED DATA: CATEGORY MASTER ──
+  const filteredCategoryList = useMemo(() => {
+    return (unifiedCategories || []).filter(c => {
+      // 1. Product Type filter
+      if (categoryPtFilter !== 'ALL' && c.product_type_id !== categoryPtFilter) {
+        return false;
+      }
+      // 2. Status filter
+      const st = (c.lifecycle_status || (c.status === 'Active' ? 'ACTIVE' : 'INACTIVE')).toUpperCase();
+      if (categoryStatusFilter !== 'ALL' && st !== categoryStatusFilter) {
+        return false;
+      }
+      // 3. Search query
+      const q = categorySearchTerm.toLowerCase().trim();
+      if (q) {
+        const cat = (c.category || '').toLowerCase();
+        const sub = (c.sub_category || '').toLowerCase();
+        const subsub = (c.sub_sub_category || '').toLowerCase();
+        const code = (c.category_code || c.code || '').toLowerCase();
+        const desc = (c.description || '').toLowerCase();
+        const cId = (c.category_id || c.id || '').toLowerCase();
+        const pt = getPt(c.product_type_id);
+        const ptName = (pt?.product_type_name || pt?.name || '').toLowerCase();
+        const ptCode = (pt?.product_type_code || pt?.code || '').toLowerCase();
 
-      // Check Level 3: /admin/category-master/:catSlug/subcategories/:subSlug/sub-subcategories
-      const subSubMatch = path.match(/(?:category-master|categories)\/([^/]+)\/subcategories\/([^/]+)\/(?:sub-subcategories|subsubcategories|sub-sub-categories)/);
-      if (subSubMatch && categories.length > 0) {
-        const catSlug = subSubMatch[1];
-        const subSlug = subSubMatch[2];
-
-        const matchedCat = categories.find(c =>
-          c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === catSlug ||
-          c.name.toLowerCase() === catSlug ||
-          c.id.toLowerCase() === catSlug ||
-          c.code.toLowerCase() === catSlug ||
-          (catSlug.includes('nutra') && c.id === 'cat_nutra') ||
-          (catSlug.includes('drug') && c.id === 'cat_drugs') ||
-          (catSlug.includes('cosm') && c.id === 'cat_cos') ||
-          (catSlug.includes('ayur') && c.id === 'cat_ayur') ||
-          (catSlug.includes('vet') && c.id === 'cat_vet') ||
-          (catSlug.includes('surg') && c.id === 'cat_surg')
-        );
-
-        if (matchedCat) {
-          setSelectedCategoryForSubCats(matchedCat);
-          const matchedSub = (subCategories || []).find(s =>
-            (s.categoryId === matchedCat.id || s.parentCategory.toLowerCase() === matchedCat.name.toLowerCase()) &&
-            (s.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === subSlug ||
-             s.name.toLowerCase() === subSlug ||
-             s.id.toLowerCase() === subSlug ||
-             s.code.toLowerCase() === subSlug)
-          );
-          if (matchedSub) {
-            setSelectedSubCategoryForSubSubCats(matchedSub);
-            return;
-          }
+        if (
+          !cat.includes(q) &&
+          !sub.includes(q) &&
+          !subsub.includes(q) &&
+          !code.includes(q) &&
+          !desc.includes(q) &&
+          !cId.includes(q) &&
+          !ptName.includes(q) &&
+          !ptCode.includes(q)
+        ) {
+          return false;
         }
       }
-
-      // Check Level 2: /admin/category-master/:slug/subcategories
-      const subMatch = path.match(/(?:category-master|categories)\/([^/]+)\/subcategories/);
-      if (subMatch && categories.length > 0 && !path.includes('sub-subcategories') && !path.includes('subsubcategories')) {
-        const targetSlug = subMatch[1];
-        const matched = categories.find(c =>
-          c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === targetSlug ||
-          c.name.toLowerCase() === targetSlug ||
-          c.id.toLowerCase() === targetSlug ||
-          c.code.toLowerCase() === targetSlug ||
-          (targetSlug.includes('nutra') && c.id === 'cat_nutra') ||
-          (targetSlug.includes('drug') && c.id === 'cat_drugs') ||
-          (targetSlug.includes('cosm') && c.id === 'cat_cos') ||
-          (targetSlug.includes('ayur') && c.id === 'cat_ayur') ||
-          (targetSlug.includes('vet') && c.id === 'cat_vet') ||
-          (targetSlug.includes('surg') && c.id === 'cat_surg')
-        );
-        if (matched) {
-          setSelectedCategoryForSubCats(matched);
-          setSelectedSubCategoryForSubSubCats(null);
-          return;
-        }
+      return true;
+    }).sort((a, b) => {
+      // Sort primarily by Product Type, then Category, then display_order
+      if (a.product_type_id !== b.product_type_id) {
+        return a.product_type_id.localeCompare(b.product_type_id);
       }
-
-      // Level 1: Category Master root
-      if (path.includes('category-master') && !path.includes('subcategories')) {
-        setSelectedCategoryForSubCats(null);
-        setSelectedSubCategoryForSubSubCats(null);
+      if (a.category !== b.category) {
+        return a.category.localeCompare(b.category);
       }
-    };
+      return (Number(a.display_order) || 1) - (Number(b.display_order) || 1);
+    });
+  }, [unifiedCategories, categoryPtFilter, categoryStatusFilter, categorySearchTerm, productTypes]);
 
-    syncFromUrl();
-    window.addEventListener('popstate', syncFromUrl);
-    return () => window.removeEventListener('popstate', syncFromUrl);
-  }, [categories, subCategories]);
+  // ── FILTERED DATA: PRODUCT TYPE MASTER ──
+  const filteredProductTypes = useMemo(() => {
+    const q = productTypeSearch.toLowerCase().trim();
+    return (productTypes || [])
+      .filter(pt => {
+        const name = (pt.product_type_name || pt.name || '').toLowerCase();
+        const code = (pt.product_type_code || pt.code || '').toLowerCase();
+        const desc = (pt.description || '').toLowerCase();
+        const id = (pt.product_type_id || pt.id || '').toLowerCase();
+        const matchesSearch = !q || name.includes(q) || code.includes(q) || desc.includes(q) || id.includes(q);
+        const ptStatus = (pt.lifecycle_status || pt.status || 'ACTIVE').toUpperCase();
+        const matchesStatus = ptStatusFilter === 'ALL' || ptStatus === ptStatusFilter;
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => (Number(a.display_order) || 1) - (Number(b.display_order) || 1));
+  }, [productTypes, productTypeSearch, ptStatusFilter]);
 
-  // Navigate to Sub-Category Management Page (Level 2)
-  const handleNavigateToSubCategories = (cat: CategoryMaster) => {
-    setSelectedCategoryForSubCats(cat);
-    setSelectedSubCategoryForSubSubCats(null);
-    setSubSearchTerm('');
-    setSubStatusFilter('ALL');
-    const slug = cat.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const targetPath = `/admin/category-master/${slug}/subcategories`;
-    if (typeof window !== 'undefined' && window.location.pathname !== targetPath) {
-      window.history.pushState({ categoryId: cat.id }, '', targetPath);
-    }
-  };
-
-  // Navigate to Sub-Sub-Category Management Page (Level 3)
-  const handleNavigateToSubSubCategories = (sub: SubCategoryMaster) => {
-    if (!selectedCategoryForSubCats) return;
-    setSelectedSubCategoryForSubSubCats(sub);
-    setSubSubSearchTerm('');
-    setSubSubStatusFilter('ALL');
-    const catSlug = selectedCategoryForSubCats.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const subSlug = sub.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const targetPath = `/admin/category-master/${catSlug}/subcategories/${subSlug}/sub-subcategories`;
-    if (typeof window !== 'undefined' && window.location.pathname !== targetPath) {
-      window.history.pushState({ categoryId: selectedCategoryForSubCats.id, subCategoryId: sub.id }, '', targetPath);
-    }
-  };
-
-  // Navigate back from Sub-Sub-Categories (Level 3) to Sub-Categories (Level 2)
-  const handleNavigateBackToSubCategories = () => {
-    setSelectedSubCategoryForSubSubCats(null);
-    if (selectedCategoryForSubCats) {
-      const catSlug = selectedCategoryForSubCats.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const targetPath = `/admin/category-master/${catSlug}/subcategories`;
-      if (typeof window !== 'undefined' && window.location.pathname !== targetPath) {
-        window.history.pushState({ categoryId: selectedCategoryForSubCats.id }, '', targetPath);
-      }
-    } else {
-      handleNavigateBack();
-    }
-  };
-
-  // Navigate back to Category Master main list (Level 1)
-  const handleNavigateBack = () => {
-    setSelectedCategoryForSubCats(null);
-    setSelectedSubCategoryForSubSubCats(null);
-    if (typeof window !== 'undefined' && window.location.pathname !== '/admin/category-master') {
-      window.history.pushState({}, '', '/admin/category-master');
-    }
-  };
-
-  // ── Auto-dismiss Success Toast ──
-  useEffect(() => {
-    if (successToast) {
-      const timer = setTimeout(() => setSuccessToast(null), 3500);
-      return () => clearTimeout(timer);
-    }
-  }, [successToast]);
-
-  // ── Category Stats ──
+  // ── METRICS SUMMARY ──
   const categoryStats = useMemo(() => {
-    const activeCount = categories.filter(c => c.status === 'Active').length;
-    const inactiveCount = categories.length - activeCount;
+    const totalRecords = unifiedCategories.length;
+    const activeRecords = unifiedCategories.filter(c => (c.lifecycle_status || c.status) === 'ACTIVE' || c.status === 'Active').length;
+    const inactiveRecords = totalRecords - activeRecords;
+    const distinctCategories = new Set(unifiedCategories.map(c => c.category)).size;
+    const distinctPtCovered = new Set(unifiedCategories.map(c => c.product_type_id)).size;
+    return { totalRecords, activeRecords, inactiveRecords, distinctCategories, distinctPtCovered };
+  }, [unifiedCategories]);
 
-    return {
-      total: categories.length,
-      active: activeCount,
-      inactive: inactiveCount
-    };
-  }, [categories]);
+  // ── HIERARCHY TREE DERIVED DYNAMICALLY FROM SINGLE CATEGORY DATASET ──
+  // Groups records: Category -> Sub-Category -> Category Records (Leaves)
+  const groupedHierarchy = useMemo(() => {
+    const map = new Map<string, {
+      categoryName: string;
+      productTypeId: string;
+      subCategories: Map<string, {
+        subCategoryName: string;
+        records: Category[];
+      }>;
+      recordsWithoutSub: Category[];
+    }>();
 
-  // ── Filtered Categories (Main List) ──
-  const filteredCategories = useMemo(() => {
-    return categories.filter(cat => {
-      const q = searchTerm.toLowerCase().trim();
-      const matchesSearch =
-        q === '' ||
-        cat.name.toLowerCase().includes(q) ||
-        cat.code.toLowerCase().includes(q) ||
-        (cat.description || '').toLowerCase().includes(q);
+    filteredCategoryList.forEach(item => {
+      const catKey = `${item.product_type_id}:::${item.category}`;
+      if (!map.has(catKey)) {
+        map.set(catKey, {
+          categoryName: item.category,
+          productTypeId: item.product_type_id,
+          subCategories: new Map(),
+          recordsWithoutSub: []
+        });
+      }
 
-      const matchesStatus = statusFilter === 'ALL' || cat.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const catEntry = map.get(catKey)!;
+      const subName = item.sub_category?.trim();
+
+      if (!subName) {
+        catEntry.recordsWithoutSub.push(item);
+      } else {
+        if (!catEntry.subCategories.has(subName)) {
+          catEntry.subCategories.set(subName, {
+            subCategoryName: subName,
+            records: []
+          });
+        }
+        catEntry.subCategories.get(subName)!.records.push(item);
+      }
     });
-  }, [categories, searchTerm, statusFilter]);
 
-  // ── Sub-Categories belonging ONLY to the selected category ──
-  const currentCategorySubList = useMemo(() => {
-    if (!selectedCategoryForSubCats) return [];
-    const parentId = selectedCategoryForSubCats.id;
-    const parentName = selectedCategoryForSubCats.name.toLowerCase().trim();
+    return Array.from(map.values()).map(cat => ({
+      ...cat,
+      totalRecordCount: cat.recordsWithoutSub.length + Array.from(cat.subCategories.values()).reduce((sum, s) => sum + s.records.length, 0),
+      subCategoriesList: Array.from(cat.subCategories.values()).map(sub => ({
+        ...sub,
+        records: sub.records.sort((a, b) => (Number(a.display_order) || 1) - (Number(b.display_order) || 1))
+      }))
+    }));
+  }, [filteredCategoryList]);
 
-    return subCategories.filter(s =>
-      s.categoryId === parentId ||
-      s.parentCategory.toLowerCase().trim() === parentName ||
-      (parentName.includes('nutraceutical') && s.parentCategory.toLowerCase().includes('nutraceutical'))
-    );
-  }, [subCategories, selectedCategoryForSubCats]);
+  // Existing distinct category suggestions for Add Category form
+  const existingCategorySuggestions = useMemo(() => {
+    const targetPt = catFormData.product_type_id;
+    const pool = targetPt
+      ? (unifiedCategories || []).filter(c => c.product_type_id === targetPt)
+      : (unifiedCategories || []);
+    return Array.from(new Set(pool.map(c => c.category).filter(Boolean)));
+  }, [unifiedCategories, catFormData.product_type_id]);
 
-  // ── Filtered Sub-Categories ──
-  const filteredSubCategories = useMemo(() => {
-    return currentCategorySubList.filter(sub => {
-      const q = subSearchTerm.toLowerCase().trim();
-      const matchesSearch =
-        q === '' ||
-        sub.name.toLowerCase().includes(q) ||
-        sub.code.toLowerCase().includes(q) ||
-        (sub.description || '').toLowerCase().includes(q);
+  // Existing distinct sub-category suggestions for Add Category form
+  const existingSubCategorySuggestions = useMemo(() => {
+    const targetCat = catFormData.category.trim().toLowerCase();
+    if (!targetCat) return [];
+    return Array.from(new Set(
+      (unifiedCategories || [])
+        .filter(c => c.category.toLowerCase().trim() === targetCat && c.sub_category)
+        .map(c => c.sub_category!)
+    ));
+  }, [unifiedCategories, catFormData.category]);
 
-      const matchesStatus = subStatusFilter === 'ALL' || sub.status === subStatusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [currentCategorySubList, subSearchTerm, subStatusFilter]);
+  // ── ACTION HANDLERS: CATEGORY ──
 
-  // ── Dynamic Sub-Category Stats ──
-  const subCategoryStats = useMemo(() => {
-    const total = currentCategorySubList.length;
-    const active = currentCategorySubList.filter(s => s.status === 'Active').length;
-    const inactive = total - active;
-    return { total, active, inactive };
-  }, [currentCategorySubList]);
+  const handleOpenAddCatModal = (preset?: { ptId?: string; category?: string; subCategory?: string }) => {
+    setEditingCat(null);
+    const defaultPtId = preset?.ptId || (categoryPtFilter !== 'ALL' ? categoryPtFilter : (productTypes[0]?.product_type_id || productTypes[0]?.id || 'pt_med'));
+    
+    // Suggest next display order
+    const nextOrder = (unifiedCategories.filter(c => c.product_type_id === defaultPtId).length || 0) + 1;
 
-  // Role Gate
-  if (currentRole !== 'ADMIN') {
-    return (
-      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 48, textAlign: 'center', margin: '30px auto', maxWidth: 600 }}>
-        <div style={{ width: 50, height: 50, borderRadius: '50%', background: '#FEE2E2', color: '#DC2626', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-          <ShieldAlert size={26} />
-        </div>
-        <h3 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A', marginBottom: 8 }}>
-          Access Restricted — Administrator Only
-        </h3>
-        <p style={{ fontSize: 13, color: '#64748B', lineHeight: 1.6, marginBottom: 16 }}>
-          Category Master administration is restricted to <strong>Platform Administrators</strong>.
-        </p>
-      </div>
-    );
-  }
-
-  // ── CATEGORY HANDLERS ──
-  const handleOpenCreateCategoryModal = () => {
-    setEditingCategory(null);
-    setCategoryFormData({
-      name: '',
-      code: '',
+    setCatFormData({
+      product_type_id: defaultPtId,
+      category: preset?.category || '',
+      sub_category: preset?.subCategory || '',
+      sub_sub_category: '',
+      category_code: '',
       description: '',
-      status: 'Active'
+      lifecycle_status: 'ACTIVE',
+      display_order: nextOrder
     });
-    setCategoryFormError(null);
-    setIsCategoryModalOpen(true);
+    setCatFormError(null);
+    setIsCatModalOpen(true);
   };
 
-  const handleOpenEditCategoryModal = (cat: CategoryMaster) => {
-    setEditingCategory(cat);
-    setCategoryFormData({
-      name: cat.name,
-      code: cat.code,
+  const handleOpenEditCatModal = (cat: Category, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingCat(cat);
+    setCatFormData({
+      product_type_id: cat.product_type_id,
+      category: cat.category,
+      sub_category: cat.sub_category || '',
+      sub_sub_category: cat.sub_sub_category || '',
+      category_code: cat.category_code || cat.code || '',
       description: cat.description || '',
-      status: cat.status
+      lifecycle_status: (cat.lifecycle_status || (cat.status === 'Active' ? 'ACTIVE' : 'INACTIVE')) as LifecycleStatus,
+      display_order: Number(cat.display_order) || 1
     });
-    setCategoryFormError(null);
-    setIsCategoryModalOpen(true);
-  };
-
-  const handleCategoryNameChange = (name: string) => {
-    if (!editingCategory) {
-      const generatedCode = 'CAT-' + name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase();
-      setCategoryFormData(prev => ({ ...prev, name, code: generatedCode }));
-    } else {
-      setCategoryFormData(prev => ({ ...prev, name }));
-    }
+    setCatFormError(null);
+    setIsCatModalOpen(true);
   };
 
   const handleSaveCategory = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanName = categoryFormData.name.trim();
-    const cleanCode = categoryFormData.code.trim().toUpperCase();
-
-    if (!cleanName) {
-      setCategoryFormError('Category Name is required.');
+    if (!catFormData.product_type_id) {
+      setCatFormError('Please select a Product Type.');
       return;
     }
-    if (!cleanCode) {
-      setCategoryFormError('Category Code is required (e.g. CAT-DRG).');
+    if (!catFormData.category.trim()) {
+      setCatFormError('Category Name is required.');
       return;
     }
-
-    const duplicate = categories.some(c =>
-      (!editingCategory || c.id !== editingCategory.id) &&
-      (c.name.toLowerCase() === cleanName.toLowerCase() || c.code.toLowerCase() === cleanCode.toLowerCase())
-    );
-    if (duplicate) {
-      setCategoryFormError(`A category with name "${cleanName}" or code "${cleanCode}" already exists.`);
+    if (!catFormData.category_code.trim()) {
+      setCatFormError('Category Code is required.');
       return;
     }
 
-    if (editingCategory) {
-      updateCategory(editingCategory.id, {
-        name: cleanName,
+    const cleanCode = catFormData.category_code.trim().toUpperCase();
+    const cleanCat = catFormData.category.trim();
+    const cleanSub = catFormData.sub_category.trim() || undefined;
+    const cleanSubSub = catFormData.sub_sub_category.trim() || undefined;
+
+    // Validate UNIQUE category_code within selected product type
+    const duplicateCode = (unifiedCategories || []).find(c => {
+      const isSelf = editingCat && (c.category_id === editingCat.category_id || c.id === editingCat.id);
+      if (isSelf) return false;
+      return (
+        c.product_type_id === catFormData.product_type_id &&
+        (c.category_code || c.code || '').toUpperCase() === cleanCode
+      );
+    });
+
+    if (duplicateCode) {
+      setCatFormError(`Category Code "${cleanCode}" is already in use within this Product Type. Category codes must be unique.`);
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+
+    if (editingCat) {
+      const catId = editingCat.category_id || editingCat.id!;
+      updateUnifiedCategory(catId, {
+        product_type_id: catFormData.product_type_id,
+        category: cleanCat,
+        sub_category: cleanSub,
+        sub_sub_category: cleanSubSub,
+        category_code: cleanCode,
+        description: catFormData.description.trim() || undefined,
+        lifecycle_status: catFormData.lifecycle_status,
+        display_order: Number(catFormData.display_order) || 1,
+        name: cleanCat,
         code: cleanCode,
-        description: categoryFormData.description.trim() || undefined,
-        status: 'Active'
+        status: catFormData.lifecycle_status === 'ACTIVE' ? 'Active' : 'Inactive',
+        updated_at: today
       });
-      setSuccessToast(`Category "${cleanName}" updated successfully.`);
+      showToast(`Updated Category record "${cleanCode}" (${cleanCat})`);
     } else {
-      const newCat: CategoryMaster = {
-        id: `cat_${Date.now()}`,
-        name: cleanName,
+      // Auto-generate canonical category_id e.g. CAT033
+      const existingMaxNum = (unifiedCategories || []).reduce((max, c) => {
+        const match = (c.category_id || '').match(/^CAT(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          return num > max ? num : max;
+        }
+        return max;
+      }, 0);
+      const newCatId = `CAT${String(existingMaxNum + 1).padStart(3, '0')}`;
+
+      const newRecord: Category = {
+        category_id: newCatId,
+        product_type_id: catFormData.product_type_id,
+        category: cleanCat,
+        sub_category: cleanSub,
+        sub_sub_category: cleanSubSub,
+        category_code: cleanCode,
+        description: catFormData.description.trim() || undefined,
+        lifecycle_status: catFormData.lifecycle_status,
+        display_order: Number(catFormData.display_order) || 1,
+        created_at: today,
+        updated_at: today,
+        id: newCatId,
         code: cleanCode,
-        description: categoryFormData.description.trim() || undefined,
-        status: 'Active',
-        createdAt: new Date().toISOString().split('T')[0],
-        productCount: 0
+        name: cleanCat,
+        status: catFormData.lifecycle_status === 'ACTIVE' ? 'Active' : 'Inactive'
       };
-      addCategory(newCat);
-      setSuccessToast(`Category "${cleanName}" created successfully.`);
+
+      addUnifiedCategory(newRecord);
+      showToast(`Created Category record ${newCatId} — ${cleanCode}`);
     }
 
-    setIsCategoryModalOpen(false);
+    setIsCatModalOpen(false);
   };
 
-  // ── SUB-CATEGORY HANDLERS ──
-  const handleOpenCreateSubModal = () => {
-    if (!selectedCategoryForSubCats) return;
-    setEditingSubCategory(null);
-    const catCodePrefix = selectedCategoryForSubCats.code.replace('CAT-', '');
-    setSubFormData({
+  // ── ACTION HANDLERS: PRODUCT TYPE ──
+
+  const handleOpenAddPtModal = () => {
+    setEditingPt(null);
+    const nextOrder = (productTypes && productTypes.length > 0)
+      ? Math.max(...productTypes.map(t => Number(t.display_order) || 0)) + 1
+      : 1;
+    setPtFormData({
       name: '',
-      code: `SUB-${catCodePrefix}-`,
+      code: '',
       description: '',
-      status: 'Active'
+      lifecycle_status: 'ACTIVE',
+      display_order: nextOrder
     });
-    setSubFormError(null);
-    setIsSubModalOpen(true);
+    setPtFormError(null);
+    setIsPtModalOpen(true);
   };
 
-  const handleOpenEditSubModal = (sub: SubCategoryMaster) => {
-    setEditingSubCategory(sub);
-    setSubFormData({
-      name: sub.name,
-      code: sub.code,
-      description: sub.description || '',
-      status: sub.status
+  const handleOpenEditPtModal = (pt: ProductType, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setEditingPt(pt);
+    setPtFormData({
+      name: pt.product_type_name || pt.name || '',
+      code: pt.product_type_code || pt.code || '',
+      description: pt.description || '',
+      lifecycle_status: (pt.lifecycle_status || pt.status || 'ACTIVE') as LifecycleStatus,
+      display_order: Number(pt.display_order) || 1
     });
-    setSubFormError(null);
-    setIsSubModalOpen(true);
+    setPtFormError(null);
+    setIsPtModalOpen(true);
   };
 
-  const handleSubNameChange = (name: string) => {
-    if (!editingSubCategory && selectedCategoryForSubCats) {
-      const catCodePrefix = selectedCategoryForSubCats.code.replace('CAT-', '');
-      const subSuffix = name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase();
-      setSubFormData(prev => ({
-        ...prev,
-        name,
-        code: `SUB-${catCodePrefix}-${subSuffix}`
-      }));
-    } else {
-      setSubFormData(prev => ({ ...prev, name }));
-    }
-  };
-
-  const handleSaveSubCategory = (e: React.FormEvent) => {
+  const handleSaveProductType = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCategoryForSubCats) return;
+    if (!ptFormData.name.trim()) { setPtFormError('Product Type Name is required.'); return; }
+    if (!ptFormData.code.trim()) { setPtFormError('Product Type Code is required.'); return; }
 
-    const cleanName = subFormData.name.trim();
-    const cleanCode = subFormData.code.trim().toUpperCase();
+    const cleanCode = ptFormData.code.trim().toUpperCase();
+    const cleanName = ptFormData.name.trim();
 
-    if (!cleanName) {
-      setSubFormError('Sub-Category Name is required.');
-      return;
-    }
-    if (!cleanCode) {
-      setSubFormError('Sub-Category Code is required (e.g. SUB-DRG-TAB).');
-      return;
-    }
-
-    const duplicate = currentCategorySubList.some(s =>
-      (!editingSubCategory || s.id !== editingSubCategory.id) &&
-      (s.name.toLowerCase() === cleanName.toLowerCase() || s.code.toLowerCase() === cleanCode.toLowerCase())
+    const duplicate = productTypes.find(t =>
+      (t.product_type_id !== editingPt?.product_type_id && t.id !== editingPt?.id) &&
+      ((t.product_type_code || t.code || '').toUpperCase() === cleanCode ||
+       (t.product_type_name || t.name || '').toLowerCase() === cleanName.toLowerCase())
     );
+
     if (duplicate) {
-      setSubFormError(`A sub-category with name "${cleanName}" or code "${cleanCode}" already exists under ${selectedCategoryForSubCats.name}.`);
+      setPtFormError(`A Product Type with code "${cleanCode}" or name "${cleanName}" already exists.`);
       return;
     }
 
-    if (editingSubCategory) {
-      updateSubCategory(editingSubCategory.id, {
+    const today = new Date().toISOString().split('T')[0];
+
+    if (editingPt) {
+      const ptId = editingPt.product_type_id || editingPt.id!;
+      updateProductType(ptId, {
+        product_type_name: cleanName,
         name: cleanName,
+        product_type_code: cleanCode,
         code: cleanCode,
-        description: subFormData.description.trim() || undefined,
-        status: subFormData.status
+        description: ptFormData.description.trim(),
+        lifecycle_status: ptFormData.lifecycle_status,
+        status: ptFormData.lifecycle_status,
+        display_order: Number(ptFormData.display_order) || 1,
+        updated_at: today
       });
-      setSuccessToast(`Sub-category "${cleanName}" updated successfully.`);
+      showToast(`Updated Product Type "${cleanName}"`);
     } else {
-      const newSub: SubCategoryMaster = {
-        id: `sub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        categoryId: selectedCategoryForSubCats.id,
-        parentCategory: selectedCategoryForSubCats.name,
-        name: cleanName,
+      const nextOrder = Number(ptFormData.display_order) || (productTypes.length + 1);
+      const newPtId = `PT${String(nextOrder).padStart(3, '0')}`;
+      const newPt: ProductType = {
+        product_type_id: newPtId,
+        product_type_code: cleanCode,
+        product_type_name: cleanName,
+        description: ptFormData.description.trim(),
+        lifecycle_status: ptFormData.lifecycle_status,
+        display_order: nextOrder,
+        created_at: today,
+        updated_at: today,
+        id: newPtId,
         code: cleanCode,
-        description: subFormData.description.trim() || undefined,
-        status: subFormData.status,
-        createdAt: new Date().toISOString().split('T')[0]
+        name: cleanName,
+        status: ptFormData.lifecycle_status
       };
-      addSubCategory(newSub);
-      setSuccessToast(`Sub-category "${cleanName}" created under ${selectedCategoryForSubCats.name}.`);
+      addProductType(newPt);
+      showToast(`Created Product Type "${cleanName}" (${cleanCode})`);
     }
 
-    setIsSubModalOpen(false);
+    setIsPtModalOpen(false);
   };
 
-  // ── SUB-CATEGORY LIFECYCLE HANDLERS (No permanent delete) ──
-  const handleConfirmDeactivateSubCategory = () => {
-    if (!deactivateConfirmSubCat) return;
-    updateSubCategory(deactivateConfirmSubCat.id, { status: 'Inactive' });
-    setSuccessToast('Sub-category deactivated successfully.');
-    setDeactivateConfirmSubCat(null);
-  };
+  // ── DELETE EXECUTION ──
+  const handleConfirmDelete = () => {
+    if (!deleteConfirmTarget) return;
 
-  const handleActivateSubCategory = (sub: SubCategoryMaster) => {
-    updateSubCategory(sub.id, { status: 'Active' });
-    setSuccessToast('Sub-category activated successfully.');
-  };
-
-  // ── Sub-Sub-Categories belonging ONLY to the selected sub-category ──
-  const currentSubSubList = useMemo(() => {
-    if (!selectedSubCategoryForSubSubCats) return [];
-    const parentSubId = selectedSubCategoryForSubSubCats.id;
-    const parentSubName = selectedSubCategoryForSubSubCats.name.toLowerCase().trim();
-
-    return (subSubCategories || []).filter(s =>
-      s.subCategoryId === parentSubId ||
-      (s.parentSubCategory && s.parentSubCategory.toLowerCase().trim() === parentSubName)
-    );
-  }, [subSubCategories, selectedSubCategoryForSubSubCats]);
-
-  // ── Filtered Sub-Sub-Categories ──
-  const filteredSubSubCategories = useMemo(() => {
-    return currentSubSubList.filter(ssc => {
-      const q = subSubSearchTerm.toLowerCase().trim();
-      const matchesSearch =
-        q === '' ||
-        ssc.name.toLowerCase().includes(q) ||
-        ssc.code.toLowerCase().includes(q) ||
-        (ssc.description || '').toLowerCase().includes(q);
-
-      const matchesStatus = subSubStatusFilter === 'ALL' || ssc.status === subSubStatusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [currentSubSubList, subSubSearchTerm, subSubStatusFilter]);
-
-  // ── Dynamic Sub-Sub-Category Stats ──
-  const subSubCategoryStats = useMemo(() => {
-    const total = currentSubSubList.length;
-    const active = currentSubSubList.filter(s => s.status === 'Active').length;
-    const inactive = total - active;
-    return { total, active, inactive };
-  }, [currentSubSubList]);
-
-  // ── Parent Deactivated Check ──
-  const isParentDeactivated =
-    selectedCategoryForSubCats?.status === 'Inactive' ||
-    selectedSubCategoryForSubSubCats?.status === 'Inactive';
-
-  // ── SUB-SUB-CATEGORY HANDLERS ──
-  const handleOpenCreateSubSubModal = () => {
-    if (!selectedCategoryForSubCats || !selectedSubCategoryForSubSubCats) return;
-    if (isParentDeactivated) {
-      alert(`Cannot create sub-sub-category: Parent record is deactivated.`);
-      return;
-    }
-    setEditingSubSubCategory(null);
-    const subCodeClean = selectedSubCategoryForSubSubCats.code.replace(/^(SUB-|SSC-)/, '');
-    setSubSubFormData({
-      name: '',
-      code: `SSC-${subCodeClean}-`,
-      description: '',
-      status: 'Active'
-    });
-    setSubSubFormError(null);
-    setIsSubSubModalOpen(true);
-  };
-
-  const handleOpenEditSubSubModal = (ssc: SubSubCategoryMaster) => {
-    setEditingSubSubCategory(ssc);
-    setSubSubFormData({
-      name: ssc.name,
-      code: ssc.code,
-      description: ssc.description || '',
-      status: ssc.status
-    });
-    setSubSubFormError(null);
-    setIsSubSubModalOpen(true);
-  };
-
-  const handleSubSubNameChange = (name: string) => {
-    if (!editingSubSubCategory && selectedSubCategoryForSubSubCats) {
-      const subCodeClean = selectedSubCategoryForSubSubCats.code.replace(/^(SUB-|SSC-)/, '');
-      const sscSuffix = name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 3).toUpperCase();
-      setSubSubFormData(prev => ({
-        ...prev,
-        name,
-        code: `SSC-${subCodeClean}-${sscSuffix}`
-      }));
+    if (deleteConfirmTarget.type === 'PRODUCT_TYPE') {
+      deleteProductType(deleteConfirmTarget.id);
+      showToast(`Deleted Product Type "${deleteConfirmTarget.name}"`);
     } else {
-      setSubSubFormData(prev => ({ ...prev, name }));
-    }
-  };
-
-  const handleSaveSubSubCategory = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCategoryForSubCats || !selectedSubCategoryForSubSubCats) return;
-
-    if (isParentDeactivated && !editingSubSubCategory) {
-      setSubSubFormError('Cannot create new sub-sub-categories under a deactivated parent category or sub-category.');
-      return;
+      deleteUnifiedCategory(deleteConfirmTarget.id);
+      showToast(`Deleted Category record "${deleteConfirmTarget.name}"`);
     }
 
-    const cleanName = subSubFormData.name.trim();
-    const cleanCode = subSubFormData.code.trim().toUpperCase();
-
-    if (!cleanName) {
-      setSubSubFormError('Sub-Sub-Category Name is required.');
-      return;
-    }
-    if (!cleanCode) {
-      setSubSubFormError('Sub-Sub-Category Code is required (e.g. SSC-DRG-TAB-UNC).');
-      return;
-    }
-
-    const duplicate = currentSubSubList.some(s =>
-      (!editingSubSubCategory || s.id !== editingSubSubCategory.id) &&
-      (s.name.toLowerCase() === cleanName.toLowerCase() || s.code.toLowerCase() === cleanCode.toLowerCase())
-    );
-    if (duplicate) {
-      setSubSubFormError(`A sub-sub-category with name "${cleanName}" or code "${cleanCode}" already exists under ${selectedSubCategoryForSubSubCats.name}.`);
-      return;
-    }
-
-    if (editingSubSubCategory) {
-      updateSubSubCategory(editingSubSubCategory.id, {
-        name: cleanName,
-        code: cleanCode,
-        description: subSubFormData.description.trim() || undefined,
-        status: subSubFormData.status
-      });
-      setSuccessToast(`Sub-sub-category "${cleanName}" updated successfully.`);
-    } else {
-      const newSubSub: SubSubCategoryMaster = {
-        id: `ssc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        subCategoryId: selectedSubCategoryForSubSubCats.id,
-        categoryId: selectedCategoryForSubCats.id,
-        parentCategory: selectedCategoryForSubCats.name,
-        parentSubCategory: selectedSubCategoryForSubSubCats.name,
-        name: cleanName,
-        code: cleanCode,
-        description: subSubFormData.description.trim() || undefined,
-        status: subSubFormData.status,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      addSubSubCategory(newSubSub);
-      setSuccessToast(`Sub-sub-category "${cleanName}" created under ${selectedSubCategoryForSubSubCats.name}.`);
-    }
-
-    setIsSubSubModalOpen(false);
-  };
-
-  const handleConfirmDeactivateSubSubCategory = () => {
-    if (!deactivateConfirmSubSubCat) return;
-    updateSubSubCategory(deactivateConfirmSubSubCat.id, { status: 'Inactive' });
-    setSuccessToast('Sub-sub-category deactivated successfully.');
-    setDeactivateConfirmSubSubCat(null);
-  };
-
-  const handleActivateSubSubCategory = (ssc: SubSubCategoryMaster) => {
-    updateSubSubCategory(ssc.id, { status: 'Active' });
-    setSuccessToast('Sub-sub-category activated successfully.');
+    setDeleteConfirmTarget(null);
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48 }}>
-
-      {/* ── Floating Toast Alert ── */}
-      {successToast && (
-        <div style={{
-          position: 'fixed', top: 24, right: 24, zIndex: 9999,
-          background: '#0F766E', color: '#FFFFFF', padding: '12px 18px',
-          borderRadius: 8, boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)',
-          display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 700
-        }}>
-          <CheckCircle2 size={18} style={{ color: '#5EEAD4' }} />
-          <span>{successToast}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48, background: '#F8FAFC' }}>
+      
+      {/* ── Global Toast ── */}
+      {toastMessage && (
+        <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 10010, background: '#0F172A', color: '#FFFFFF', padding: '12px 20px', borderRadius: 8, boxShadow: '0 8px 24px rgba(15,23,42,0.25)', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600 }}>
+          <CheckCircle2 size={16} style={{ color: '#10B981' }} />
+          <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════════
-          VIEW 3: DEDICATED SUB-SUB-CATEGORY MANAGEMENT PAGE (Level 3)
-          ══════════════════════════════════════════════════════════════════════════ */}
-      {selectedCategoryForSubCats && selectedSubCategoryForSubSubCats ? (
-        <>
-          {/* ── Breadcrumb Navigation ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: '#64748B' }}>
-            <span
-              onClick={handleNavigateBack}
-              style={{ color: '#0F766E', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-              title="Return to Category Master"
-            >
-              Category Master
-            </span>
-            <ChevronRight size={14} style={{ color: '#94A3B8' }} />
-            <span
-              onClick={handleNavigateBackToSubCategories}
-              style={{ color: '#0F766E', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-              title={`Return to ${selectedCategoryForSubCats.name} Sub-Categories`}
-            >
-              {selectedCategoryForSubCats.name}
-            </span>
-            <ChevronRight size={14} style={{ color: '#94A3B8' }} />
-            <span style={{ color: '#0F172A' }}>{selectedSubCategoryForSubSubCats.name}</span>
-            <ChevronRight size={14} style={{ color: '#94A3B8' }} />
-            <span style={{ color: '#0F766E', background: '#F0FDFA', padding: '2px 8px', borderRadius: 4, border: '1px solid #CCFBF1' }}>
-              Sub-Sub-Categories
-            </span>
+      {/* ── Breadcrumbs Bar ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#64748B', fontWeight: 600, padding: '4px 0' }}>
+        <button
+          onClick={() => setActiveTab('products')}
+          style={{ background: 'none', border: 'none', color: '#64748B', padding: 0, cursor: 'pointer', fontWeight: 600 }}
+        >
+          Product Catalog
+        </button>
+        <span style={{ color: '#CBD5E1' }}>/</span>
+        <button
+          onClick={() => setActiveMasterTab('PRODUCT_TYPE')}
+          style={{
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+            color: activeMasterTab === 'PRODUCT_TYPE' ? '#0F172A' : '#64748B',
+            fontWeight: activeMasterTab === 'PRODUCT_TYPE' ? 700 : 600
+          }}
+        >
+          Product Type Master
+        </button>
+        <span style={{ color: '#CBD5E1' }}>/</span>
+        <span style={{ color: activeMasterTab === 'CATEGORY' ? '#0F766E' : '#64748B', fontWeight: activeMasterTab === 'CATEGORY' ? 700 : 600 }}>
+          Category Master
+        </span>
+      </div>
+
+      {/* ── Main Page Header Bar ── */}
+      <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 22, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(15, 118, 110, 0.1)', border: '1px solid rgba(15, 118, 110, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F766E' }}>
+            {activeMasterTab === 'PRODUCT_TYPE' ? <Layers size={22} /> : <FolderTree size={22} />}
           </div>
-
-          {/* ── Dedicated Sub-Sub-Category Header Bar ── */}
-          <div style={{
-            background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24,
-            boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center', flexWrap: 'wrap', gap: 16
-          }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#0F766E' }}>
-                  Category: {selectedCategoryForSubCats.name}
-                </span>
-                <ChevronRight size={14} style={{ color: '#94A3B8' }} />
-                <span style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#0284C7' }}>
-                  Sub-Category: {selectedSubCategoryForSubSubCats.name}
-                </span>
-                <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 11, background: '#F1F5F9', color: '#0F766E', padding: '1px 6px', borderRadius: 4, border: '1px solid #CBD5E1' }}>
-                  {selectedSubCategoryForSubSubCats.code}
-                </span>
-                <span style={{
-                  fontSize: 10.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4,
-                  background: selectedSubCategoryForSubSubCats.status === 'Active' ? '#DCFCE7' : '#FEE2E2',
-                  color: selectedSubCategoryForSubSubCats.status === 'Active' ? '#15803D' : '#B91C1C'
-                }}>
-                  {selectedSubCategoryForSubSubCats.status}
-                </span>
-              </div>
-              <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-                Sub-Sub-Categories
-              </h1>
-              <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#64748B', fontWeight: 500 }}>
-                Manage all sub-sub-categories belonging strictly to <strong>{selectedCategoryForSubCats.name} &rarr; {selectedSubCategoryForSubSubCats.name}</strong>. Maximum taxonomy depth: 3 levels.
-              </p>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#0F766E' }}>
+              PRODUCT MANAGEMENT MODEL (CLIENT ALIGNED)
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button
-                onClick={handleNavigateBackToSubCategories}
-                style={{
-                  padding: '10px 18px', borderRadius: 8, background: '#F8FAFC',
-                  color: '#334155', border: '1px solid #CBD5E1', fontWeight: 700,
-                  fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-                  transition: 'background 0.15s ease'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#E2E8F0'}
-                onMouseLeave={e => e.currentTarget.style.background = '#F8FAFC'}
-              >
-                <ArrowLeft size={15} /> Back to Sub-Categories
-              </button>
-              <button
-                onClick={handleOpenCreateSubSubModal}
-                disabled={isParentDeactivated}
-                title={isParentDeactivated ? 'Cannot add sub-sub-category: Parent record is deactivated' : 'Add new sub-sub-category'}
-                style={{
-                  padding: '10px 20px', borderRadius: 8,
-                  background: isParentDeactivated ? '#94A3B8' : '#0F766E',
-                  color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 13,
-                  cursor: isParentDeactivated ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  boxShadow: isParentDeactivated ? 'none' : '0 1px 3px rgba(15,118,110,0.25)',
-                  transition: 'background 0.15s ease',
-                  opacity: isParentDeactivated ? 0.7 : 1
-                }}
-                onMouseEnter={e => { if (!isParentDeactivated) e.currentTarget.style.background = '#115E59'; }}
-                onMouseLeave={e => { if (!isParentDeactivated) e.currentTarget.style.background = '#0F766E'; }}
-              >
-                <Plus size={16} /> + Add Sub-Sub-Category
-              </button>
+            <h1 style={{ margin: '2px 0 0 0', fontSize: 22, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
+              {activeMasterTab === 'PRODUCT_TYPE' ? 'Product Type Master' : 'Category Master'}
+            </h1>
+            <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 3 }}>
+              {activeMasterTab === 'PRODUCT_TYPE'
+                ? 'Manage top-level classification product types (PRODUCT_TYPE table).'
+                : 'Canonical CATEGORY table (PRODUCT_TYPE → CATEGORY). Single entity holding category, sub-category, sub-sub-category.'}
             </div>
           </div>
+        </div>
 
-          {/* ── Parent Deactivated Warning Banner ── */}
-          {isParentDeactivated && (
-            <div style={{
-              background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8,
-              padding: '12px 16px', color: '#B45309', display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600
-            }}>
-              <AlertTriangle size={18} style={{ color: '#D97706', flexShrink: 0 }} />
-              <span>
-                Parent record is Inactive ({selectedCategoryForSubCats.status === 'Inactive' ? `Category "${selectedCategoryForSubCats.name}"` : `Sub-Category "${selectedSubCategoryForSubSubCats.name}"`} is Inactive). Creating new sub-sub-categories is disabled until the parent is activated.
-              </span>
-            </div>
+        {/* Master Tab Switcher & Primary Action */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', background: '#F1F5F9', padding: 3, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+            <button
+              onClick={() => setActiveMasterTab('PRODUCT_TYPE')}
+              style={{
+                padding: '7px 14px', borderRadius: 6, fontSize: 12.5, fontWeight: 700,
+                border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                background: activeMasterTab === 'PRODUCT_TYPE' ? '#FFFFFF' : 'transparent',
+                color: activeMasterTab === 'PRODUCT_TYPE' ? '#0F172A' : '#64748B',
+                boxShadow: activeMasterTab === 'PRODUCT_TYPE' ? '0 1px 3px rgba(15,23,42,0.1)' : 'none'
+              }}
+            >
+              <Layers size={14} />
+              <span>Product Types ({productTypes.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveMasterTab('CATEGORY')}
+              style={{
+                padding: '7px 14px', borderRadius: 6, fontSize: 12.5, fontWeight: 700,
+                border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                background: activeMasterTab === 'CATEGORY' ? '#FFFFFF' : 'transparent',
+                color: activeMasterTab === 'CATEGORY' ? '#0F766E' : '#64748B',
+                boxShadow: activeMasterTab === 'CATEGORY' ? '0 1px 3px rgba(15,23,42,0.1)' : 'none'
+              }}
+            >
+              <FolderTree size={14} />
+              <span>Category Master ({unifiedCategories.length})</span>
+            </button>
+          </div>
+
+          {activeMasterTab === 'PRODUCT_TYPE' ? (
+            <button
+              onClick={handleOpenAddPtModal}
+              style={{ padding: '9px 18px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 4px rgba(15,118,110,0.2)' }}
+            >
+              <Plus size={16} /> + Add Product Type
+            </button>
+          ) : (
+            <button
+              onClick={() => handleOpenAddCatModal()}
+              style={{ padding: '9px 18px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 4px rgba(15,118,110,0.2)' }}
+            >
+              <Plus size={16} /> + Add Category
+            </button>
           )}
+        </div>
+      </div>
 
-          {/* ── Sub-Sub-Category KPI Summary Cards ── */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* 1. PRODUCT TYPE MASTER TAB */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {activeMasterTab === 'PRODUCT_TYPE' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Quick Metrics Bar */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
             <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Sub-Sub-Categories</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: 4 }}>
-                {subSubCategoryStats.total}
-              </div>
-              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Defined under {selectedSubCategoryForSubSubCats.name}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>PRODUCT TYPES</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: 4 }}>{productTypes.length} Types</div>
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Top-level classification master</div>
             </div>
 
             <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', marginTop: 4 }}>
-                {subSubCategoryStats.active}
-              </div>
-              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Enabled for product catalog</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>TOTAL CATEGORY RECORDS</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', marginTop: 4 }}>{categoryStats.totalRecords} Records</div>
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>In canonical CATEGORY table</div>
             </div>
 
             <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Inactive</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#64748B', fontFamily: 'monospace', marginTop: 4 }}>
-                {subSubCategoryStats.inactive}
-              </div>
-              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Archived or disabled</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>ACTIVE RECORDS</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#15803D', fontFamily: 'monospace', marginTop: 4 }}>{categoryStats.activeRecords} Active</div>
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Available for product catalog</div>
+            </div>
+
+            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>UNIQUE CATEGORY HEADS</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#2563EB', fontFamily: 'monospace', marginTop: 4 }}>{categoryStats.distinctCategories} Categories</div>
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Distinct category groups</div>
             </div>
           </div>
 
-          {/* ── Sub-Sub-Category Search & Filter Toolbar ── */}
+          {/* Search & Filter Toolbar */}
           <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-              <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748B' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 6, padding: '8px 12px', minWidth: 280, flex: '1 1 280px' }}>
+              <Search size={15} style={{ color: '#64748B' }} />
               <input
                 type="text"
-                placeholder={`Search sub-sub-categories in ${selectedSubCategoryForSubSubCats.name}...`}
-                value={subSubSearchTerm}
-                onChange={e => setSubSubSearchTerm(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px 9px 36px', fontSize: 13, borderRadius: 6, border: '1px solid #CBD5E1', outline: 'none', background: '#F8FAFC', color: '#0F172A' }}
+                placeholder="Search Product Type name, code, description, or ID..."
+                value={productTypeSearch}
+                onChange={e => setProductTypeSearch(e.target.value)}
+                style={{ border: 'none', background: 'transparent', width: '100%', fontSize: 13, outline: 'none', color: '#0F172A' }}
               />
-              {subSubSearchTerm && (
-                <button onClick={() => setSubSubSearchTerm('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 0 }}>
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Status:</span>
-              <select
-                value={subSubStatusFilter}
-                onChange={e => setSubSubStatusFilter(e.target.value as any)}
-                style={{ padding: '8px 12px', fontSize: 12.5, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, color: '#0F172A', fontWeight: 600, cursor: 'pointer' }}
-              >
-                <option value="ALL">All ({currentSubSubList.length})</option>
-                <option value="Active">Active ({subSubCategoryStats.active})</option>
-                <option value="Inactive">Inactive ({subSubCategoryStats.inactive})</option>
-              </select>
-              <span style={{ fontSize: 12, color: '#64748B', fontWeight: 600, paddingLeft: 6 }}>
-                Showing {filteredSubSubCategories.length} of {currentSubSubList.length}
-              </span>
-            </div>
-          </div>
-
-          {/* ── Sub-Sub-Category Data Table ── */}
-          <div style={{ background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>SUB-SUB-CATEGORY</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>CODE</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>DESCRIPTION</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>STATUS</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>CREATED / UPDATED</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right' }}>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSubSubCategories.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '48px 24px', color: '#64748B', background: '#F8FAFC' }}>
-                      <FolderTree size={36} style={{ color: '#94A3B8', marginBottom: 10, display: 'block', margin: '0 auto 10px' }} />
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>No sub-sub-categories found under {selectedSubCategoryForSubSubCats.name}</div>
-                      <div style={{ fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 16 }}>
-                        Get started by creating the first sub-sub-category under {selectedCategoryForSubCats.name} &rarr; {selectedSubCategoryForSubSubCats.name}.
-                      </div>
-                      <button
-                        onClick={handleOpenCreateSubSubModal}
-                        disabled={isParentDeactivated}
-                        style={{
-                          padding: '8px 16px', borderRadius: 6,
-                          background: isParentDeactivated ? '#94A3B8' : '#0F766E',
-                          color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 12.5,
-                          cursor: isParentDeactivated ? 'not-allowed' : 'pointer',
-                          display: 'inline-flex', alignItems: 'center', gap: 6
-                        }}
-                      >
-                        <Plus size={15} /> + Add Sub-Sub-Category
-                      </button>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSubSubCategories.map(ssc => (
-                    <tr
-                      key={ssc.id}
-                      style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s ease' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
-                    >
-                      <td style={{ padding: '14px 16px', fontWeight: 800, color: '#0F172A' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: ssc.status === 'Active' ? '#10B981' : '#94A3B8' }} />
-                          <span style={{ fontSize: 13.5 }}>{ssc.name}</span>
-                        </div>
-                      </td>
-
-                      <td style={{ padding: '14px 16px' }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 11.5, background: '#F1F5F9', color: '#0F766E', padding: '3px 8px', borderRadius: 4, border: '1px solid #E2E8F0' }}>
-                          {ssc.code}
-                        </span>
-                      </td>
-
-                      <td style={{ padding: '14px 16px', color: '#475569', maxWidth: 340 }}>
-                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={ssc.description || 'No description'}>
-                          {ssc.description || '—'}
-                        </div>
-                      </td>
-
-                      <td style={{ padding: '14px 16px' }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 4,
-                          background: ssc.status === 'Active' ? '#DCFCE7' : '#FEE2E2',
-                          color: ssc.status === 'Active' ? '#15803D' : '#B91C1C',
-                          border: ssc.status === 'Active' ? '1px solid #86EFAC' : '1px solid #FCA5A5'
-                        }}>
-                          {ssc.status}
-                        </span>
-                      </td>
-
-                      <td style={{ padding: '14px 16px', color: '#64748B', fontSize: 11.5 }}>
-                        {ssc.updatedAt || ssc.createdAt || '2026-08-10'}
-                      </td>
-
-                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                          <button
-                            onClick={() => handleOpenEditSubSubModal(ssc)}
-                            title="Edit Sub-Sub-Category"
-                            style={{ padding: '6px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6, background: '#F1F5F9', color: '#0F172A', border: '1px solid #CBD5E1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                          >
-                            <Edit3 size={13} /> Edit
-                          </button>
-
-                          {ssc.status === 'Active' ? (
-                            <button
-                              onClick={() => setDeactivateConfirmSubSubCat(ssc)}
-                              title="Deactivate Sub-Sub-Category"
-                              style={{
-                                padding: '6px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6,
-                                background: '#FFFBEB',
-                                color: '#B45309',
-                                border: '1px solid #FDE68A',
-                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4
-                              }}
-                            >
-                              <Power size={13} /> Deactivate
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleActivateSubSubCategory(ssc)}
-                              title="Activate Sub-Sub-Category"
-                              style={{
-                                padding: '6px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6,
-                                background: '#ECFDF5',
-                                color: '#047857',
-                                border: '1px solid #A7F3D0',
-                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4
-                              }}
-                            >
-                              <CheckCircle2 size={13} /> Activate
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : selectedCategoryForSubCats ? (
-        /* ══════════════════════════════════════════════════════════════════════════
-           VIEW 2: DEDICATED SUB-CATEGORY MANAGEMENT PAGE (Level 2)
-           ══════════════════════════════════════════════════════════════════════════ */
-        <>
-          {/* ── Breadcrumb Navigation ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: '#64748B' }}>
-            <span
-              onClick={handleNavigateBack}
-              style={{ color: '#0F766E', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-              title="Return to Category Master"
-            >
-              Category Master
-            </span>
-            <ChevronRight size={14} style={{ color: '#94A3B8' }} />
-            <span style={{ color: '#0F172A' }}>{selectedCategoryForSubCats.name}</span>
-            <ChevronRight size={14} style={{ color: '#94A3B8' }} />
-            <span style={{ color: '#0F766E', background: '#F0FDFA', padding: '2px 8px', borderRadius: 4, border: '1px solid #CCFBF1' }}>
-              Sub-Categories
-            </span>
-          </div>
-
-          {/* ── Dedicated Sub-Category Header Bar ── */}
-          <div style={{
-            background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24,
-            boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center', flexWrap: 'wrap', gap: 16
-          }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#0F766E' }}>
-                  {selectedCategoryForSubCats.name}
-                </span>
-                <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 11, background: '#F1F5F9', color: '#0F766E', padding: '1px 6px', borderRadius: 4, border: '1px solid #CBD5E1' }}>
-                  {selectedCategoryForSubCats.code}
-                </span>
-                <span style={{
-                  fontSize: 10.5, fontWeight: 800, padding: '1px 6px', borderRadius: 4,
-                  background: selectedCategoryForSubCats.status === 'Active' ? '#DCFCE7' : '#FEE2E2',
-                  color: selectedCategoryForSubCats.status === 'Active' ? '#15803D' : '#B91C1C'
-                }}>
-                  {selectedCategoryForSubCats.status}
-                </span>
-              </div>
-              <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-                Sub-Categories
-              </h1>
-              <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#64748B', fontWeight: 500 }}>
-                Manage all sub-categories belonging strictly to the <strong>{selectedCategoryForSubCats.name}</strong> category. Click <strong>Manage Sub-Sub-Categories &rarr;</strong> to configure 3rd-level taxonomy.
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button
-                onClick={handleNavigateBack}
-                style={{
-                  padding: '10px 18px', borderRadius: 8, background: '#F8FAFC',
-                  color: '#334155', border: '1px solid #CBD5E1', fontWeight: 700,
-                  fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-                  transition: 'background 0.15s ease'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#E2E8F0'}
-                onMouseLeave={e => e.currentTarget.style.background = '#F8FAFC'}
-              >
-                <ArrowLeft size={15} /> Back to Category Master
-              </button>
-              <button
-                onClick={handleOpenCreateSubModal}
-                style={{
-                  padding: '10px 20px', borderRadius: 8, background: '#0F766E',
-                  color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 13,
-                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-                  boxShadow: '0 1px 3px rgba(15,118,110,0.25)',
-                  transition: 'background 0.15s ease'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#115E59'}
-                onMouseLeave={e => e.currentTarget.style.background = '#0F766E'}
-              >
-                <Plus size={16} /> + Add Sub-Category
-              </button>
-            </div>
-          </div>
-
-          {/* ── Sub-Category KPI Summary Cards ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Sub-Categories</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: 4 }}>
-                {subCategoryStats.total}
-              </div>
-              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Defined under {selectedCategoryForSubCats.name}</div>
-            </div>
-
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', marginTop: 4 }}>
-                {subCategoryStats.active}
-              </div>
-              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Enabled for products</div>
-            </div>
-
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Inactive</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#64748B', fontFamily: 'monospace', marginTop: 4 }}>
-                {subCategoryStats.inactive}
-              </div>
-              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Archived or disabled</div>
-            </div>
-          </div>
-
-          {/* ── Sub-Category Search & Filter Toolbar ── */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-              <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748B' }} />
-              <input
-                type="text"
-                placeholder={`Search sub-categories in ${selectedCategoryForSubCats.name}...`}
-                value={subSearchTerm}
-                onChange={e => setSubSearchTerm(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px 9px 36px', fontSize: 13, borderRadius: 6, border: '1px solid #CBD5E1', outline: 'none', background: '#F8FAFC', color: '#0F172A' }}
-              />
-              {subSearchTerm && (
-                <button onClick={() => setSubSearchTerm('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 0 }}>
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Status:</span>
-              <select
-                value={subStatusFilter}
-                onChange={e => setSubStatusFilter(e.target.value as any)}
-                style={{ padding: '8px 12px', fontSize: 12.5, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, color: '#0F172A', fontWeight: 600, cursor: 'pointer' }}
-              >
-                <option value="ALL">All ({currentCategorySubList.length})</option>
-                <option value="Active">Active ({subCategoryStats.active})</option>
-                <option value="Inactive">Inactive ({subCategoryStats.inactive})</option>
-              </select>
-              <span style={{ fontSize: 12, color: '#64748B', fontWeight: 600, paddingLeft: 6 }}>
-                Showing {filteredSubCategories.length} of {currentCategorySubList.length}
-              </span>
-            </div>
-          </div>
-
-          {/* ── Sub-Category Data Table ── */}
-          <div style={{ background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>SUB-CATEGORY</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>CODE</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>SUB-SUB-CATEGORIES</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>DESCRIPTION</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>STATUS</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>CREATED / UPDATED</th>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right' }}>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSubCategories.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '48px 24px', color: '#64748B', background: '#F8FAFC' }}>
-                      <FolderTree size={36} style={{ color: '#94A3B8', marginBottom: 10, display: 'block', margin: '0 auto 10px' }} />
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>No sub-categories found under {selectedCategoryForSubCats.name}</div>
-                      <div style={{ fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 16 }}>
-                        Get started by creating the first sub-category under {selectedCategoryForSubCats.name}.
-                      </div>
-                      <button
-                        onClick={handleOpenCreateSubModal}
-                        style={{
-                          padding: '8px 16px', borderRadius: 6, background: '#0F766E', color: '#FFFFFF',
-                          border: 'none', fontWeight: 700, fontSize: 12.5, cursor: 'pointer',
-                          display: 'inline-flex', alignItems: 'center', gap: 6
-                        }}
-                      >
-                        <Plus size={15} /> + Add Sub-Category
-                      </button>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSubCategories.map(sub => {
-                    const subSubList = (subSubCategories || []).filter(ssc =>
-                      ssc.subCategoryId === sub.id ||
-                      (ssc.parentSubCategory && ssc.parentSubCategory.toLowerCase() === sub.name.toLowerCase())
-                    );
-                    const subSubCount = subSubList.length;
-                    const activeSubSubCount = subSubList.filter(s => s.status === 'Active').length;
-
-                    return (
-                      <tr
-                        key={sub.id}
-                        onClick={() => handleNavigateToSubSubCategories(sub)}
-                        style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s ease', cursor: 'pointer' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#F0FDFA'}
-                        onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
-                        title={`Click to open ${sub.name} Sub-Sub-Category Management page`}
-                      >
-                        <td style={{ padding: '14px 16px', fontWeight: 800, color: '#0F172A' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: sub.status === 'Active' ? '#10B981' : '#94A3B8' }} />
-                            <span style={{ fontSize: 13.5 }}>{sub.name}</span>
-                          </div>
-                        </td>
-
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 11.5, background: '#F1F5F9', color: '#0F766E', padding: '3px 8px', borderRadius: 4, border: '1px solid #E2E8F0' }}>
-                            {sub.code}
-                          </span>
-                        </td>
-
-                        <td style={{ padding: '14px 16px' }}>
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleNavigateToSubSubCategories(sub);
-                            }}
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 5,
-                              fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
-                              background: '#F0FDFA', color: '#0F766E', border: '1px solid #CCFBF1',
-                              cursor: 'pointer'
-                            }}
-                            title={`Click to view ${subSubCount} sub-sub-categories under ${sub.name}`}
-                          >
-                            <FolderTree size={13} /> {subSubCount} {subSubCount === 1 ? 'Sub-Sub-Category' : 'Sub-Sub-Categories'}
-                            {subSubCount > 0 && subSubCount !== activeSubSubCount && (
-                              <span style={{ fontSize: 10.5, color: '#047857', background: '#DCFCE7', padding: '1px 5px', borderRadius: 4, marginLeft: 2 }}>{activeSubSubCount} Active</span>
-                            )}
-                          </span>
-                        </td>
-
-                        <td style={{ padding: '14px 16px', color: '#475569', maxWidth: 300 }}>
-                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={sub.description || 'No description'}>
-                            {sub.description || '—'}
-                          </div>
-                        </td>
-
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{
-                            fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 4,
-                            background: sub.status === 'Active' ? '#DCFCE7' : '#FEE2E2',
-                            color: sub.status === 'Active' ? '#15803D' : '#B91C1C',
-                            border: sub.status === 'Active' ? '1px solid #86EFAC' : '1px solid #FCA5A5'
-                          }}>
-                            {sub.status}
-                          </span>
-                        </td>
-
-                        <td style={{ padding: '14px 16px', color: '#64748B', fontSize: 11.5 }}>
-                          {sub.updatedAt || sub.createdAt || '2026-08-10'}
-                        </td>
-
-                        <td onClick={e => e.stopPropagation()} style={{ padding: '14px 16px', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                            <button
-                              onClick={() => handleOpenEditSubModal(sub)}
-                              title="Edit Sub-Category"
-                              style={{ padding: '6px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6, background: '#F1F5F9', color: '#0F172A', border: '1px solid #CBD5E1', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                            >
-                              <Edit3 size={13} /> Edit
-                            </button>
-
-                            {sub.status === 'Active' ? (
-                              <button
-                                onClick={() => setDeactivateConfirmSubCat(sub)}
-                                title="Deactivate Sub-Category"
-                                style={{
-                                  padding: '6px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6,
-                                  background: '#FFFBEB',
-                                  color: '#B45309',
-                                  border: '1px solid #FDE68A',
-                                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4
-                                }}
-                              >
-                                <Power size={13} /> Deactivate
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => handleActivateSubCategory(sub)}
-                                title="Activate Sub-Category"
-                                style={{
-                                  padding: '6px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6,
-                                  background: '#ECFDF5',
-                                  color: '#047857',
-                                  border: '1px solid #A7F3D0',
-                                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4
-                                }}
-                              >
-                                <CheckCircle2 size={13} /> Activate
-                              </button>
-                            )}
-
-                            <button
-                              onClick={() => handleNavigateToSubSubCategories(sub)}
-                              title={`Open dedicated ${sub.name} Sub-Sub-Category Management page`}
-                              style={{
-                                padding: '6px 12px', borderRadius: 6, background: '#0F766E', color: '#FFFFFF',
-                                border: 'none', fontWeight: 800, fontSize: 11.5, cursor: 'pointer',
-                                display: 'inline-flex', alignItems: 'center', gap: 5,
-                                boxShadow: '0 1px 2px rgba(15,118,110,0.2)',
-                                transition: 'background 0.15s ease'
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#115E59'}
-                              onMouseLeave={e => e.currentTarget.style.background = '#0F766E'}
-                            >
-                              <span>Manage Sub-Sub-Categories</span>
-                              <span style={{ fontSize: 12, fontWeight: 900 }}>→</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : (
-        /* ══════════════════════════════════════════════════════════════════════════
-           VIEW 2: MAIN CATEGORY MASTER PAGE (Parent Categories)
-           ══════════════════════════════════════════════════════════════════════════ */
-        <>
-          {/* ── Top Header Bar ── */}
-          <div style={{
-            background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24,
-            boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center', flexWrap: 'wrap', gap: 16
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 46, height: 46, borderRadius: 10, background: 'rgba(15, 118, 110, 0.1)', border: '1px solid rgba(15, 118, 110, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F766E' }}>
-                <Layers size={24} />
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#0F766E' }}>
-                  ADMINISTRATION & TAXONOMY
-                </div>
-                <h1 style={{ margin: '2px 0 0 0', fontSize: 24, fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em' }}>
-                  CATEGORY MASTER
-                </h1>
-                <p style={{ margin: '3px 0 0 0', fontSize: 13, color: '#64748B', fontWeight: 500 }}>
-                  Define parent categories and manage child sub-categories. Click any category or <strong>Manage Sub-Categories →</strong> to manage its sub-categories.
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button
-                onClick={() => setActiveTab('margin-engine')}
-                style={{
-                  padding: '10px 16px', borderRadius: 8, background: '#F8FAFC',
-                  color: '#0F766E', border: '1px solid #CBD5E1', fontWeight: 700,
-                  fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6
-                }}
-              >
-                <Percent size={15} /> Margin Engine →
-              </button>
-              <button
-                onClick={handleOpenCreateCategoryModal}
-                style={{
-                  padding: '10px 20px', borderRadius: 8, background: '#0F766E',
-                  color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 13,
-                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-                  boxShadow: '0 1px 3px rgba(15,118,110,0.25)'
-                }}
-              >
-                <Plus size={16} /> + Add Category
-              </button>
-            </div>
-          </div>
-
-          {/* ── KPI Summary Cards ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Categories</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#0F172A', fontFamily: 'monospace', marginTop: 4 }}>
-                {categoryStats.total}
-              </div>
-              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Parent categories</div>
-            </div>
-
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Active Categories</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', marginTop: 4 }}>
-                {categoryStats.active}
-              </div>
-              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Available in catalog</div>
-            </div>
-
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 18, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Sub-Categories</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#0284C7', fontFamily: 'monospace', marginTop: 4 }}>
-                {subCategories.length}
-              </div>
-              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Managed under parent categories</div>
-            </div>
-          </div>
-
-          {/* ── Search & Filter Bar ── */}
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-            <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-              <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#64748B' }} />
-              <input
-                type="text"
-                placeholder="Search category name, code, or description..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                style={{ width: '100%', padding: '9px 12px 9px 36px', fontSize: 13, borderRadius: 6, border: '1px solid #CBD5E1', outline: 'none', background: '#F8FAFC', color: '#0F172A' }}
-              />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 0 }}>
+              {productTypeSearch && (
+                <button onClick={() => setProductTypeSearch('')} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: 0 }}>
                   <X size={14} />
                 </button>
               )}
@@ -1368,411 +670,983 @@ export const CategoryMasterModule: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Status:</span>
               <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value as any)}
-                style={{ padding: '8px 12px', fontSize: 12.5, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 6, color: '#0F172A', fontWeight: 600, cursor: 'pointer' }}
+                value={ptStatusFilter}
+                onChange={e => setPtStatusFilter(e.target.value as any)}
+                style={{ padding: '7px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 12.5, fontWeight: 600, background: '#FFF', color: '#0F172A', cursor: 'pointer' }}
               >
-                <option value="ALL">All Statuses ({categories.length})</option>
-                <option value="Active">Active ({categoryStats.active})</option>
-                <option value="Inactive">Inactive ({categoryStats.inactive})</option>
+                <option value="ALL">All Statuses</option>
+                <option value="ACTIVE">Active Only</option>
+                <option value="INACTIVE">Inactive Only</option>
               </select>
             </div>
           </div>
 
-          {/* ── Category Master Data Table ── */}
-          <div style={{ background: '#FFFFFF', borderRadius: 10, border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12.5 }}>
-              <thead>
-                <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                  <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>CATEGORY NAME</th>
-                  <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>CODE</th>
-                  <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>SUB-CATEGORIES</th>
-                  <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>DESCRIPTION</th>
-                  <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>MARGIN (%)</th>
-                  <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>STATUS</th>
-                  <th style={{ padding: '12px 18px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right' }}>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCategories.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '40px 20px', color: '#64748B', background: '#F8FAFC' }}>
-                      <Layers size={32} style={{ color: '#94A3B8', marginBottom: 8, display: 'block', margin: '0 auto 8px' }} />
-                      <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>No categories found</div>
-                      <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>Try modifying your search or click "+ Add Category" above.</div>
-                    </td>
+          {/* Product Types Master Table */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+            <div style={{ padding: '14px 20px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>Registered Product Types (PRODUCT_TYPE)</div>
+                <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>Click "Manage Categories" on any Product Type to view and filter its Category records</div>
+              </div>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: '#0F766E', background: '#F0FDFA', padding: '4px 10px', borderRadius: 6, border: '1px solid #CCFBF1' }}>
+                {filteredProductTypes.length} Available
+              </span>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                    <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 130 }}>PRODUCT TYPE ID</th>
+                    <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 200 }}>PRODUCT TYPE NAME</th>
+                    <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 110 }}>CODE</th>
+                    <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', minWidth: 220 }}>DESCRIPTION</th>
+                    <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 100 }}>STATUS</th>
+                    <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 110, textAlign: 'center' }}>DISPLAY ORDER</th>
+                    <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 115 }}>CREATED AT</th>
+                    <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 115 }}>UPDATED AT</th>
+                    <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right', width: 230 }}>ACTIONS</th>
                   </tr>
-                ) : (
-                  filteredCategories.map(cat => {
-                    const marginConfig = getCategoryMarginConfig ? getCategoryMarginConfig(cat.name) : { marginType: 'PERCENTAGE', marginValue: getCategoryMargin(cat.name) };
-                    const marginDisplay = marginConfig.marginType === 'FIXED_RATE' ? `₹${marginConfig.marginValue}/unit` : `${marginConfig.marginValue}%`;
-                    const catSubList = subCategories.filter(s =>
-                      s.categoryId === cat.id ||
-                      s.parentCategory.toLowerCase() === cat.name.toLowerCase() ||
-                      (cat.name.toLowerCase().includes('nutraceutical') && s.parentCategory.toLowerCase().includes('nutraceutical'))
-                    );
-                    const catSubCount = catSubList.length;
-                    const catActiveSubCount = catSubList.filter(s => s.status === 'Active').length;
+                </thead>
+                <tbody>
+                  {filteredProductTypes.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '48px 20px', color: '#64748B' }}>
+                        <Layers size={36} style={{ color: '#94A3B8', margin: '0 auto 10px', display: 'block' }} />
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>No Product Types found.</div>
+                        <div style={{ fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 16 }}>Create a Product Type to start categorizing products.</div>
+                        <button
+                          onClick={handleOpenAddPtModal}
+                          style={{ padding: '8px 16px', borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}
+                        >
+                          + Add Product Type
+                        </button>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredProductTypes.map(pt => {
+                      const ptId = pt.product_type_id || pt.id!;
+                      const ptCode = pt.product_type_code || pt.code || 'CODE';
+                      const ptName = pt.product_type_name || pt.name || 'Unnamed';
+                      const ptStatus = pt.lifecycle_status || pt.status || 'ACTIVE';
+                      const isActive = ptStatus === 'ACTIVE';
+                      const catCount = unifiedCategories.filter(c => c.product_type_id === ptId).length;
 
-                    return (
-                      <tr
-                        key={cat.id}
-                        onClick={() => handleNavigateToSubCategories(cat)}
-                        style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s ease', cursor: 'pointer' }}
-                        onMouseEnter={e => e.currentTarget.style.background = '#F0FDFA'}
-                        onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
-                        title={`Click to open ${cat.name} Sub-Category Management page`}
-                      >
-                        <td style={{ padding: '14px 16px', fontWeight: 800, color: '#0F172A' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: cat.status === 'Active' ? '#10B981' : '#94A3B8' }} />
-                            <span style={{ color: '#0F172A', fontSize: 14, fontWeight: 800 }}>
-                              {cat.name}
+                      return (
+                        <tr
+                          key={ptId}
+                          style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s ease' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                          onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
+                        >
+                          <td style={{ padding: '14px 14px' }}>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', background: '#F0FDFA', padding: '3px 8px', borderRadius: 4, border: '1px solid #CCFBF1' }}>
+                              {ptId}
                             </span>
+                          </td>
+                          <td style={{ padding: '14px 16px' }}>
+                            <div style={{ fontWeight: 800, color: '#0F172A', fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <Layers size={15} style={{ color: '#0F766E', flexShrink: 0 }} />
+                              <span>{ptName}</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 4, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', fontFamily: 'monospace' }}>
+                              {ptCode}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 16px', color: '#475569', fontSize: 12.5, maxWidth: 260 }}>
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={pt.description}>
+                              {pt.description || <span style={{ color: '#94A3B8', fontStyle: 'italic' }}>No description</span>}
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 14px' }}>
+                            <span style={{
+                              fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 4,
+                              background: isActive ? '#DCFCE7' : '#FEE2E2',
+                              color: isActive ? '#15803D' : '#B91C1C',
+                              border: isActive ? '1px solid #86EFAC' : '1px solid #FCA5A5'
+                            }}>
+                              {isActive ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '14px 14px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700, color: '#475569', fontSize: 12.5 }}>
+                            #{pt.display_order ?? 1}
+                          </td>
+                          <td style={{ padding: '14px 14px', fontSize: 12, color: '#64748B', whiteSpace: 'nowrap' }}>
+                            {formatMasterDate(pt.created_at || (pt as any).createdAt)}
+                          </td>
+                          <td style={{ padding: '14px 14px', fontSize: 12, color: '#64748B', whiteSpace: 'nowrap' }}>
+                            {formatMasterDate(pt.updated_at || (pt as any).updatedAt || pt.created_at)}
+                          </td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                              <button
+                                onClick={() => {
+                                  setCategoryPtFilter(ptId);
+                                  setActiveMasterTab('CATEGORY');
+                                }}
+                                style={{ padding: '6px 12px', borderRadius: 6, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, boxShadow: '0 1px 2px rgba(15,118,110,0.2)' }}
+                                title="View Categories under this Product Type"
+                              >
+                                <span>Categories ({catCount})</span>
+                                <ChevronRight size={13} />
+                              </button>
+
+                              <button
+                                onClick={(e) => handleOpenEditPtModal(pt, e)}
+                                style={{ padding: '6px 9px', borderRadius: 6, background: '#FFFFFF', color: '#475569', border: '1px solid #CBD5E1', cursor: 'pointer' }}
+                                title="Edit Product Type"
+                              >
+                                <Edit3 size={13} />
+                              </button>
+
+                              <button
+                                onClick={() => toggleProductTypeStatus(ptId)}
+                                style={{ padding: '6px 9px', borderRadius: 6, background: isActive ? '#FEF2F2' : '#F0FDF4', color: isActive ? '#DC2626' : '#16A34A', border: isActive ? '1px solid #FCA5A5' : '1px solid #86EFAC', cursor: 'pointer' }}
+                                title={isActive ? 'Deactivate Product Type' : 'Activate Product Type'}
+                              >
+                                <Power size={13} />
+                              </button>
+
+                              <button
+                                onClick={() => setDeleteConfirmTarget({ type: 'PRODUCT_TYPE', id: ptId, name: ptName })}
+                                style={{ padding: '6px 9px', borderRadius: 6, background: '#FFFFFF', color: '#94A3B8', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+                                title="Delete Product Type"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* 2. CATEGORY MASTER TAB (CANONICAL CLIENT MODEL) */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {activeMasterTab === 'CATEGORY' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          
+          {/* Quick Metrics Bar */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>CATEGORY RECORDS</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', marginTop: 4 }}>
+                {filteredCategoryList.length} / {categoryStats.totalRecords}
+              </div>
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Total single CATEGORY records</div>
+            </div>
+
+            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>PRODUCT TYPE FILTER</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {categoryPtFilter === 'ALL' ? 'All Product Types' : (getPt(categoryPtFilter)?.product_type_name || categoryPtFilter)}
+              </div>
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                {categoryPtFilter === 'ALL' ? `${categoryStats.distinctPtCovered} types covered` : `Filtered by product_type_id`}
+              </div>
+            </div>
+
+            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>ACTIVE RECORDS</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#15803D', fontFamily: 'monospace', marginTop: 4 }}>
+                {categoryStats.activeRecords} Active
+              </div>
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Only active selectable for products</div>
+            </div>
+
+            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>CATEGORY GROUPS</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: '#2563EB', fontFamily: 'monospace', marginTop: 4 }}>
+                {categoryStats.distinctCategories} Categories
+              </div>
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>Visual groups from single model</div>
+            </div>
+          </div>
+
+          {/* Search, Filter & View Mode Toolbar */}
+          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 14, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 6, padding: '8px 12px', minWidth: 320, flex: '1 1 320px' }}>
+              <Search size={15} style={{ color: '#64748B' }} />
+              <input
+                type="text"
+                placeholder="Search category, sub-category, sub-sub-category, code, or description..."
+                value={categorySearchTerm}
+                onChange={e => setCategorySearchTerm(e.target.value)}
+                style={{ border: 'none', background: 'transparent', width: '100%', fontSize: 13, outline: 'none', color: '#0F172A' }}
+              />
+              {categorySearchTerm && (
+                <button onClick={() => setCategorySearchTerm('')} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', padding: 0 }}>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {/* Product Type Filter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Product Type:</span>
+                <select
+                  value={categoryPtFilter}
+                  onChange={e => setCategoryPtFilter(e.target.value)}
+                  style={{ padding: '7px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 12.5, fontWeight: 600, background: '#FFF', color: '#0F172A', cursor: 'pointer' }}
+                >
+                  <option value="ALL">All Product Types</option>
+                  {(productTypes || []).map(pt => (
+                    <option key={pt.product_type_id || pt.id} value={pt.product_type_id || pt.id}>
+                      {pt.product_type_name || pt.name} ({pt.product_type_code || pt.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Status:</span>
+                <select
+                  value={categoryStatusFilter}
+                  onChange={e => setCategoryStatusFilter(e.target.value as any)}
+                  style={{ padding: '7px 12px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 12.5, fontWeight: 600, background: '#FFF', color: '#0F172A', cursor: 'pointer' }}
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="ACTIVE">Active Only</option>
+                  <option value="INACTIVE">Inactive Only</option>
+                </select>
+              </div>
+
+              {/* View Mode Toggle: Table View vs Hierarchy View */}
+              <div style={{ display: 'flex', background: '#F1F5F9', padding: 3, borderRadius: 6, border: '1px solid #CBD5E1' }}>
+                <button
+                  onClick={() => setCategoryViewMode('TABLE')}
+                  style={{
+                    padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 700,
+                    border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                    background: categoryViewMode === 'TABLE' ? '#FFFFFF' : 'transparent',
+                    color: categoryViewMode === 'TABLE' ? '#0F766E' : '#64748B',
+                    boxShadow: categoryViewMode === 'TABLE' ? '0 1px 2px rgba(15,23,42,0.1)' : 'none'
+                  }}
+                  title="Table View (Client 12-Column Schema)"
+                >
+                  <Table size={13} />
+                  <span>Table View</span>
+                </button>
+                <button
+                  onClick={() => setCategoryViewMode('TREE')}
+                  style={{
+                    padding: '6px 12px', borderRadius: 4, fontSize: 12, fontWeight: 700,
+                    border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                    background: categoryViewMode === 'TREE' ? '#FFFFFF' : 'transparent',
+                    color: categoryViewMode === 'TREE' ? '#0F766E' : '#64748B',
+                    boxShadow: categoryViewMode === 'TREE' ? '0 1px 2px rgba(15,23,42,0.1)' : 'none'
+                  }}
+                  title="Hierarchy View (Visual Grouping from single dataset)"
+                >
+                  <ListTree size={13} />
+                  <span>Hierarchy View</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── 2A. TABLE VIEW (CLIENT 12-COLUMN SPECIFICATION) ── */}
+          {categoryViewMode === 'TABLE' && (
+            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <div style={{ padding: '14px 20px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A' }}>
+                    CATEGORY Master Records (One Single Entity)
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                    Every record is a flat CATEGORY entity containing product_type_id, category, sub_category, sub_sub_category, and unique category_code.
+                  </div>
+                </div>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: '#0F766E', background: '#F0FDFA', padding: '4px 10px', borderRadius: 6, border: '1px solid #CCFBF1' }}>
+                  Showing {filteredCategoryList.length} Records
+                </span>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 95 }}>CATEGORY ID</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 140 }}>PRODUCT TYPE</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 130 }}>CATEGORY</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 130 }}>SUB-CATEGORY</th>
+                      <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 180 }}>SUB-SUB-CATEGORY</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 125 }}>CATEGORY CODE</th>
+                      <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', minWidth: 200 }}>DESCRIPTION</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 95 }}>STATUS</th>
+                      <th style={{ padding: '12px 12px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 80, textAlign: 'center' }}>ORDER</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 105 }}>CREATED AT</th>
+                      <th style={{ padding: '12px 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 105 }}>UPDATED AT</th>
+                      <th style={{ padding: '12px 16px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', textAlign: 'right', width: 110 }}>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCategoryList.length === 0 ? (
+                      <tr>
+                        <td colSpan={12} style={{ textAlign: 'center', padding: '48px 20px', color: '#64748B' }}>
+                          <FolderTree size={36} style={{ color: '#94A3B8', margin: '0 auto 10px', display: 'block' }} />
+                          <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>No Category records found.</div>
+                          <div style={{ fontSize: 13, color: '#64748B', marginTop: 4, marginBottom: 16 }}>
+                            {categorySearchTerm || categoryPtFilter !== 'ALL' || categoryStatusFilter !== 'ALL'
+                              ? 'Try resetting your search query or product type filter.'
+                              : 'Create your first CATEGORY record to get started.'}
                           </div>
-                        </td>
-
-                        <td style={{ padding: '14px 14px' }}>
-                          <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 11.5, background: '#F1F5F9', color: '#0F766E', padding: '3px 8px', borderRadius: 4, border: '1px solid #E2E8F0' }}>
-                            {cat.code}
-                          </span>
-                        </td>
-
-                        <td style={{ padding: '14px 14px' }}>
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleNavigateToSubCategories(cat);
-                            }}
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 5,
-                              fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
-                              background: '#F0FDFA', color: '#0F766E', border: '1px solid #CCFBF1',
-                              cursor: 'pointer'
-                            }}
-                            title={`Click to view ${catSubCount} sub-categories under ${cat.name}`}
+                          <button
+                            onClick={() => handleOpenAddCatModal()}
+                            style={{ padding: '8px 16px', borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}
                           >
-                            <FolderTree size={13} /> {catSubCount} {catSubCount === 1 ? 'Sub-Category' : 'Sub-Categories'}
-                            {catSubCount > 0 && catSubCount !== catActiveSubCount && (
-                              <span style={{ fontSize: 10.5, color: '#047857', background: '#DCFCE7', padding: '1px 5px', borderRadius: 4, marginLeft: 2 }}>{catActiveSubCount} Active</span>
-                            )}
-                          </span>
-                        </td>
-
-                        <td style={{ padding: '14px 14px', color: '#475569', maxWidth: 260 }}>
-                          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={cat.description || 'No description provided'}>
-                            {cat.description || '—'}
-                          </div>
-                        </td>
-
-                        <td style={{ padding: '14px 14px' }} onClick={e => e.stopPropagation()}>
-                          <span
-                            onClick={() => setActiveTab('margin-engine')}
-                            title="Click to view in Margin Engine"
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
-                              fontSize: 12, fontWeight: 800, fontFamily: 'monospace',
-                              padding: '3px 8px', borderRadius: 4,
-                              background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {marginConfig.marginType === 'FIXED_RATE' ? (
-                              <span style={{ fontSize: 11, fontWeight: 800 }}>₹</span>
-                            ) : (
-                              <Percent size={11} />
-                            )}
-                            {marginDisplay}
-                          </span>
-                        </td>
-
-                        <td style={{ padding: '14px 14px' }}>
-                          <span style={{
-                            fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 4,
-                            background: cat.status === 'Active' ? '#DCFCE7' : '#FEE2E2',
-                            color: cat.status === 'Active' ? '#15803D' : '#B91C1C',
-                            border: cat.status === 'Active' ? '1px solid #86EFAC' : '1px solid #FCA5A5'
-                          }}>
-                            {cat.status}
-                          </span>
-                        </td>
-
-                        <td onClick={e => e.stopPropagation()} style={{ padding: '14px 18px', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
-                            <button
-                              onClick={() => handleOpenEditCategoryModal(cat)}
-                              title="Edit Category"
-                              style={{
-                                padding: '7px 12px', fontSize: 12, fontWeight: 700, borderRadius: 6,
-                                background: '#F1F5F9', color: '#0F172A', border: '1px solid #CBD5E1',
-                                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5
-                              }}
-                            >
-                              <Edit3 size={13} /> Edit
-                            </button>
-
-                            <button
-                              onClick={() => handleNavigateToSubCategories(cat)}
-                              title={`Open dedicated ${cat.name} Sub-Category Management page`}
-                              style={{
-                                padding: '7px 14px', borderRadius: 6, background: '#0F766E', color: '#FFFFFF',
-                                border: 'none', fontWeight: 800, fontSize: 12, cursor: 'pointer',
-                                display: 'inline-flex', alignItems: 'center', gap: 6,
-                                boxShadow: '0 1px 2px rgba(15,118,110,0.2)',
-                                transition: 'background 0.15s ease'
-                              }}
-                              onMouseEnter={e => e.currentTarget.style.background = '#115E59'}
-                              onMouseLeave={e => e.currentTarget.style.background = '#0F766E'}
-                            >
-                              <span>Manage Sub-Categories</span>
-                              <span style={{ fontSize: 13, fontWeight: 900 }}>→</span>
-                            </button>
-                          </div>
+                            + Add Category
+                          </button>
                         </td>
                       </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+                    ) : (
+                      filteredCategoryList.map(cat => {
+                        const catId = cat.category_id || cat.id!;
+                        const pt = getPt(cat.product_type_id);
+                        const ptName = pt?.product_type_name || pt?.name || cat.product_type_id;
+                        const catCode = cat.category_code || cat.code || '—';
+                        const isActive = (cat.lifecycle_status || cat.status) === 'ACTIVE' || cat.status === 'Active';
 
-      {/* ── CREATE / EDIT CATEGORY MODAL ── */}
-      {isCategoryModalOpen && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={() => setIsCategoryModalOpen(false)}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 520, background: '#FFFFFF', borderRadius: 12, padding: 28, boxShadow: '0 20px 48px rgba(15, 23, 42, 0.25)', border: '1px solid #CBD5E1' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(15, 118, 110, 0.1)', color: '#0F766E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Layers size={20} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0F172A' }}>
-                    {editingCategory ? 'Edit Category' : 'Create New Category'}
-                  </h3>
-                  <div style={{ fontSize: 12, color: '#64748B' }}>Platform product taxonomy classification</div>
-                </div>
+                        return (
+                          <tr
+                            key={catId}
+                            style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.15s ease' }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#FFFFFF'}
+                          >
+                            {/* 1. Category ID (PK) */}
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{ fontSize: 11.5, fontWeight: 800, color: '#0F766E', fontFamily: 'monospace', background: '#F0FDFA', padding: '2px 7px', borderRadius: 4, border: '1px solid #CCFBF1' }}>
+                                {catId}
+                              </span>
+                            </td>
+
+                            {/* 2. Product Type */}
+                            <td style={{ padding: '12px 14px' }}>
+                              <div style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>
+                                {ptName}
+                              </div>
+                              <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#64748B' }}>
+                                {pt?.product_type_code || pt?.code || cat.product_type_id}
+                              </span>
+                            </td>
+
+                            {/* 3. Category */}
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{ fontWeight: 800, color: '#0F172A', fontSize: 13 }}>
+                                {cat.category}
+                              </span>
+                            </td>
+
+                            {/* 4. Sub-Category */}
+                            <td style={{ padding: '12px 14px', color: cat.sub_category ? '#334155' : '#94A3B8', fontWeight: cat.sub_category ? 600 : 400 }}>
+                              {cat.sub_category || '—'}
+                            </td>
+
+                            {/* 5. Sub-Sub-Category */}
+                            <td style={{ padding: '12px 16px', color: cat.sub_sub_category ? '#0F172A' : '#94A3B8', fontWeight: cat.sub_sub_category ? 700 : 400 }}>
+                              {cat.sub_sub_category || '—'}
+                            </td>
+
+                            {/* 6. Category Code (UNIQUE) */}
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 4, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', fontFamily: 'monospace' }}>
+                                {catCode}
+                              </span>
+                            </td>
+
+                            {/* 7. Description */}
+                            <td style={{ padding: '12px 16px', color: '#475569', fontSize: 12, maxWidth: 240 }} title={cat.description}>
+                              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {cat.description || <span style={{ color: '#94A3B8', fontStyle: 'italic' }}>No description</span>}
+                              </div>
+                            </td>
+
+                            {/* 8. Lifecycle Status */}
+                            <td style={{ padding: '12px 14px' }}>
+                              <span style={{
+                                fontSize: 10.5, fontWeight: 800, padding: '2px 7px', borderRadius: 4,
+                                background: isActive ? '#DCFCE7' : '#FEE2E2',
+                                color: isActive ? '#15803D' : '#B91C1C',
+                                border: isActive ? '1px solid #86EFAC' : '1px solid #FCA5A5'
+                              }}>
+                                {isActive ? 'ACTIVE' : 'INACTIVE'}
+                              </span>
+                            </td>
+
+                            {/* 9. Display Order */}
+                            <td style={{ padding: '12px 12px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700, color: '#475569', fontSize: 12 }}>
+                              #{cat.display_order ?? 1}
+                            </td>
+
+                            {/* 10. Created At */}
+                            <td style={{ padding: '12px 14px', fontSize: 11.5, color: '#64748B', whiteSpace: 'nowrap' }}>
+                              {formatMasterDate(cat.created_at || (cat as any).createdAt)}
+                            </td>
+
+                            {/* 11. Updated At */}
+                            <td style={{ padding: '12px 14px', fontSize: 11.5, color: '#64748B', whiteSpace: 'nowrap' }}>
+                              {formatMasterDate(cat.updated_at || (cat as any).updatedAt || cat.created_at)}
+                            </td>
+
+                            {/* 12. Actions */}
+                            <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
+                                <button
+                                  onClick={(e) => handleOpenEditCatModal(cat, e)}
+                                  style={{ padding: '5px 8px', borderRadius: 5, background: '#FFFFFF', color: '#475569', border: '1px solid #CBD5E1', cursor: 'pointer' }}
+                                  title="Edit Category Record"
+                                >
+                                  <Edit3 size={13} />
+                                </button>
+
+                                <button
+                                  onClick={() => toggleUnifiedCategoryStatus(catId)}
+                                  style={{ padding: '5px 8px', borderRadius: 5, background: isActive ? '#FEF2F2' : '#F0FDF4', color: isActive ? '#DC2626' : '#16A34A', border: isActive ? '1px solid #FCA5A5' : '1px solid #86EFAC', cursor: 'pointer' }}
+                                  title={isActive ? 'Deactivate Category Record' : 'Activate Category Record'}
+                                >
+                                  <Power size={13} />
+                                </button>
+
+                                <button
+                                  onClick={() => setDeleteConfirmTarget({
+                                    type: 'CATEGORY',
+                                    id: catId,
+                                    code: catCode,
+                                    name: `${cat.category}${cat.sub_category ? ` → ${cat.sub_category}` : ''}${cat.sub_sub_category ? ` → ${cat.sub_sub_category}` : ''}`,
+                                    details: `ID: ${catId} | Code: ${catCode}`
+                                  })}
+                                  style={{ padding: '5px 8px', borderRadius: 5, background: '#FFFFFF', color: '#94A3B8', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+                                  title="Delete Category Record"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
-              <button onClick={() => setIsCategoryModalOpen(false)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
-                <X size={20} />
-              </button>
             </div>
+          )}
 
-            {categoryFormError && (
-              <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '10px 14px', color: '#B91C1C', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <AlertTriangle size={16} />
-                <span>{categoryFormError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveCategory} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  Category Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Drugs, Nutraceuticals/Food, Cosmetics, Surgical"
-                  value={categoryFormData.name}
-                  onChange={e => handleCategoryNameChange(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Category Code *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. CAT-DRG"
-                    value={categoryFormData.code}
-                    onChange={e => setCategoryFormData({ ...categoryFormData, code: e.target.value.toUpperCase() })}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace', fontWeight: 700, outline: 'none' }}
-                  />
-                  <span style={{ fontSize: 10.5, color: '#64748B', marginTop: 2, display: 'block' }}>Used as taxonomy prefix</span>
+          {/* ── 2B. HIERARCHY VIEW (VISUAL GROUPING GENERATED FROM SINGLE COLLECTION) ── */}
+          {categoryViewMode === 'TREE' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Hierarchy Tree Controls */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFFFFF', padding: '10px 16px', borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                <div style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>
+                  Visual hierarchy generated from single <strong>CATEGORY</strong> dataset. Each leaf is an actionable CATEGORY record.
                 </div>
-
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Status
-                  </label>
-                  <input
-                    type="text"
-                    disabled
-                    readOnly
-                    value="Active (Master Record)"
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontWeight: 700, background: '#F8FAFC', color: '#15803D', cursor: 'not-allowed' }}
-                  />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => {
+                      const allKeys: string[] = [];
+                      groupedHierarchy.forEach(cat => {
+                        allKeys.push(`cat:${cat.categoryName}`);
+                        cat.subCategoriesList.forEach(sub => allKeys.push(`sub:${cat.categoryName}:${sub.subCategoryName}`));
+                      });
+                      expandAll(allKeys);
+                    }}
+                    style={{ padding: '5px 10px', fontSize: 11.5, fontWeight: 600, background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 5, color: '#475569', cursor: 'pointer' }}
+                  >
+                    Expand All
+                  </button>
+                  <button
+                    onClick={collapseAll}
+                    style={{ padding: '5px 10px', fontSize: 11.5, fontWeight: 600, background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: 5, color: '#475569', cursor: 'pointer' }}
+                  >
+                    Collapse All
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  Description
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Describe the scope of pharmaceutical / medicinal items under this category..."
-                  value={categoryFormData.description}
-                  onChange={e => setCategoryFormData({ ...categoryFormData, description: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none', resize: 'vertical' }}
-                />
-              </div>
+              {groupedHierarchy.length === 0 ? (
+                <div style={{ background: '#FFFFFF', border: '1px dashed #CBD5E1', borderRadius: 12, padding: '48px 24px', textAlign: 'center', color: '#64748B' }}>
+                  <FolderTree size={36} style={{ color: '#94A3B8', margin: '0 auto 10px', display: 'block' }} />
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>No categories match your filters.</div>
+                  <button
+                    onClick={() => handleOpenAddCatModal()}
+                    style={{ marginTop: 14, padding: '8px 16px', borderRadius: 6, background: '#0F766E', color: '#FFF', border: 'none', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}
+                  >
+                    + Add Category
+                  </button>
+                </div>
+              ) : (
+                groupedHierarchy.map(cat => {
+                  const catKey = `cat:${cat.categoryName}`;
+                  const isCatExpanded = expandedNodes.has(catKey);
+                  const pt = getPt(cat.productTypeId);
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setIsCategoryModalOpen(false)}
-                  style={{ padding: '9px 18px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#475569', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ padding: '9px 20px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFFFFF', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                >
-                  {editingCategory ? 'Save Changes' : 'Create Category'}
-                </button>
-              </div>
-            </form>
-          </div>
+                  return (
+                    <div
+                      key={catKey}
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 10,
+                        overflow: 'hidden',
+                        boxShadow: '0 1px 3px rgba(15,23,42,0.03)'
+                      }}
+                    >
+                      {/* LEVEL 1: CATEGORY GROUP HEADER */}
+                      <div
+                        style={{
+                          padding: '12px 16px',
+                          background: '#F8FAFC',
+                          borderBottom: isCatExpanded ? '1px solid #E2E8F0' : 'none',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                          gap: 10,
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => toggleExpand(catKey)}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleExpand(catKey); }}
+                            style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}
+                          >
+                            {isCatExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                          </button>
+
+                          <div style={{ width: 30, height: 30, borderRadius: 6, background: '#F0FDFA', border: '1px solid #CCFBF1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0F766E' }}>
+                            <FolderTree size={16} />
+                          </div>
+
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span>{cat.categoryName}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#F1F5F9', color: '#475569', border: '1px solid #E2E8F0' }}>
+                                {pt?.product_type_name || pt?.name || cat.productTypeId}
+                              </span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#0F766E', background: '#F0FDFA', padding: '2px 8px', borderRadius: 4, border: '1px solid #CCFBF1' }}>
+                                {cat.totalRecordCount} {cat.totalRecordCount === 1 ? 'Record' : 'Records'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Quick Add shortcut */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddCatModal({ ptId: cat.productTypeId, category: cat.categoryName })}
+                            style={{ padding: '5px 10px', borderRadius: 6, background: '#F0FDFA', color: '#0F766E', border: '1px solid #99F6E4', fontWeight: 700, fontSize: 11.5, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          >
+                            <Plus size={13} /> + Add Record under {cat.categoryName}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* LEVEL 2 & 3: SUB-CATEGORIES & CATEGORY RECORD LEAVES */}
+                      {isCatExpanded && (
+                        <div style={{ padding: '10px 16px 14px 34px', display: 'flex', flexDirection: 'column', gap: 10, background: '#FFFFFF' }}>
+                          
+                          {/* Direct records without sub-category (if any) */}
+                          {cat.recordsWithoutSub.map(rec => (
+                            <div
+                              key={rec.category_id}
+                              style={{
+                                padding: '8px 12px', borderRadius: 6, background: '#F8FAFC',
+                                border: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between',
+                                alignItems: 'center', fontSize: 12.5
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ color: '#0F766E', fontWeight: 800 }}>•</span>
+                                <span style={{ fontWeight: 700, color: '#0F172A' }}>{rec.category} (Direct Record)</span>
+                                <span style={{ fontSize: 10.5, fontFamily: 'monospace', fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
+                                  {rec.category_code}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <button
+                                  onClick={(e) => handleOpenEditCatModal(rec, e)}
+                                  style={{ padding: '3px 6px', borderRadius: 4, background: '#FFF', color: '#475569', border: '1px solid #CBD5E1', cursor: 'pointer' }}
+                                >
+                                  <Edit3 size={12} />
+                                </button>
+                                <button
+                                  onClick={() => toggleUnifiedCategoryStatus(rec.category_id)}
+                                  style={{ padding: '3px 6px', borderRadius: 4, background: '#FFF', color: '#0F766E', border: '1px solid #CBD5E1', cursor: 'pointer' }}
+                                >
+                                  <Power size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+
+                          {/* Sub-categories */}
+                          {cat.subCategoriesList.map(sub => {
+                            const subKey = `sub:${cat.categoryName}:${sub.subCategoryName}`;
+                            const isSubExpanded = expandedNodes.has(subKey);
+
+                            return (
+                              <div
+                                key={subKey}
+                                style={{
+                                  borderLeft: '2px solid #CBD5E1',
+                                  paddingLeft: 14,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 6
+                                }}
+                              >
+                                {/* SUB-CATEGORY GROUP HEADER */}
+                                <div
+                                  style={{
+                                    padding: '8px 12px',
+                                    borderRadius: 6,
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={() => toggleExpand(subKey)}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); toggleExpand(subKey); }}
+                                      style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                                    >
+                                      {isSubExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                                    </button>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
+                                      {sub.subCategoryName}
+                                    </span>
+                                    <span style={{ fontSize: 10.5, fontWeight: 700, color: '#64748B', background: '#F1F5F9', padding: '1px 6px', borderRadius: 4 }}>
+                                      {sub.records.length} {sub.records.length === 1 ? 'Record' : 'Records'}
+                                    </span>
+                                  </div>
+
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenAddCatModal({ ptId: cat.productTypeId, category: cat.categoryName, subCategory: sub.subCategoryName })}
+                                      style={{ padding: '3px 8px', borderRadius: 4, background: '#F0FDFA', color: '#0F766E', border: '1px solid #99F6E4', fontWeight: 700, fontSize: 10.5, cursor: 'pointer' }}
+                                    >
+                                      + Add under {sub.subCategoryName}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* CATEGORY RECORD LEAF NODES */}
+                                {isSubExpanded && (
+                                  <div style={{ borderLeft: '2px solid #94A3B8', paddingLeft: 12, marginLeft: 14, display: 'flex', flexDirection: 'column', gap: 5, marginTop: 2 }}>
+                                    {sub.records.map(leaf => {
+                                      const isActive = (leaf.lifecycle_status || leaf.status) === 'ACTIVE' || leaf.status === 'Active';
+                                      const label = leaf.sub_sub_category || leaf.sub_category || leaf.category;
+
+                                      return (
+                                        <div
+                                          key={leaf.category_id}
+                                          style={{
+                                            padding: '8px 12px',
+                                            borderRadius: 6,
+                                            background: '#FFFFFF',
+                                            border: '1px solid #E2E8F0',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            fontSize: 12.5,
+                                            flexWrap: 'wrap',
+                                            gap: 8
+                                          }}
+                                        >
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                            <span style={{ color: '#0F766E', fontWeight: 800 }}>•</span>
+                                            <span style={{ fontWeight: 700, color: '#0F172A' }}>{label}</span>
+                                            <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', fontFamily: 'monospace' }}>
+                                              {leaf.category_code}
+                                            </span>
+                                            <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#64748B', background: '#F8FAFC', padding: '1px 5px', borderRadius: 3, border: '1px solid #E2E8F0' }}>
+                                              ID: {leaf.category_id}
+                                            </span>
+                                            <span style={{
+                                              fontSize: 9.5, fontWeight: 800, padding: '1px 5px', borderRadius: 4,
+                                              background: isActive ? '#DCFCE7' : '#FEE2E2',
+                                              color: isActive ? '#15803D' : '#B91C1C'
+                                            }}>
+                                              {isActive ? 'ACTIVE' : 'INACTIVE'}
+                                            </span>
+                                            {leaf.description && (
+                                              <span style={{ fontSize: 11.5, color: '#64748B' }}>
+                                                — {leaf.description}
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                            <button
+                                              onClick={(e) => handleOpenEditCatModal(leaf, e)}
+                                              style={{ padding: '3px 7px', borderRadius: 4, background: '#FFF', color: '#475569', border: '1px solid #CBD5E1', cursor: 'pointer' }}
+                                              title="Edit Category Record"
+                                            >
+                                              <Edit3 size={11} />
+                                            </button>
+                                            <button
+                                              onClick={() => toggleUnifiedCategoryStatus(leaf.category_id)}
+                                              style={{ padding: '3px 7px', borderRadius: 4, background: isActive ? '#FEF2F2' : '#F0FDF4', color: isActive ? '#DC2626' : '#16A34A', border: '1px solid #CBD5E1', cursor: 'pointer' }}
+                                              title={isActive ? 'Deactivate Record' : 'Activate Record'}
+                                            >
+                                              <Power size={11} />
+                                            </button>
+                                            <button
+                                              onClick={() => setDeleteConfirmTarget({
+                                                type: 'CATEGORY',
+                                                id: leaf.category_id,
+                                                code: leaf.category_code,
+                                                name: `${leaf.category} → ${leaf.sub_category || ''} → ${leaf.sub_sub_category || ''}`,
+                                                details: `ID: ${leaf.category_id} | Code: ${leaf.category_code}`
+                                              })}
+                                              style={{ padding: '3px 7px', borderRadius: 4, background: '#FFF', color: '#94A3B8', border: '1px solid #E2E8F0', cursor: 'pointer' }}
+                                              title="Delete Category Record"
+                                            >
+                                              <Trash2 size={11} />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* ── CREATE / EDIT SUB-CATEGORY MODAL (Locked to parent category) ── */}
-      {isSubModalOpen && selectedCategoryForSubCats && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={() => setIsSubModalOpen(false)}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 520, background: '#FFFFFF', borderRadius: 12, padding: 28, boxShadow: '0 20px 48px rgba(15, 23, 42, 0.25)', border: '1px solid #CBD5E1' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(15, 118, 110, 0.1)', color: '#0F766E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FolderTree size={20} />
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: ADD / EDIT CATEGORY (ONE CANONICAL CATEGORY ENTITY) */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {isCatModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10005, background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setIsCatModalOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 540, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 22, boxShadow: '0 20px 48px rgba(15,23,42,0.2)', display: 'flex', flexDirection: 'column' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 6, background: '#F0FDFA', color: '#0F766E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <FolderTree size={18} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0F172A' }}>
-                    {editingSubCategory ? 'Edit Sub-Category' : 'Create New Sub-Category'}
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                    {editingCat ? `Edit Category Record (${editingCat.category_id})` : 'Add Category Record'}
                   </h3>
-                  <div style={{ fontSize: 12, color: '#64748B' }}>
-                    {editingSubCategory ? `Editing ${editingSubCategory.name} (${editingSubCategory.code})` : `Add sub-category under ${selectedCategoryForSubCats.name}`}
+                  <div style={{ fontSize: 11, color: '#64748B', marginTop: 1 }}>
+                    PRODUCT_TYPE → CATEGORY (Client single table model)
                   </div>
                 </div>
               </div>
-              <button onClick={() => setIsSubModalOpen(false)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
-                <X size={20} />
+              <button onClick={() => setIsCatModalOpen(false)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
+                <X size={18} />
               </button>
             </div>
 
-            {subFormError && (
-              <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '10px 14px', color: '#B91C1C', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <AlertTriangle size={16} />
-                <span>{subFormError}</span>
+            {catFormError && (
+              <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 6, padding: '8px 12px', marginBottom: 14, color: '#B91C1C', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <AlertTriangle size={15} />
+                <span>{catFormError}</span>
               </div>
             )}
 
-            <form onSubmit={handleSaveSubCategory} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Parent Category Field (Read-only / Automatically Assigned) */}
+            <form onSubmit={handleSaveCategory} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              
+              {/* Product Type * (FK) */}
               <div>
                 <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  Parent Category (Auto-Selected)
+                  Product Type *
                 </label>
-                <input
-                  type="text"
-                  disabled
-                  readOnly
-                  value={`${selectedCategoryForSubCats.name} (${selectedCategoryForSubCats.code})`}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#F1F5F9', color: '#0F766E', fontWeight: 800, cursor: 'not-allowed' }}
-                />
+                <select
+                  required
+                  value={catFormData.product_type_id}
+                  onChange={e => setCatFormData({ ...catFormData, product_type_id: e.target.value })}
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #0F766E', borderRadius: 6, fontSize: 13, fontWeight: 700, background: '#F0FDFA', color: '#0F766E', outline: 'none' }}
+                >
+                  {(productTypes || []).map(pt => (
+                    <option key={pt.product_type_id || pt.id} value={pt.product_type_id || pt.id}>
+                      {pt.product_type_name || pt.name} ({pt.product_type_code || pt.code})
+                    </option>
+                  ))}
+                </select>
+                <div style={{ fontSize: 11, color: '#64748B', marginTop: 3 }}>
+                  FK → PRODUCT_TYPE table (product_type_id)
+                </div>
               </div>
 
+              {/* Category Name * */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                    Category *
+                  </label>
+                  {existingCategorySuggestions.length > 0 && (
+                    <span style={{ fontSize: 11, color: '#64748B' }}>Existing: {existingCategorySuggestions.slice(0, 3).join(', ')}</span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  required
+                  list="existing-category-options"
+                  placeholder="e.g. Drugs, OTC Medicines, Dietary Supplements"
+                  value={catFormData.category}
+                  onChange={e => setCatFormData({ ...catFormData, category: e.target.value })}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
+                />
+                <datalist id="existing-category-options">
+                  {existingCategorySuggestions.map(c => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+              </div>
+
+              {/* Sub-Category and Sub-Sub-Category */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                    Sub-Category <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    list="existing-subcategory-options"
+                    placeholder="e.g. Tablets, Capsules, Syrups"
+                    value={catFormData.sub_category}
+                    onChange={e => setCatFormData({ ...catFormData, sub_category: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
+                  />
+                  <datalist id="existing-subcategory-options">
+                    {existingSubCategorySuggestions.map(s => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                    Sub-Sub-Category <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Film Coated Tablets, Softgel"
+                    value={catFormData.sub_sub_category}
+                    onChange={e => setCatFormData({ ...catFormData, sub_sub_category: e.target.value })}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
+                  />
+                </div>
+              </div>
+
+              {/* Category Code * (UNIQUE) */}
               <div>
                 <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  Sub-Category Name *
+                  Category Code * <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Unique within product type)</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Tablets, Effervescent Tablets, Liquid Injections, Gel/Cream"
-                  value={subFormData.name}
-                  onChange={e => handleSubNameChange(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
+                  placeholder="e.g. DRG-TAB-FCT, DRG-CAP-HGC, NUT-SUP-TAB"
+                  value={catFormData.category_code}
+                  onChange={e => setCatFormData({ ...catFormData, category_code: e.target.value.toUpperCase() })}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace', fontWeight: 700, outline: 'none' }}
+                />
+                <div style={{ fontSize: 11, color: '#64748B', marginTop: 3 }}>
+                  Client model has one single category_code representing this complete record.
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Description <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Formulation details, therapeutic focus, specifications..."
+                  value={catFormData.description}
+                  onChange={e => setCatFormData({ ...catFormData, description: e.target.value })}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12.5, outline: 'none', resize: 'vertical' }}
                 />
               </div>
 
+              {/* Status and Display Order */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Sub-Category Code *
+                    Lifecycle Status *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. SUB-DRG-TAB"
-                    value={subFormData.code}
-                    onChange={e => setSubFormData({ ...subFormData, code: e.target.value.toUpperCase() })}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace', fontWeight: 700, outline: 'none' }}
-                  />
-                  <span style={{ fontSize: 10.5, color: '#64748B', marginTop: 2, display: 'block' }}>System taxonomy code</span>
+                  <select
+                    value={catFormData.lifecycle_status}
+                    onChange={e => setCatFormData({ ...catFormData, lifecycle_status: e.target.value as LifecycleStatus })}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12.5, fontWeight: 600, background: '#FFF' }}
+                  >
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="INACTIVE">INACTIVE</option>
+                  </select>
                 </div>
 
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Status
+                    Display Order
                   </label>
-                  <select
-                    value={subFormData.status}
-                    onChange={e => setSubFormData({ ...subFormData, status: e.target.value as any })}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontWeight: 600, outline: 'none' }}
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                  <input
+                    type="number"
+                    min={1}
+                    value={catFormData.display_order}
+                    onChange={e => setCatFormData({ ...catFormData, display_order: parseInt(e.target.value) || 1 })}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
+                  />
                 </div>
               </div>
 
-              <div>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  Description
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Describe the formulation specifications or packaging details..."
-                  value={subFormData.description}
-                  onChange={e => setSubFormData({ ...subFormData, description: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none', resize: 'vertical' }}
-                />
-              </div>
+              {/* System Info when editing */}
+              {editingCat && (
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: '#64748B', display: 'flex', gap: 16 }}>
+                  <div><strong>category_id:</strong> {editingCat.category_id}</div>
+                  <div><strong>created_at:</strong> {formatMasterDate(editingCat.created_at)}</div>
+                  <div><strong>updated_at:</strong> {formatMasterDate(editingCat.updated_at)}</div>
+                </div>
+              )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6, paddingTop: 12, borderTop: '1px solid #E2E8F0' }}>
                 <button
                   type="button"
-                  onClick={() => setIsSubModalOpen(false)}
-                  style={{ padding: '9px 18px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#475569', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                  onClick={() => setIsCatModalOpen(false)}
+                  style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  style={{ padding: '9px 20px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFFFFF', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                  style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFF', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
                 >
-                  {editingSubCategory ? 'Save Changes' : 'Create Sub-Category'}
+                  {editingCat ? 'Save Changes' : 'Save Category'}
                 </button>
               </div>
             </form>
@@ -1780,223 +1654,163 @@ export const CategoryMasterModule: React.FC = () => {
         </div>
       )}
 
-      {/* ── DEACTIVATE SUB-CATEGORY CONFIRMATION DIALOG ── */}
-      {deactivateConfirmSubCat && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={() => setDeactivateConfirmSubCat(null)}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 460, background: '#FFFFFF', borderRadius: 12, padding: 24, boxShadow: '0 20px 48px rgba(15, 23, 42, 0.25)', border: '1px solid #CBD5E1' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <AlertTriangle size={22} />
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: ADD / EDIT PRODUCT TYPE */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {isPtModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10005, background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setIsPtModalOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 22, boxShadow: '0 20px 48px rgba(15,23,42,0.2)', display: 'flex', flexDirection: 'column' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 6, background: '#F0FDFA', color: '#0F766E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Layers size={18} />
+                </div>
+                <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                  {editingPt ? 'Edit Product Type' : 'Add Product Type'}
+                </h3>
               </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Deactivate Sub-Category?</div>
-                <div style={{ fontSize: 12, color: '#64748B' }}>Lifecycle status change</div>
-              </div>
+              <button onClick={() => setIsPtModalOpen(false)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
+                <X size={18} />
+              </button>
             </div>
-            <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, margin: '0 0 20px 0' }}>
-              This sub-category will no longer be available for active product selection.
+
+            {ptFormError && (
+              <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 6, padding: '8px 12px', marginBottom: 14, color: '#B91C1C', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <AlertTriangle size={15} />
+                <span>{ptFormError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveProductType} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Product Type Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Pharmaceutical, Cosmetics, Veterinary"
+                  value={ptFormData.name}
+                  onChange={e => setPtFormData({ ...ptFormData, name: e.target.value })}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Product Type Code *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. PHARMA, NUTRA, COSM, VET"
+                  value={ptFormData.code}
+                  onChange={e => setPtFormData({ ...ptFormData, code: e.target.value.toUpperCase() })}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace', fontWeight: 700, outline: 'none' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Description
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Describe the scope and nature of products in this type..."
+                  value={ptFormData.description}
+                  onChange={e => setPtFormData({ ...ptFormData, description: e.target.value })}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12.5, outline: 'none', resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                    Lifecycle Status
+                  </label>
+                  <select
+                    value={ptFormData.lifecycle_status}
+                    onChange={e => setPtFormData({ ...ptFormData, lifecycle_status: e.target.value as LifecycleStatus })}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12.5, fontWeight: 600, background: '#FFF' }}
+                  >
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="INACTIVE">INACTIVE</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                    Display Order
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={ptFormData.display_order}
+                    onChange={e => setPtFormData({ ...ptFormData, display_order: parseInt(e.target.value) || 1 })}
+                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10, paddingTop: 12, borderTop: '1px solid #E2E8F0' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsPtModalOpen(false)}
+                  style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFF', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Save Product Type
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: DELETE CONFIRMATION */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {deleteConfirmTarget && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10010, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setDeleteConfirmTarget(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 22, boxShadow: '0 20px 48px rgba(15,23,42,0.2)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, color: '#DC2626' }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Trash2 size={18} />
+              </div>
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                Confirm Deletion
+              </h3>
+            </div>
+
+            <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, margin: '0 0 16px 0' }}>
+              Are you sure you want to delete {deleteConfirmTarget.type === 'CATEGORY' ? 'Category record' : 'Product Type'}:
+              <br />
+              <strong style={{ color: '#0F172A' }}>"{deleteConfirmTarget.name}"</strong>?
+              {deleteConfirmTarget.details && (
+                <div style={{ marginTop: 6, fontSize: 11.5, color: '#64748B', fontFamily: 'monospace' }}>
+                  {deleteConfirmTarget.details}
+                </div>
+              )}
             </p>
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button
-                onClick={() => setDeactivateConfirmSubCat(null)}
-                style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#475569', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+                onClick={() => setDeleteConfirmTarget(null)}
+                style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancel
               </button>
               <button
-                onClick={handleConfirmDeactivateSubCategory}
-                style={{ padding: '8px 18px', borderRadius: 6, border: 'none', background: '#D97706', color: '#FFFFFF', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={handleConfirmDelete}
+                style={{ padding: '8px 18px', borderRadius: 6, border: 'none', background: '#DC2626', color: '#FFF', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
               >
-                <Power size={14} /> Deactivate
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── CREATE / EDIT SUB-SUB-CATEGORY MODAL (Locked to parent sub-category) ── */}
-      {isSubSubModalOpen && selectedCategoryForSubCats && selectedSubCategoryForSubSubCats && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={() => setIsSubSubModalOpen(false)}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 520, background: '#FFFFFF', borderRadius: 12, padding: 28, boxShadow: '0 20px 48px rgba(15, 23, 42, 0.25)', border: '1px solid #CBD5E1' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(15, 118, 110, 0.1)', color: '#0F766E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FolderTree size={20} />
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0F172A' }}>
-                    {editingSubSubCategory ? 'Edit Sub-Sub-Category' : 'Create New Sub-Sub-Category'}
-                  </h3>
-                  <div style={{ fontSize: 12, color: '#64748B' }}>
-                    {editingSubSubCategory ? `Editing ${editingSubSubCategory.name} (${editingSubSubCategory.code})` : `Add sub-sub-category under ${selectedCategoryForSubCats.name} → ${selectedSubCategoryForSubSubCats.name}`}
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setIsSubSubModalOpen(false)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            {subSubFormError && (
-              <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '10px 14px', color: '#B91C1C', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <AlertTriangle size={16} />
-                <span>{subSubFormError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveSubSubCategory} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Parent Category & Sub-Category Fields (Read-only / Automatically Assigned) */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Parent Category
-                  </label>
-                  <input
-                    type="text"
-                    disabled
-                    readOnly
-                    value={`${selectedCategoryForSubCats.name}`}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12.5, background: '#F1F5F9', color: '#0F766E', fontWeight: 800, cursor: 'not-allowed' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Parent Sub-Category
-                  </label>
-                  <input
-                    type="text"
-                    disabled
-                    readOnly
-                    value={`${selectedSubCategoryForSubSubCats.name}`}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12.5, background: '#F1F5F9', color: '#0284C7', fontWeight: 800, cursor: 'not-allowed' }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  Sub-Sub-Category Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Uncoated Tablets, Film Coated Tablets, IV Injection"
-                  value={subSubFormData.name}
-                  onChange={e => handleSubSubNameChange(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Sub-Sub-Category Code *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. SSC-DRG-TAB-UNC"
-                    value={subSubFormData.code}
-                    onChange={e => setSubSubFormData({ ...subSubFormData, code: e.target.value.toUpperCase() })}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace', fontWeight: 700, outline: 'none' }}
-                  />
-                  <span style={{ fontSize: 10.5, color: '#64748B', marginTop: 2, display: 'block' }}>System taxonomy code</span>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Status
-                  </label>
-                  <select
-                    value={subSubFormData.status}
-                    onChange={e => setSubSubFormData({ ...subSubFormData, status: e.target.value as any })}
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontWeight: 600, outline: 'none' }}
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  Description
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Describe formulation specifications, packaging specifics, or chemical coatings..."
-                  value={subSubFormData.description}
-                  onChange={e => setSubSubFormData({ ...subSubFormData, description: e.target.value })}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none', resize: 'vertical' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setIsSubSubModalOpen(false)}
-                  style={{ padding: '9px 18px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#475569', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ padding: '9px 20px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFFFFF', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-                >
-                  {editingSubSubCategory ? 'Save Changes' : 'Create Sub-Sub-Category'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── DEACTIVATE SUB-SUB-CATEGORY CONFIRMATION DIALOG ── */}
-      {deactivateConfirmSubSubCat && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={() => setDeactivateConfirmSubSubCat(null)}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 460, background: '#FFFFFF', borderRadius: 12, padding: 24, boxShadow: '0 20px 48px rgba(15, 23, 42, 0.25)', border: '1px solid #CBD5E1' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#FEF3C7', color: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <AlertTriangle size={22} />
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>Deactivate Sub-Sub-Category?</div>
-                <div style={{ fontSize: 12, color: '#64748B' }}>Lifecycle status change</div>
-              </div>
-            </div>
-            <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.5, margin: '0 0 20px 0' }}>
-              This sub-sub-category will no longer be available for active product selection.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button
-                onClick={() => setDeactivateConfirmSubSubCat(null)}
-                style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#F8FAFC', color: '#475569', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmDeactivateSubSubCategory}
-                style={{ padding: '8px 18px', borderRadius: 6, border: 'none', background: '#D97706', color: '#FFFFFF', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <Power size={14} /> Deactivate
+                Delete
               </button>
             </div>
           </div>

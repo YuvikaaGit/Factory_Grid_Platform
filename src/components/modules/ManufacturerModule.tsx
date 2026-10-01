@@ -63,7 +63,7 @@ export const ManufacturerModule: React.FC = () => {
   const matchedMfgResults = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
 
-    return manufacturers.map(mfg => {
+    return (manufacturers ?? []).map(mfg => {
       // Find mapped products for this manufacturer
       const mfgMapList = mappings.filter(m => m.manufacturerId === mfg.id);
       
@@ -247,7 +247,7 @@ export const ManufacturerModule: React.FC = () => {
     const rfqProduct = rfqModalProduct || products[0];
     const rfqNum = `RFQ-2026-${String(Math.floor(1000 + Math.random() * 9000))}`;
 
-    const rfqLines: RFQLine[] = rfqModalTargetMfgs.map((mfg, idx) => ({
+    const rfqLines: RFQLine[] = (rfqModalTargetMfgs ?? []).map((mfg, idx) => ({
       id: `line_${Date.now()}_${idx}`,
       productId: rfqProduct?.id || 'p1',
       productName: `${rfqProduct?.name || 'Paracetamol 500mg Tablets'} (${searchQuery})`,
@@ -372,7 +372,7 @@ export const ManufacturerModule: React.FC = () => {
             <div>
               <label className="ent-label" style={{ marginBottom: 6, display: 'block' }}>Target Verified Manufacturers ({rfqModalTargetMfgs.length})</label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {rfqModalTargetMfgs.map(mfg => (
+                {(rfqModalTargetMfgs ?? []).map(mfg => (
                   <span key={mfg.id} style={{
                     fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
                     background: 'var(--c-primary-soft)', border: '1px solid var(--c-primary)', color: 'var(--c-primary)'
@@ -881,7 +881,8 @@ export const ManufacturerModule: React.FC = () => {
             /* ── 4 & 5 & 6. MATCHING MANUFACTURER CARDS ────────────────────── */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {filteredAndSortedResults.map(({ mfg, matchedProduct, mapping, aiScore, aiRationale, pastRelationship }) => {
-                const initials = (mfg.name || mfg.companyName).split(' ').map(w => w[0]).join('').slice(0, 2);
+                const mfgDisplayName = mfg.companyName || mfg.name || 'Contract Manufacturer';
+                      const initials = mfgDisplayName.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2);
                 const isChecked = selectedMfgIds.includes(mfg.id);
 
                 return (
@@ -1009,7 +1010,7 @@ export const ManufacturerModule: React.FC = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, paddingTop: 6 }}>
                         
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          {mfg.certifications.map(c => (
+                          {(mfg.certifications ?? []).map(c => (
                             <span key={c.id} className="ent-chip-success" style={{ fontSize: 11, padding: '2px 8px' }}>
                               ✓ {c.name}
                             </span>

@@ -5,7 +5,7 @@ import {
   Activity, Server, Settings, Cpu, HardDrive, AlertTriangle, Check, Search, Plus,
   Shield, Globe, BarChart3, Zap, CheckCircle2, Clock, Eye, Download, MoreHorizontal,
   UserCheck, RefreshCw, Bell, AlertCircle, Building2, DollarSign, Layers, Package,
-  Tag, Star
+  Tag, Star, Sparkles, Link2, Scale, Receipt, Percent, Factory, ChevronRight
 } from 'lucide-react';
 
 
@@ -59,7 +59,111 @@ import { IntegrationsSettingsModule } from './IntegrationsSettingsModule';
 import { Security2FAModule } from './Security2FAModule';
 import { NotificationsModule } from './NotificationsModule';
 
-export const SettingsModule: React.FC = () => {
+export interface MasterTile {
+  id: string;
+  tabId: string;
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  entityTag: string;
+}
+
+export const MASTER_SETTINGS_TILES: MasterTile[] = [
+  {
+    id: 'category-master',
+    tabId: 'category-master',
+    title: 'Product Type & Category Master',
+    description: 'Hierarchical product types, categories, sub-categories, and dosage classifications.',
+    icon: Layers,
+    entityTag: 'PRODUCT_TYPE & CATEGORY'
+  },
+  {
+    id: 'brand-master',
+    tabId: 'brand-master',
+    title: 'Brand Master',
+    description: 'Registered pharma brand names, verified trademark mappings, and manufacturer ownership.',
+    icon: Tag,
+    entityTag: 'BRAND'
+  },
+  {
+    id: 'manufacturer-master',
+    tabId: 'manufacturer-master',
+    title: 'Manufacturer Master',
+    description: 'WHO-GMP certified production units, manufacturer codes, and facility licenses.',
+    icon: Factory,
+    entityTag: 'MANUFACTURER'
+  },
+  {
+    id: 'products',
+    tabId: 'products',
+    title: 'Product Catalog Master',
+    description: 'Core generic pharmaceutical products, base UOMs, pack sizes, and lifecycle status.',
+    icon: Package,
+    entityTag: 'PRODUCT'
+  },
+  {
+    id: 'attribute-master',
+    tabId: 'attribute-master',
+    title: 'Product Attribute Master',
+    description: 'Dynamic clinical attributes: generic name, salt combinations, dosage forms, and strengths.',
+    icon: Sparkles,
+    entityTag: 'ATTRIBUTE_MASTER'
+  },
+  {
+    id: 'product-manufacturer-mapping',
+    tabId: 'product-manufacturer-mapping',
+    title: 'Product Manufacturer Mapping',
+    description: 'Multi-manufacturer relationships, manufacturer SKUs, part numbers, and preferred tags.',
+    icon: Link2,
+    entityTag: 'PRODUCT_MANUFACTURER'
+  },
+  {
+    id: 'customer-segment',
+    tabId: 'customer-segment',
+    title: 'Customer Segment Master',
+    description: 'Hospital, pharmacy chain, institutional supply, and export buyer segments.',
+    icon: Users,
+    entityTag: 'CUSTOMER_SEGMENT'
+  },
+  {
+    id: 'product-price',
+    tabId: 'product-price',
+    title: 'Product Price Management',
+    description: 'Customer segment and manufacturer-specific tiered unit pricing rules.',
+    icon: DollarSign,
+    entityTag: 'PRODUCT_PRICE'
+  },
+  {
+    id: 'product-tax',
+    tabId: 'product-tax',
+    title: 'Product Tax Management',
+    description: 'Statutory GST tax schedules, HSN tax codes, and effective date ranges.',
+    icon: Receipt,
+    entityTag: 'PRODUCT_TAX'
+  },
+  {
+    id: 'product-uom',
+    tabId: 'product-uom',
+    title: 'Product UOM Management',
+    description: 'Packaging unit conversion factors, order UOM definitions, and conversion rules.',
+    icon: Scale,
+    entityTag: 'PRODUCT_UOM'
+  },
+  {
+    id: 'margin-engine',
+    tabId: 'margin-engine',
+    title: 'Margin Engine',
+    description: 'Automated platform margin calculations and distributor pricing algorithms.',
+    icon: Percent,
+    entityTag: 'MARGIN_ENGINE'
+  },
+];
+
+interface SettingsModuleProps {
+  onNavigateTab?: (tabId: string) => void;
+}
+
+export const SettingsModule: React.FC<SettingsModuleProps> = ({ onNavigateTab }) => {
   const { 
     currentRole, manufacturers, products, customers, customerVerifications,
     auditLogs: contextAuditLogs, buyerOnboardings, manufacturerOnboardings,
@@ -72,19 +176,27 @@ export const SettingsModule: React.FC = () => {
     return <NotificationsModule />;
   }
 
-  const [activeTab, setActiveTab] = useState<'PRICING' | 'CUSTOMER_FLAGS' | 'INTEGRATIONS' | 'SECURITY' | 'USERS' | 'RBAC' | 'SYSTEM' | 'AUDIT' | 'ORGANIZATIONS' | 'API_HEALTH'>(() => currentRole === 'ADMIN' ? 'PRICING' : 'INTEGRATIONS');
+  // Primary view: Dedicated 11 Master Settings icon cards by default
+  const [mainCategory, setMainCategory] = useState<'MASTERS' | 'SYSTEM'>('MASTERS');
+  const [searchFilter, setSearchFilter] = useState('');
+
+  const filteredTiles = useMemo(() => {
+    if (!searchFilter.trim()) return MASTER_SETTINGS_TILES;
+    const q = searchFilter.toLowerCase();
+    return MASTER_SETTINGS_TILES.filter(t =>
+      t.title.toLowerCase().includes(q) ||
+      t.description.toLowerCase().includes(q) ||
+      t.entityTag.toLowerCase().includes(q)
+    );
+  }, [searchFilter]);
+
+  const [activeTab, setActiveTab] = useState<'CUSTOMER_FLAGS' | 'SECURITY' | 'USERS' | 'ORGANIZATIONS' | 'PRICING' | 'RBAC' | 'SYSTEM' | 'API_HEALTH'>('CUSTOMER_FLAGS');
 
   const tabs = [
-    ...(currentRole === 'ADMIN' ? [] : [{ id: 'INTEGRATIONS', label: 'Integrations', icon: Server }]),
-    { id: 'PRICING', label: 'Price Settings', icon: DollarSign },
     { id: 'CUSTOMER_FLAGS', label: 'Customer Flags', icon: Tag },
     { id: 'SECURITY', label: 'Security & 2FA', icon: ShieldCheck },
     { id: 'USERS', label: 'User Directory', icon: Users },
     { id: 'ORGANIZATIONS', label: 'Organizations', icon: Building2 },
-    { id: 'RBAC', label: 'RBAC Permissions', icon: Shield },
-    { id: 'SYSTEM', label: 'System Health', icon: Server },
-    { id: 'API_HEALTH', label: 'API Health', icon: Activity },
-    { id: 'AUDIT', label: 'Audit Trail', icon: FileText },
   ] as const;
 
   // Margin Configuration State
@@ -287,34 +399,239 @@ export const SettingsModule: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 48 }}>
 
       {/* ── Enterprise Command Bar Header ───────────────── */}
-      <div className="ent-command-bar">
+      <div className="ent-command-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
         <div className="ent-command-bar-left">
           <div>
-            <div className="ent-label">Dashboard / Admin Console</div>
-            <div className="ent-page-title" style={{ margin: 0 }}>System Control Center</div>
+            <div className="ent-label" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Dashboard / Settings
+            </div>
+            <div className="ent-page-title" style={{ margin: '2px 0 0', fontSize: 20, fontWeight: 800, color: '#0F172A' }}>
+              {mainCategory === 'MASTERS' ? 'Settings & Master Data Management' : 'System Administration'}
+            </div>
+            <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 2 }}>
+              {mainCategory === 'MASTERS'
+                ? 'Centralized configuration for client data models, products, clinical attributes, pricing, and taxes.'
+                : 'Security, user directory, RBAC permissions, and platform operational health.'}
+            </div>
           </div>
         </div>
-        <div className="ent-command-bar-right">
-          <button className="ent-btn-secondary">
-            <Download size={14} /> Export Audit Log
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F1F5F9', padding: 4, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+          <button
+            type="button"
+            onClick={() => setMainCategory('MASTERS')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 6,
+              border: 'none',
+              background: mainCategory === 'MASTERS' ? '#0F766E' : 'transparent',
+              color: mainCategory === 'MASTERS' ? '#FFFFFF' : '#475569',
+              fontWeight: 700,
+              fontSize: 12.5,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: mainCategory === 'MASTERS' ? '0 1px 3px rgba(15,118,110,0.3)' : 'none',
+              transition: 'all 120ms ease'
+            }}
+          >
+            <Layers size={14} /> Master Settings (11)
           </button>
-          <button className="ent-btn-primary" onClick={() => alert('User invitation sent.')}>
-            <Plus size={14} /> Provision User
+          <button
+            type="button"
+            onClick={() => setMainCategory('SYSTEM')}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 6,
+              border: 'none',
+              background: mainCategory === 'SYSTEM' ? '#0F766E' : 'transparent',
+              color: mainCategory === 'SYSTEM' ? '#FFFFFF' : '#475569',
+              fontWeight: 700,
+              fontSize: 12.5,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: mainCategory === 'SYSTEM' ? '0 1px 3px rgba(15,118,110,0.3)' : 'none',
+              transition: 'all 120ms ease'
+            }}
+          >
+            <Server size={14} /> Platform &amp; Security
           </button>
         </div>
       </div>
 
-      {/* ── COMPACT HORIZONTAL SYSTEM METRICS STRIP ─────── */}
-      <div style={{
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 'var(--radius-md)',
-        padding: '14px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        boxShadow: '0 1px 2px rgba(15,23,42,0.04)'
-      }}>
+      {/* ── VIEW 1: DEDICATED MASTER SETTINGS ICON TILES (DEFAULT) ── */}
+      {mainCategory === 'MASTERS' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Quick Search & Count Filter Bar */}
+          <div style={{
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
+            borderRadius: 10,
+            padding: '12px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+            flexWrap: 'wrap',
+            gap: 12
+          }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: 360 }}>
+              <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+              <input
+                type="text"
+                placeholder="Filter master settings..."
+                value={searchFilter}
+                onChange={e => setSearchFilter(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px 8px 36px',
+                  borderRadius: 6,
+                  border: '1px solid #CBD5E1',
+                  fontSize: 13,
+                  outline: 'none',
+                  background: '#F8FAFC'
+                }}
+              />
+            </div>
+            <div style={{ fontSize: 12, color: '#64748B', fontWeight: 600 }}>
+              Showing {filteredTiles.length} of {MASTER_SETTINGS_TILES.length} Master Modules · Click any tile to open page
+            </div>
+          </div>
+
+          {/* Grid of 11 Clickable Master Tiles */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+            gap: 18
+          }}>
+            {filteredTiles.map(tile => {
+              const Icon = tile.icon;
+              return (
+                <div
+                  key={tile.id}
+                  onClick={() => {
+                    if (onNavigateTab) {
+                      onNavigateTab(tile.tabId);
+                    } else {
+                      setGlobalTab(tile.tabId);
+                    }
+                  }}
+                  style={{
+                    background: '#FFFFFF',
+                    borderRadius: 14,
+                    border: '1px solid #E2E8F0',
+                    padding: '28px 20px 22px',
+                    boxShadow: '0 1px 3px rgba(15,23,42,0.03)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 180ms cubic-bezier(0.4, 0, 0.2, 1)',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-3px)';
+                    e.currentTarget.style.boxShadow = '0 12px 24px -4px rgba(15, 118, 110, 0.12)';
+                    e.currentTarget.style.borderColor = '#0F766E';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.03)';
+                    e.currentTarget.style.borderColor = '#E2E8F0';
+                  }}
+                >
+                  {/* Centered Circular Icon Container */}
+                  <div style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 100%)',
+                    border: '1.5px solid #99F6E4',
+                    color: '#0F766E',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 16,
+                    boxShadow: '0 2px 6px rgba(15, 118, 110, 0.08)'
+                  }}>
+                    <Icon size={26} strokeWidth={2} />
+                  </div>
+
+                  {/* Title Below Icon */}
+                  <h3 style={{
+                    fontSize: 14.5,
+                    fontWeight: 700,
+                    color: '#0F172A',
+                    margin: '0 0 6px',
+                    lineHeight: 1.3
+                  }}>
+                    {tile.title}
+                  </h3>
+
+                  {/* Entity Tag Badge */}
+                  <span style={{
+                    fontSize: 9.5,
+                    fontWeight: 800,
+                    color: '#0F766E',
+                    background: '#F0FDFA',
+                    border: '1px solid #CCFBF1',
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    marginBottom: 8
+                  }}>
+                    {tile.entityTag}
+                  </span>
+
+                  {/* Description */}
+                  <p style={{
+                    fontSize: 12,
+                    color: '#64748B',
+                    margin: '0 0 14px',
+                    lineHeight: 1.45,
+                    flex: 1
+                  }}>
+                    {tile.description}
+                  </p>
+
+                  {/* Click CTA hint */}
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: '#0F766E',
+                    marginTop: 'auto'
+                  }}>
+                    Configure Master <ChevronRight size={13} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── VIEW 2: PLATFORM & SYSTEM SETTINGS ── */}
+      {mainCategory === 'SYSTEM' && (
+        <>
+          {/* ── COMPACT HORIZONTAL SYSTEM METRICS STRIP ─────── */}
+          <div style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: '14px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 1px 2px rgba(15,23,42,0.04)'
+          }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ color: '#16A34A', fontSize: 14, fontWeight: 800 }}>●</span>
           <div>
@@ -1106,6 +1423,9 @@ export const SettingsModule: React.FC = () => {
             </tbody>
           </table>
         </div>
+      )}
+
+        </>
       )}
 
     </div>

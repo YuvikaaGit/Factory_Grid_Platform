@@ -7,7 +7,10 @@ import {
   PaymentTransaction, AuditLog, CustomerVerificationRequest,
   CustomerVerificationStatus, CustomerVerificationDocument,
   UserProfile, OrganizationProfile, UserDocument, ProfileDocStatus, DocumentVersion,
-  CustomerClassification, AdvanceMethod, AdvanceStatus, AdvancePaymentRecord
+  CustomerClassification, AdvanceMethod, AdvanceStatus, AdvancePaymentRecord,
+  ProductType, Brand, Category, AttributeMaster, ProductAttribute, CustomerSegment,
+  ProductPrice, ProductTax, ProductUom, ManufacturerDirectOrderEligibility,
+  CustomerQuote, CustomerQuoteLine, CustomerQuoteStatus, OrderLine, ProductManufacturer
 } from '../types';
 import {
   mockCustomers, mockManufacturers, mockProducts, mockRFQs,
@@ -17,7 +20,11 @@ import {
   mockCRMLeads, mockPaymentTransactions, mockAuditLogs,
   mockCustomerVerifications,
   mockCategories, mockSubCategories, mockSubSubCategories, mockCategoryMargins, mockMarginRules,
-  mockInternalPriceList
+  mockInternalPriceList,
+  mockProductTypes, mockBrands, mockUnifiedCategories,
+  mockAttributeMasters, mockProductAttributes, mockCustomerSegments,
+  mockProductPrices, mockProductTaxes, mockProductUoms,
+  mockDirectOrderEligibilities, mockCustomerQuotes
 } from '../data/mockData';
 import { CategoryMaster, SubCategoryMaster, SubSubCategoryMaster, CategoryMargin, MarginRule, MarginType, MarginScopeType, InternalPriceListItem, ProductMargin, PlatformFeeConfig } from '../types';
 import { ShipmentCredentials } from '../services/connectors/types';
@@ -32,6 +39,76 @@ export interface TwoFactorState {
 }
 
 interface AppContextType {
+
+  // ── Canonical Domain Entities & Master Models ──
+  productTypes: ProductType[];
+  addProductType: (newType: ProductType) => void;
+  updateProductType: (id: string, updates: Partial<ProductType>) => void;
+  deleteProductType: (id: string) => void;
+  toggleProductTypeStatus: (id: string) => void;
+  unifiedCategories: Category[];
+  addUnifiedCategory: (cat: Category) => void;
+  updateUnifiedCategory: (id: string, updates: Partial<Category>) => void;
+  deleteUnifiedCategory: (id: string) => void;
+  toggleUnifiedCategoryStatus: (id: string) => void;
+  brands: Brand[];
+  addBrand: (newBrand: Brand) => void;
+  updateBrand: (id: string, updates: Partial<Brand>) => void;
+  deleteBrand: (id: string) => void;
+  toggleBrandStatus: (id: string) => void;
+  unifiedCategories: Category[];
+  attributeMasters: AttributeMaster[];
+  productAttributes: ProductAttribute[];
+  addAttributeMaster: (attr: AttributeMaster) => void;
+  updateAttributeMaster: (id: string, updates: Partial<AttributeMaster>) => void;
+  addProductAttribute: (pa: ProductAttribute) => void;
+  updateProductAttribute: (id: string, updates: Partial<ProductAttribute>) => void;
+  saveProductAttributesBulk: (productId: string, attributes: { attribute_id: string; attribute_value: string }[]) => void;
+  getProductAttributes: (productId: string) => Record<string, string>;
+  getProductAttributeValues: (productId: string) => { attribute: AttributeMaster; value: string }[];
+  customerSegments: CustomerSegment[];
+  addCustomerSegment: (segment: CustomerSegment) => void;
+  updateCustomerSegment: (id: string, updates: Partial<CustomerSegment>) => void;
+  removeCustomerSegment: (id: string) => void;
+  productPrices: ProductPrice[];
+  addProductPrice: (price: ProductPrice) => void;
+  updateProductPrice: (id: string, updates: Partial<ProductPrice>) => void;
+  removeProductPrice: (id: string) => void;
+  getProductPrices: (productId: string, segmentId?: string) => ProductPrice[];
+  productTaxes: ProductTax[];
+  addProductTax: (tax: ProductTax) => void;
+  updateProductTax: (id: string, updates: Partial<ProductTax>) => void;
+  removeProductTax: (id: string) => void;
+  productUoms: ProductUom[];
+  addProductUom: (uom: ProductUom) => void;
+  updateProductUom: (id: string, updates: Partial<ProductUom>) => void;
+  removeProductUom: (id: string) => void;
+  directOrderEligibilities: ManufacturerDirectOrderEligibility[];
+  isManufacturerDirectOrderEligible: (mfgId: string, productId?: string) => boolean;
+  checkProductSellability: (productId: string) => {
+    isSellable: boolean;
+    reasons: string[];
+    productActive: boolean;
+    categoryActive: boolean;
+    productTypeActive: boolean;
+    brandActive: boolean;
+    hasActiveManufacturer: boolean;
+    hasEffectivePrice: boolean;
+    activeManufacturers: Manufacturer[];
+    effectivePrice?: ProductPrice;
+  };
+  getEligibleManufacturersForProduct: (productId: string) => {
+    manufacturer: Manufacturer;
+    productManufacturer: ProductManufacturer;
+    isPreferred: boolean;
+    isDirectOrderEligible: boolean;
+    activePrice?: ProductPrice;
+  }[];
+  customerQuotes: CustomerQuote[];
+  generateCustomerQuote: (rfqId: string, selections?: Record<string, { mfgId: string; mfgName: string; price: number }>) => CustomerQuote;
+  acceptCustomerQuoteAndCreateOrder: (customerQuoteId: string) => MasterOrder | undefined;
+  rejectCustomerQuote: (customerQuoteId: string, reason: string) => void;
+
   isAuthenticated: boolean;
   login: (role: UserRole) => void;
   logout: () => void;
@@ -41,6 +118,11 @@ interface AppContextType {
   setActiveTab: (tab: string) => void;
   customers: Customer[];
   manufacturers: Manufacturer[];
+  addManufacturer: (m: Manufacturer) => void;
+  updateManufacturer: (id: string, updates: Partial<Manufacturer>) => void;
+  deleteManufacturer: (id: string) => void;
+  toggleManufacturerStatus: (id: string) => void;
+  setPreferredManufacturer: (productId: string, manufacturerId: string) => void;
   products: Product[];
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   addProductMaster: (product: Product) => void;
@@ -917,7 +999,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveTab('manufacturers');
   };
   const [customers, setCustomers] = useState<Customer[]>(mockCustomers);
-  const [manufacturers, setManufacturers] = useState<Manufacturer[]>(mockManufacturers);
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_manufacturers_v3');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch(e) {}
+    return (mockManufacturers ?? []).map(m => ({
+      ...m,
+      manufacturer_id: m.manufacturer_id || m.id,
+      manufacturer_code: m.manufacturer_code || m.code,
+      manufacturer_name: m.manufacturer_name || m.companyName || m.name,
+      lifecycle_status: m.lifecycle_status || (m.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE'),
+      certifications: Array.isArray(m.certifications) ? m.certifications : [],
+      capabilities: Array.isArray(m.capabilities) ? m.capabilities : [],
+      manufacturingTypes: Array.isArray(m.manufacturingTypes) ? m.manufacturingTypes : [],
+    }));
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_manufacturers_v3', JSON.stringify(manufacturers));
+    } catch(e) {}
+  }, [manufacturers]);
+
+  const addManufacturer = (newMfg: Manufacturer) => {
+    setManufacturers(prev => {
+      const cleanCode = (newMfg.manufacturer_code || newMfg.code || '').toUpperCase().trim();
+      const exists = prev.some(m => (m.manufacturer_code || m.code || '').toUpperCase().trim() === cleanCode);
+      if (exists) return prev;
+      return [newMfg, ...prev];
+    });
+    addAuditLog('CREATE_MANUFACTURER', `Created Manufacturer: ${newMfg.manufacturer_name || newMfg.companyName} (${newMfg.manufacturer_code || newMfg.code})`);
+  };
+
+  const updateManufacturer = (id: string, updates: Partial<Manufacturer>) => {
+    setManufacturers(prev => prev.map(m => (m.id === id || m.manufacturer_id === id) ? {
+      ...m,
+      ...updates,
+      companyName: updates.manufacturer_name || updates.companyName || m.companyName,
+      name: updates.manufacturer_name || updates.name || m.name,
+      code: updates.manufacturer_code || updates.code || m.code,
+      updated_at: new Date().toISOString().split('T')[0]
+    } : m));
+    addAuditLog('UPDATE_MANUFACTURER', `Updated Manufacturer ID: ${id}`);
+  };
+
+  const deleteManufacturer = (id: string) => {
+    setManufacturers(prev => prev.filter(m => m.id !== id && m.manufacturer_id !== id));
+    addAuditLog('DELETE_MANUFACTURER', `Deleted Manufacturer ID: ${id}`);
+  };
+
+  const toggleManufacturerStatus = (id: string) => {
+    setManufacturers(prev => prev.map(m => {
+      if (m.id === id || m.manufacturer_id === id) {
+        const current = m.lifecycle_status || (m.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE');
+        const next: 'ACTIVE' | 'INACTIVE' = current === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+        return {
+          ...m,
+          lifecycle_status: next,
+          status: next,
+          updated_at: new Date().toISOString().split('T')[0]
+        };
+      }
+      return m;
+    }));
+  };
+
+  const setPreferredManufacturer = (productId: string, manufacturerId: string) => {
+    setMappings(prev => prev.map(map => {
+      const matchProduct = map.productId === productId || map.product_id === productId;
+      if (!matchProduct) return map;
+      const isTarget = map.manufacturerId === manufacturerId || map.manufacturer_id === manufacturerId;
+      return {
+        ...map,
+        is_preferred: isTarget,
+        isPreferred: isTarget,
+        updated_at: new Date().toISOString().split('T')[0]
+      };
+    }));
+    addAuditLog('SET_PREFERRED_MANUFACTURER', `Set preferred manufacturer for Product ${productId} to Manufacturer ${manufacturerId}`);
+  };
   const [products, setProducts] = useState<Product[]>(() => {
     // Migration map: old category values → new main categories (client-specified)
     const CATEGORY_MIGRATION: Record<string, string> = {
@@ -935,7 +1099,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return CATEGORY_MIGRATION[cat] || 'Drugs';
     };
     try {
-      const saved = localStorage.getItem('fg_products');
+      const saved = localStorage.getItem('fg_products_v4');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -969,7 +1133,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     try {
-      localStorage.setItem('fg_products', JSON.stringify(products));
+      localStorage.setItem('fg_products_v4', JSON.stringify(products));
     } catch(e) {}
   }, [products]);
 
@@ -1620,7 +1784,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [mappings, setMappings] = useState<ManufacturerProductMapping[]>(() => {
     try {
-      const saved = localStorage.getItem('fg_mappings_v2');
+      const saved = localStorage.getItem('fg_mappings_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -1631,27 +1795,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     try {
-      localStorage.setItem('fg_mappings_v2', JSON.stringify(mappings));
+      localStorage.setItem('fg_mappings_v3', JSON.stringify(mappings));
     } catch (e) {}
   }, [mappings]);
 
   const addMapping = (newMapping: ManufacturerProductMapping) => {
     setMappings(prev => {
       // Check duplicate for same manufacturer & product
-      const exists = prev.some(m => m.productId === newMapping.productId && (m.manufacturerId === newMapping.manufacturerId || m.manufacturerName === newMapping.manufacturerName));
+      const targetPid = newMapping.product_id || newMapping.productId;
+      const targetMid = newMapping.manufacturer_id || newMapping.manufacturerId;
+      const exists = prev.some(m => {
+        const mPid = m.product_id || m.productId;
+        const mMid = m.manufacturer_id || m.manufacturerId;
+        return mPid === targetPid && (mMid === targetMid || m.manufacturerName === newMapping.manufacturerName);
+      });
       if (exists) return prev;
       return [newMapping, ...prev];
     });
   };
 
   const updateMapping = (productId: string, manufacturerId: string, updatedFields: Partial<ManufacturerProductMapping>) => {
-    setMappings(prev => prev.map(m => (m.productId === productId && (m.manufacturerId === manufacturerId || !m.manufacturerId)) ? { ...m, ...updatedFields } : m));
+    setMappings(prev => prev.map(m => {
+      const matchPid = m.productId === productId || m.product_id === productId;
+      const matchMid = m.manufacturerId === manufacturerId || m.manufacturer_id === manufacturerId || !m.manufacturerId;
+      return (matchPid && matchMid) ? { ...m, ...updatedFields } : m;
+    }));
   };
 
   const removeMapping = (productId: string, manufacturerId: string) => {
-    setMappings(prev => prev.filter(m =>
-      !(m.productId === productId && (m.manufacturerId === manufacturerId || !m.manufacturerId))
-    ));
+    setMappings(prev => prev.filter(m => {
+      const matchPid = m.productId === productId || m.product_id === productId;
+      const matchMid = m.manufacturerId === manufacturerId || m.manufacturer_id === manufacturerId || !m.manufacturerId;
+      return !(matchPid && matchMid);
+    }));
   };
 
   // ── PLATFORM FEE STATE & HANDLERS (COMPLETELY SEPARATE FROM MARGIN) ────
@@ -2290,6 +2466,630 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications(prev => [notif, ...prev]);
   };
 
+  
+  // ── Canonical Product Types State ──
+  const [productTypes, setProductTypes] = useState<ProductType[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_product_types');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return mockProductTypes;
+  });
+
+  const addProductType = (newType: ProductType) => {
+    setProductTypes(prev => [newType, ...prev.filter(t => t.product_type_id !== newType.product_type_id)]);
+    addAuditLog('Product Type', `Added product type ${newType.product_type_name} (${newType.product_type_code})`);
+  };
+
+  const updateProductType = (id: string, updates: Partial<ProductType>) => {
+    setProductTypes(prev => prev.map(t => (t.product_type_id === id || t.id === id) ? { ...t, ...updates, updated_at: new Date().toISOString() } : t));
+    addAuditLog('Product Type', `Updated product type ID ${id}`);
+  };
+
+  // ── Canonical Brand Master State (Product -> Brand relationship) ──
+  const [brands, setBrands] = useState<Brand[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_brands');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return mockBrands;
+  });
+
+  const addBrand = (newBrand: Brand) => {
+    setBrands(prev => [newBrand, ...prev.filter(b => b.brand_id !== newBrand.brand_id)]);
+    addAuditLog('Brand Master', `Added brand ${newBrand.brand_name} (${newBrand.brand_code})`);
+  };
+
+  const updateBrand = (id: string, updates: Partial<Brand>) => {
+    setBrands(prev => prev.map(b => (b.brand_id === id || b.id === id) ? { ...b, ...updates, updated_at: new Date().toISOString() } : b));
+    addAuditLog('Brand Master', `Updated brand ID ${id}`);
+  };
+
+  const deleteBrand = (id: string) => {
+    const b = brands.find(item => item.brand_id === id || item.id === id);
+    setBrands(prev => prev.filter(item => item.brand_id !== id && item.id !== id));
+    if (b) {
+      addAuditLog('Brand Master', `Deleted brand ${b.brand_name || b.name} (${b.brand_code || b.code})`);
+    }
+  };
+
+  const toggleBrandStatus = (id: string) => {
+    setBrands(prev => prev.map(b => {
+      if (b.brand_id === id || b.id === id) {
+        const newStatus: LifecycleStatus = (b.lifecycle_status === 'ACTIVE' || b.status === 'ACTIVE') ? 'INACTIVE' : 'ACTIVE';
+        return { ...b, lifecycle_status: newStatus, status: newStatus, updated_at: new Date().toISOString() };
+      }
+      return b;
+    }));
+  };
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_brands', JSON.stringify(brands));
+    } catch (e) {}
+  }, [brands]);
+
+  // ── Canonical Product Types State ──
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_product_types', JSON.stringify(productTypes));
+    } catch (e) {}
+  }, [productTypes]);
+
+  const deleteProductType = (id: string) => {
+    const pt = productTypes.find(t => t.product_type_id === id || t.id === id);
+    setProductTypes(prev => prev.filter(t => t.product_type_id !== id && t.id !== id));
+    if (pt) {
+      addAuditLog('Product Type', `Deleted product type ${pt.product_type_name || pt.name} (${pt.product_type_code || pt.code})`);
+    }
+  };
+
+  const toggleProductTypeStatus = (id: string) => {
+    setProductTypes(prev => prev.map(t => {
+      if (t.product_type_id === id || t.id === id) {
+        const newStatus: LifecycleStatus = (t.lifecycle_status === 'ACTIVE' || t.status === 'ACTIVE') ? 'INACTIVE' : 'ACTIVE';
+        return { ...t, lifecycle_status: newStatus, status: newStatus, updated_at: new Date().toISOString() };
+      }
+      return t;
+    }));
+  };
+
+  // ── Unified Single Category Table State (Canonical Client Model) ──
+  const [unifiedCategories, setUnifiedCategories] = useState<Category[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_unified_categories_v3');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length >= 10 && parsed.some((c: any) => c.category_code === 'DRUG-TAB-FCT' || c.category_id === 'CAT001')) {
+          return parsed;
+        }
+      }
+      // Clear out stale legacy v2 storage if present
+      localStorage.removeItem('fg_unified_categories_v2');
+    } catch (e) {}
+    return mockUnifiedCategories;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_unified_categories_v3', JSON.stringify(unifiedCategories));
+    } catch (e) {}
+  }, [unifiedCategories]);
+
+  const addUnifiedCategory = (newCat: Category) => {
+    setUnifiedCategories(prev => {
+      const codeUpper = (newCat.category_code || newCat.code || '').toUpperCase();
+      const exists = prev.some(c =>
+        c.product_type_id === newCat.product_type_id &&
+        (c.category_code || c.code || '').toUpperCase() === codeUpper
+      );
+      if (exists) return prev;
+      return [newCat, ...prev];
+    });
+    addAuditLog('Category Master', `Added Category ${newCat.category_code} (${newCat.category})`);
+  };
+
+  const updateUnifiedCategory = (id: string, updates: Partial<Category>) => {
+    setUnifiedCategories(prev => prev.map(c => {
+      if (c.category_id === id || c.id === id) {
+        return {
+          ...c,
+          ...updates,
+          category_code: updates.category_code ? updates.category_code.toUpperCase() : c.category_code,
+          code: updates.category_code ? updates.category_code.toUpperCase() : (updates.code || c.code),
+          updated_at: new Date().toISOString().split('T')[0]
+        };
+      }
+      return c;
+    }));
+  };
+
+  const deleteUnifiedCategory = (id: string) => {
+    setUnifiedCategories(prev => prev.filter(c => c.category_id !== id && c.id !== id));
+    addAuditLog('Category Master', `Deleted Category ID ${id}`);
+  };
+
+  const toggleUnifiedCategoryStatus = (id: string) => {
+    setUnifiedCategories(prev => prev.map(c => {
+      if (c.category_id === id || c.id === id) {
+        const currentActive = c.lifecycle_status === 'ACTIVE' || c.status === 'Active';
+        const newStatus: LifecycleStatus = currentActive ? 'INACTIVE' : 'ACTIVE';
+        return {
+          ...c,
+          lifecycle_status: newStatus,
+          status: newStatus === 'ACTIVE' ? 'Active' : 'Inactive',
+          updated_at: new Date().toISOString().split('T')[0]
+        };
+      }
+      return c;
+    }));
+  };
+
+  // ── Dynamic Attribute Master & Product Attributes ──
+  const [attributeMasters, setAttributeMasters] = useState<AttributeMaster[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_attribute_masters_v2');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return mockAttributeMasters;
+  });
+  useEffect(() => {
+    try { localStorage.setItem('fg_attribute_masters_v2', JSON.stringify(attributeMasters)); } catch(e) {}
+  }, [attributeMasters]);
+
+  const [productAttributes, setProductAttributes] = useState<ProductAttribute[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_product_attributes_v2');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return mockProductAttributes;
+  });
+  useEffect(() => {
+    try { localStorage.setItem('fg_product_attributes_v2', JSON.stringify(productAttributes)); } catch(e) {}
+  }, [productAttributes]);
+
+  const addAttributeMaster = (attr: AttributeMaster) => {
+    setAttributeMasters(prev => [attr, ...prev.filter(a => a.attribute_id !== attr.attribute_id)]);
+    addAuditLog('Attribute Master', `Added dynamic attribute ${attr.attribute_name} (${attr.attribute_code})`);
+  };
+
+  const updateAttributeMaster = (id: string, updates: Partial<AttributeMaster>) => {
+    setAttributeMasters(prev => prev.map(a => (a.attribute_id === id || a.id === id) ? { ...a, ...updates, updated_at: new Date().toISOString() } : a));
+  };
+
+  const addProductAttribute = (pa: ProductAttribute) => {
+    setProductAttributes(prev => [pa, ...prev.filter(p => p.product_attribute_id !== pa.product_attribute_id)]);
+  };
+
+  const updateProductAttribute = (id: string, updates: Partial<ProductAttribute>) => {
+    setProductAttributes(prev => prev.map(p => (p.product_attribute_id === id || p.id === id) ? { ...p, ...updates, updated_at: new Date().toISOString() } : p));
+  };
+
+    const saveProductAttributesBulk = (productId: string, attributes: { attribute_id: string; attribute_value: string }[]) => {
+    setProductAttributes(prev => {
+      const remaining = prev.filter(pa => pa.product_id !== productId && pa.productId !== productId);
+      const newItems: ProductAttribute[] = attributes
+        .filter(a => a.attribute_value !== undefined && a.attribute_value !== null && String(a.attribute_value).trim() !== '')
+        .map(a => {
+          const m = attributeMasters.find(master => master.attribute_id === a.attribute_id || master.attribute_code === a.attribute_id || master.id === a.attribute_id);
+          const valStr = String(a.attribute_value).trim();
+          return {
+            product_attribute_id: `pa_${productId}_${a.attribute_id}`,
+            product_id: productId,
+            attribute_id: a.attribute_id,
+            attribute_value: valStr,
+            created_at: new Date().toISOString().split('T')[0],
+            updated_at: new Date().toISOString().split('T')[0],
+            id: `pa_${productId}_${a.attribute_id}`,
+            productId: productId,
+            attributeId: a.attribute_id,
+            attributeValue: valStr,
+            attributeName: m?.attribute_name || a.attribute_id,
+            attributeCode: m?.attribute_code || a.attribute_id
+          };
+        });
+      return [...remaining, ...newItems];
+    });
+  };
+
+const getProductAttributes = (productId: string): Record<string, string> => {
+    const res: Record<string, string> = {};
+    productAttributes.filter(pa => pa.product_id === productId || pa.productId === productId).forEach(pa => {
+      const master = attributeMasters.find(m => m.attribute_id === pa.attribute_id || m.id === pa.attributeId);
+      const key = master?.attribute_code || pa.attribute_id || pa.attributeId || 'ATTR';
+      res[key] = pa.attribute_value || pa.attributeValue || '';
+    });
+    return res;
+  };
+
+  const getProductAttributeValues = (productId: string): { attribute: AttributeMaster; value: string }[] => {
+    return productAttributes
+      .filter(pa => pa.product_id === productId || pa.productId === productId)
+      .map(pa => {
+        const attribute = attributeMasters.find(m => m.attribute_id === pa.attribute_id || m.id === pa.attributeId) || {
+          attribute_id: pa.attribute_id || pa.attributeId || '',
+          attribute_code: pa.attributeCode || 'CUSTOM',
+          attribute_name: pa.attributeName || 'Custom Attribute',
+          data_type: 'TEXT' as const,
+          is_filterable: true,
+          is_searchable: true,
+          is_required: false,
+          is_active: true,
+          created_at: '',
+          updated_at: ''
+        };
+        return { attribute, value: pa.attribute_value || pa.attributeValue || '' };
+      });
+  };
+
+  // ── Customer Segments & Product Pricing ──
+  const [customerSegments, setCustomerSegments] = useState<CustomerSegment[]>(() => {
+    try {
+      const stored = localStorage.getItem('fg_customer_segments_v1');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.warn('Failed to load customer segments from cache', e);
+    }
+    return mockCustomerSegments;
+  });
+
+  const addCustomerSegment = (segment: CustomerSegment) => {
+    setCustomerSegments(prev => {
+      const next = [segment, ...prev.filter(s => s.customer_segment_id !== segment.customer_segment_id && s.segment_code !== segment.segment_code)];
+      try { localStorage.setItem('fg_customer_segments_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const updateCustomerSegment = (id: string, updates: Partial<CustomerSegment>) => {
+    setCustomerSegments(prev => {
+      const next = prev.map(s => (s.customer_segment_id === id || s.id === id) ? { ...s, ...updates, updated_at: new Date().toISOString().split('T')[0] } : s);
+      try { localStorage.setItem('fg_customer_segments_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const removeCustomerSegment = (id: string) => {
+    setCustomerSegments(prev => {
+      const next = prev.filter(s => s.customer_segment_id !== id && s.id !== id);
+      try { localStorage.setItem('fg_customer_segments_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const [productPrices, setProductPrices] = useState<ProductPrice[]>(() => {
+    try {
+      const stored = localStorage.getItem('fg_product_prices_v1');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.warn('Failed to load product prices from cache', e);
+    }
+    return mockProductPrices;
+  });
+
+  const addProductPrice = (price: ProductPrice) => {
+    setProductPrices(prev => {
+      const next = [price, ...prev.filter(p => p.product_price_id !== price.product_price_id)];
+      try { localStorage.setItem('fg_product_prices_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const updateProductPrice = (id: string, updates: Partial<ProductPrice>) => {
+    setProductPrices(prev => {
+      const next = prev.map(p => (p.product_price_id === id || p.id === id) ? { ...p, ...updates, updated_at: new Date().toISOString().split('T')[0] } : p);
+      try { localStorage.setItem('fg_product_prices_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const removeProductPrice = (id: string) => {
+    setProductPrices(prev => {
+      const next = prev.filter(p => p.product_price_id !== id && p.id !== id);
+      try { localStorage.setItem('fg_product_prices_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const getProductPrices = (productId: string, segmentId?: string): ProductPrice[] => {
+    return productPrices.filter(p =>
+      (p.product_id === productId || p.productId === productId) &&
+      (!segmentId || p.customer_segment_id === segmentId || p.customerSegmentId === segmentId) &&
+      (p.price_status === 'ACTIVE' || p.status === 'ACTIVE')
+    );
+  };
+
+  // ── Product Tax & Product UOM ──
+  const [productTaxes, setProductTaxes] = useState<ProductTax[]>(() => {
+    try {
+      const stored = localStorage.getItem('fg_product_taxes_v1');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.warn('Failed to load product taxes from cache', e);
+    }
+    return mockProductTaxes;
+  });
+
+  const addProductTax = (tax: ProductTax) => {
+    setProductTaxes(prev => {
+      const next = [tax, ...prev.filter(t => t.product_tax_id !== tax.product_tax_id)];
+      try { localStorage.setItem('fg_product_taxes_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const updateProductTax = (id: string, updates: Partial<ProductTax>) => {
+    setProductTaxes(prev => {
+      const next = prev.map(t => (t.product_tax_id === id || t.id === id) ? { ...t, ...updates, updated_at: new Date().toISOString().split('T')[0] } : t);
+      try { localStorage.setItem('fg_product_taxes_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const removeProductTax = (id: string) => {
+    setProductTaxes(prev => {
+      const next = prev.filter(t => t.product_tax_id !== id && t.id !== id);
+      try { localStorage.setItem('fg_product_taxes_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const [productUoms, setProductUoms] = useState<ProductUom[]>(() => {
+    try {
+      const stored = localStorage.getItem('fg_product_uoms_v1');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.warn('Failed to load product uoms from cache', e);
+    }
+    return mockProductUoms;
+  });
+
+  const addProductUom = (uom: ProductUom) => {
+    setProductUoms(prev => {
+      const next = [uom, ...prev.filter(u => u.product_uom_id !== uom.product_uom_id)];
+      try { localStorage.setItem('fg_product_uoms_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const updateProductUom = (id: string, updates: Partial<ProductUom>) => {
+    setProductUoms(prev => {
+      const next = prev.map(u => (u.product_uom_id === id || u.id === id) ? { ...u, ...updates, updated_at: new Date().toISOString().split('T')[0] } : u);
+      try { localStorage.setItem('fg_product_uoms_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  const removeProductUom = (id: string) => {
+    setProductUoms(prev => {
+      const next = prev.filter(u => u.product_uom_id !== id && u.id !== id);
+      try { localStorage.setItem('fg_product_uoms_v1', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  // ── Direct Order Eligibility ──
+  const [directOrderEligibilities] = useState<ManufacturerDirectOrderEligibility[]>(mockDirectOrderEligibilities);
+
+  const isManufacturerDirectOrderEligible = (mfgId: string, productId?: string): boolean => {
+    return directOrderEligibilities.some(doe =>
+      doe.manufacturer_id === mfgId &&
+      doe.status === 'ACTIVE' &&
+      doe.is_direct_order_eligible &&
+      (!doe.product_id || doe.product_id === productId)
+    );
+  };
+
+  // ── Effective Product Sellability & Lifecycle Evaluation (Requirement 15 & 16) ──
+  const checkProductSellability = (productId: string) => {
+    const reasons: string[] = [];
+    const product = products.find(p => p.id === productId || p.product_id === productId);
+    if (!product) {
+      return { isSellable: false, reasons: ['Product not found'], productActive: false, categoryActive: false, productTypeActive: false, brandActive: false, hasActiveManufacturer: false, hasEffectivePrice: false, activeManufacturers: [] };
+    }
+
+    // 1. Product ACTIVE
+    const productActive = product.lifecycle_status === 'ACTIVE' || product.status === 'ACTIVE' || product.status === 'Active';
+    if (!productActive) reasons.push(`Product lifecycle status is ${product.lifecycle_status || product.status}`);
+
+    // 2. Category ACTIVE
+    const cat = categories.find(c => c.id === product.category_id || c.name === product.category || c.id === product.categoryId);
+    const categoryActive = cat ? (cat.status === 'Active' || (cat as any).lifecycle_status === 'ACTIVE') : true;
+    if (!categoryActive) reasons.push('Associated category is inactive');
+
+    // 3. Product Type ACTIVE
+    const pt = productTypes.find(t => t.product_type_id === product.product_type_id || t.id === product.productTypeId);
+    const productTypeActive = pt ? (pt.lifecycle_status === 'ACTIVE' || pt.status === 'ACTIVE') : true;
+    if (!productTypeActive) reasons.push('Associated product type is inactive');
+
+    // 4. Brand ACTIVE (where applicable)
+    let brandActive = true;
+    const bId = product.brand_id || product.brandId;
+    if (bId) {
+      const brand = brands.find(b => b.brand_id === bId || b.id === bId);
+      brandActive = brand ? (brand.lifecycle_status === 'ACTIVE' || brand.status === 'ACTIVE') : true;
+      if (!brandActive) reasons.push('Associated brand is inactive');
+    }
+
+    // 5. At least one ACTIVE Product-Manufacturer relationship & active manufacturer
+    const productMappings = mappings.filter(m => (m.productId === productId || m.product_id === productId) && (m.lifecycle_status === 'ACTIVE' || m.status === 'Active'));
+    const activeManufacturers = manufacturers.filter(m =>
+      (m.status === 'ACTIVE' || (m as any).lifecycle_status === 'ACTIVE') &&
+      productMappings.some(pm => pm.manufacturerId === m.id || pm.manufacturer_id === m.id)
+    );
+    const hasActiveManufacturer = activeManufacturers.length > 0 || Boolean(product.isGeneric);
+    if (!hasActiveManufacturer) reasons.push('No active manufacturer relationship exists for this product');
+
+    // 6. Valid effective price
+    const prices = productPrices.filter(p => (p.product_id === productId || p.productId === productId) && (p.price_status === 'ACTIVE' || p.status === 'ACTIVE'));
+    const hasEffectivePrice = prices.length > 0 || (product.basePrice !== undefined && product.basePrice > 0);
+    if (!hasEffectivePrice) reasons.push('No effective active price configured');
+
+    const isSellable = productActive && categoryActive && productTypeActive && brandActive && hasActiveManufacturer && hasEffectivePrice;
+
+    return {
+      isSellable,
+      reasons,
+      productActive,
+      categoryActive,
+      productTypeActive,
+      brandActive,
+      hasActiveManufacturer,
+      hasEffectivePrice,
+      activeManufacturers,
+      effectivePrice: prices[0]
+    };
+  };
+
+  const getEligibleManufacturersForProduct = (productId: string) => {
+    const productMappings = mappings.filter(m => (m.productId === productId || m.product_id === productId) && (m.lifecycle_status === 'ACTIVE' || m.status === 'Active'));
+    return productMappings.map(pm => {
+      const mfgId = pm.manufacturerId || pm.manufacturer_id || '';
+      const mfg = manufacturers.find(m => m.id === mfgId) || {
+        id: mfgId,
+        code: pm.manufacturerCode || 'MFG-GEN',
+        companyName: pm.manufacturerName || 'Manufacturer Partner',
+        mfgLicenseNo: 'ML-ACTIVE',
+        gstin: '29ABCDE1234F1Z5',
+        pan: 'ABCDE1234F',
+        contactPerson: 'Operations Desk',
+        email: 'ops@factorygrid.com',
+        phone: '+91 99000 00000',
+        city: 'Delhi',
+        state: 'Delhi',
+        status: 'ACTIVE' as const,
+        complianceStatus: 'APPROVED' as const,
+        rating: 4.8,
+        activeSubOrders: 1
+      };
+      const isDirectEligible = isManufacturerDirectOrderEligible(mfgId, productId);
+      const activePrice = productPrices.find(p => (p.product_id === productId || p.productId === productId) && (p.product_manufacturer_id === pm.id || p.product_manufacturer_id === pm.product_manufacturer_id));
+      return {
+        manufacturer: mfg,
+        productManufacturer: pm,
+        isPreferred: Boolean(pm.is_preferred || pm.isPreferred),
+        isDirectOrderEligible: isDirectEligible,
+        activePrice
+      };
+    });
+  };
+
+  // ── Customer Quote Workflow (Explicit Business Stage before Master Order) ──
+  const [customerQuotes, setCustomerQuotes] = useState<CustomerQuote[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_customer_quotes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return mockCustomerQuotes;
+  });
+
+  const generateCustomerQuote = (rfqId: string, selections?: Record<string, { mfgId: string; mfgName: string; price: number }>): CustomerQuote => {
+    const rfq = rfqs.find(r => r.id === rfqId || r.rfqNumber === rfqId);
+    const quoteNum = `QTE-CUS-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const quoteId = `qte_cus_${Date.now()}`;
+
+    let totalSubtotal = 0;
+    const lines: CustomerQuoteLine[] = (rfq?.lines || []).map((line, idx) => {
+      const sel = selections?.[line.id];
+      const basePrice = sel?.price || line.targetPrice || 40.00;
+      const margin = basePrice * 0.10;
+      const platformFee = (basePrice + margin) * 0.02;
+      const commercialUnitPrice = Math.round((basePrice + margin + platformFee) * 100) / 100;
+      const lineTotal = line.quantity * commercialUnitPrice;
+      totalSubtotal += lineTotal;
+
+      return {
+        id: `cql_${quoteId}_${idx + 1}`,
+        quoteId,
+        rfqLineId: line.id,
+        productId: line.productId,
+        productName: line.productName,
+        quantity: line.quantity,
+        uom: line.unit || 'Boxes',
+        baseUnitPrice: basePrice,
+        marginAmount: Math.round(margin * 100) / 100,
+        platformFeeAmount: Math.round(platformFee * 100) / 100,
+        commercialUnitPrice,
+        taxPercent: 12,
+        lineTotal,
+        leadTimeDays: 14,
+        allocatedManufacturerId: sel?.mfgId || 'm1',
+        allocatedManufacturerName: sel?.mfgName || 'SunBio LifeSciences Ltd'
+      };
+    });
+
+    const taxTotal = Math.round(totalSubtotal * 0.12);
+    const newCustomerQuote: CustomerQuote = {
+      id: quoteId,
+      customerQuoteId: quoteId,
+      quoteNumber: quoteNum,
+      rfqId: rfq?.id || rfqId,
+      rfqNumber: rfq?.rfqNumber || rfqId,
+      customerId: rfq?.customerId || 'c1',
+      customerName: rfq?.customerName || 'Apex Pharma PCD Franchise',
+      customerCode: rfq?.customerCode || 'CUS000101',
+      status: 'ISSUED',
+      createdDate: new Date().toISOString().split('T')[0],
+      validUntil: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
+      subtotal: totalSubtotal,
+      taxTotal,
+      totalAmount: totalSubtotal + taxTotal,
+      advanceRequired: true,
+      advanceMethod: 'PERCENTAGE',
+      advancePercentage: 30,
+      requiredAdvanceAmount: Math.round((totalSubtotal + taxTotal) * 0.3),
+      paymentTerms: '30% Advance + Net 30',
+      deliveryTerms: rfq?.deliveryLocation || 'Door Delivery',
+      lines,
+      createdAt: new Date().toISOString()
+    };
+
+    setCustomerQuotes(prev => [newCustomerQuote, ...prev]);
+    addAuditLog('Customer Quote', `Generated Customer Quote ${quoteNum} for RFQ ${rfq?.rfqNumber}`);
+    return newCustomerQuote;
+  };
+
+  const acceptCustomerQuoteAndCreateOrder = (customerQuoteId: string): MasterOrder | undefined => {
+    const quote = customerQuotes.find(q => q.id === customerQuoteId || q.customerQuoteId === customerQuoteId || q.quoteNumber === customerQuoteId);
+    if (!quote) return undefined;
+
+    const selections: Record<string, { mfgId: string; mfgName: string; price: number }> = {};
+    quote.lines.forEach(l => {
+      selections[l.rfqLineId] = {
+        mfgId: l.allocatedManufacturerId || 'm1',
+        mfgName: l.allocatedManufacturerName || 'SunBio LifeSciences Ltd',
+        price: l.commercialUnitPrice
+      };
+    });
+
+    // Mark quote accepted
+    setCustomerQuotes(prev => prev.map(q => q.id === quote.id ? { ...q, status: 'ACCEPTED', updatedAt: new Date().toISOString() } : q));
+
+    // Call order creation
+    selectQuoteAndCreateOrder(quote.rfqId, selections);
+
+    // Retrieve created order
+    const createdOrder = orders.find(o => o.rfqId === quote.rfqId || o.rfqNumber === quote.rfqNumber);
+    if (createdOrder) {
+      setCustomerQuotes(prev => prev.map(q => q.id === quote.id ? { ...q, masterOrderId: createdOrder.id, status: 'ORDER_CREATED' } : q));
+    }
+    return createdOrder;
+  };
+
+  const rejectCustomerQuote = (customerQuoteId: string, reason: string) => {
+    setCustomerQuotes(prev => prev.map(q => (q.id === customerQuoteId || q.quoteNumber === customerQuoteId) ? { ...q, status: 'REJECTED', rejectionReason: reason, updatedAt: new Date().toISOString() } : q));
+    addAuditLog('Customer Quote', `Rejected Customer Quote ${customerQuoteId}: ${reason}`);
+  };
+
   const selectQuoteAndCreateOrder = (rfqId: string, selections: Record<string, { mfgId: string; mfgName: string; price: number }>) => {
     const rfq = rfqs.find(r => r.id === rfqId || (r.rfqNumber && r.rfqNumber === rfqId));
     if (!rfq) return;
@@ -2434,6 +3234,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'PENDING_ADMIN_APPROVAL',
       totalAmount: Math.round(totalMasterAmount),
       subOrders,
+      orderLines: subOrders.flatMap(so => so.lines.map((l: any, lIdx: number) => ({
+        id: `mol_${so.id}_${lIdx + 1}`,
+        orderLineId: `mol_${so.id}_${lIdx + 1}`,
+        order_line_id: `mol_${so.id}_${lIdx + 1}`,
+        masterOrderId: newMasterOrderId,
+        master_order_id: newMasterOrderId,
+        masterOrderNumber: masterOrdNum,
+        subOrderId: so.id,
+        sub_order_id: so.id,
+        subOrderNumber: so.subOrderNumber,
+        productId: l.productId,
+        product_id: l.productId,
+        productCode: l.productId,
+        product_code: l.productId,
+        productName: l.productName,
+        product_name: l.productName,
+        dosageForm: l.dosageForm || 'Tablet',
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        unit_price: l.unitPrice,
+        totalPrice: l.totalPrice,
+        total_price: l.totalPrice,
+        manufacturerId: so.manufacturerId,
+        manufacturer_id: so.manufacturerId,
+        manufacturerName: so.manufacturerName,
+        manufacturer_name: so.manufacturerName,
+        status: so.status
+      }))),
+      lines: subOrders.flatMap(so => so.lines.map((l: any, lIdx: number) => ({
+        id: `mol_${so.id}_${lIdx + 1}`,
+        orderLineId: `mol_${so.id}_${lIdx + 1}`,
+        order_line_id: `mol_${so.id}_${lIdx + 1}`,
+        masterOrderId: newMasterOrderId,
+        master_order_id: newMasterOrderId,
+        masterOrderNumber: masterOrdNum,
+        subOrderId: so.id,
+        sub_order_id: so.id,
+        subOrderNumber: so.subOrderNumber,
+        productId: l.productId,
+        product_id: l.productId,
+        productCode: l.productId,
+        product_code: l.productId,
+        productName: l.productName,
+        product_name: l.productName,
+        dosageForm: l.dosageForm || 'Tablet',
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        unit_price: l.unitPrice,
+        totalPrice: l.totalPrice,
+        total_price: l.totalPrice,
+        manufacturerId: so.manufacturerId,
+        manufacturer_id: so.manufacturerId,
+        manufacturerName: so.manufacturerName,
+        manufacturer_name: so.manufacturerName,
+        status: so.status
+      }))),
+      statusHistory: [
+        { status: 'PENDING_ADMIN_APPROVAL', timestamp: new Date().toISOString(), changedBy: 'System Auto-PO', remarks: 'Generated from accepted quote' }
+      ],
       shippingAddress: rfq.deliveryLocation || 'Industrial Zone, Plot 14, Phase I, Delhi',
       currency: 'INR',
       advanceRequired: true,
@@ -4187,11 +5046,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <AppContext.Provider value={{
+
+        productTypes,
+        addProductType,
+        updateProductType,
+        deleteProductType,
+        toggleProductTypeStatus,
+        unifiedCategories,
+        addUnifiedCategory,
+        updateUnifiedCategory,
+        deleteUnifiedCategory,
+        toggleUnifiedCategoryStatus,
+        brands,
+        addBrand,
+        updateBrand,
+        deleteBrand,
+        toggleBrandStatus,
+        unifiedCategories,
+        attributeMasters,
+        productAttributes,
+        addAttributeMaster,
+        updateAttributeMaster,
+        addProductAttribute,
+        updateProductAttribute,
+        getProductAttributes,
+        getProductAttributeValues,
+        customerSegments,
+        addCustomerSegment,
+        updateCustomerSegment,
+        removeCustomerSegment,
+        productPrices,
+        addProductPrice,
+        updateProductPrice,
+        removeProductPrice,
+        getProductPrices,
+        productTaxes,
+        addProductTax,
+        updateProductTax,
+        removeProductTax,
+        productUoms,
+        addProductUom,
+        updateProductUom,
+        removeProductUom,
+        directOrderEligibilities,
+        isManufacturerDirectOrderEligible,
+        checkProductSellability,
+        getEligibleManufacturersForProduct,
+        customerQuotes,
+        generateCustomerQuote,
+        acceptCustomerQuoteAndCreateOrder,
+        rejectCustomerQuote,
+
       isAuthenticated, login, logout,
       currentRole, setCurrentRole,
       activeTab, setActiveTab,
       activeBuyerAccount, setActiveBuyerAccount, resetDemoState,
       customers, manufacturers, products, setProducts, addProductMaster, updateProductMaster, toggleProductMasterStatus,
+      addManufacturer, updateManufacturer, deleteManufacturer, toggleManufacturerStatus, setPreferredManufacturer,
       categories, setCategories, categoryMargins, setCategoryMargins, addCategory, updateCategory, deleteCategory, toggleCategoryStatus, updateCategoryMargin, getCategoryMargin, getCategoryMarginConfig,
       marginRules, setMarginRules, addOrUpdateMarginRule, deleteMarginRule, getApplicableMargin,
       updateProductMargin, bulkUpdateProductMargins, platformFeeConfig, updatePlatformFeeConfig,

@@ -620,9 +620,9 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
                     </h2>
                   </div>
                   <div style={{ fontSize: 12.5, color: '#475569', marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    <span>Quantity: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{line.quantity.toLocaleString()} {line.uom || 'Units'}</strong></span>
+                    <span>Quantity: <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{(Number(line.quantity) || 0).toLocaleString()} {line.uom || 'Units'}</strong></span>
                     <span>Dosage: <strong>{line.dosageForm || 'Tablet'}</strong></span>
-                    <span>Target Price: <strong style={{ color: '#0F766E' }}>₹{(line.targetPrice || 12.00).toFixed(2)}</strong></span>
+                    <span>Target Price: <strong style={{ color: '#0F766E' }}>₹{(Number(line.targetPrice) || 12.00).toFixed(2)}</strong></span>
                   </div>
                 </div>
 
@@ -633,7 +633,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
                       <CheckCircle2 size={16} style={{ color: '#16A34A' }} />
                       <div>
                         <div style={{ fontSize: 10.5, fontWeight: 700, color: '#166534', textTransform: 'uppercase' }}>Selected Manufacturer</div>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: '#15803D' }}>{selectedSupplier.mfgName} (₹{selectedSupplier.unitPrice.toFixed(2)}/unit)</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: '#15803D' }}>{selectedSupplier.mfgName} (₹{(Number(selectedSupplier?.unitPrice) || 0).toFixed(2)}/unit)</div>
                       </div>
                     </div>
                   ) : (
@@ -740,7 +740,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
 
                           {/* 2. BASE PRICE */}
                           <td style={{ padding: '14px 12px', color: '#475569', fontFamily: 'monospace' }}>
-                            ₹{q.basePrice.toFixed(2)}
+                            ₹{(Number(q.basePrice) || 0).toFixed(2)}
                           </td>
 
                           {/* 3. PRODUCT MARGIN */}
@@ -755,20 +755,20 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
 
                           {/* 4. PLATFORM FEE */}
                           <td style={{ padding: '14px 12px', color: '#B45309', fontWeight: 700, fontFamily: 'monospace' }}>
-                            +₹{q.platformFee.toFixed(2)}
+                            +₹{(Number(q.platformFee) || 0).toFixed(2)}
                           </td>
 
                           {/* 5. COMMERCIAL PRICE */}
                           <td style={{ padding: '14px 12px', fontWeight: 800, color: '#0F172A', fontFamily: 'monospace' }}>
-                            ₹{q.commercialPrice.toFixed(2)}
+                            ₹{(Number(q.commercialPrice) || 0).toFixed(2)}
                             {q.isRevised && q.origUnitPrice !== q.unitPrice && (
-                              <div style={{ fontSize: 10, color: '#94A3B8', textDecoration: 'line-through' }}>₹{q.origUnitPrice.toFixed(2)}</div>
+                              <div style={{ fontSize: 10, color: '#94A3B8', textDecoration: 'line-through' }}>₹{(Number(q.origUnitPrice) || 0).toFixed(2)}</div>
                             )}
                           </td>
 
                           {/* 6. TOTAL LINE COST */}
                           <td style={{ padding: '14px', fontWeight: 700, color: '#0F172A', fontFamily: 'monospace' }}>
-                            ₹{q.totalLineCost.toLocaleString('en-IN')}
+                            ₹{(Number(q.totalLineCost) || 0).toLocaleString('en-IN')}
                           </td>
 
                           {/* 7. LEAD TIME */}
@@ -778,7 +778,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
 
                           {/* 8. MOQ */}
                           <td style={{ padding: '14px', color: '#475569', fontWeight: 600 }}>
-                            {q.moq.toLocaleString()} Units
+                            {(Number(q.moq) || 0).toLocaleString()} Units
                           </td>
 
                           {/* 9. DEDICATED DELIVERY TERMS COLUMN */}
@@ -890,7 +890,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12, fontSize: 12.5, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div>To: <strong style={{ color: '#0F766E' }}>{messageModalContext.mfgName}</strong></div>
                 <div>RFQ Ref: <strong>{messageModalContext.rfqNumber}</strong> · Line: <strong>{messageModalContext.productName}</strong></div>
-                <div>Quantity: <strong>{messageModalContext.lineQty.toLocaleString()} Units</strong></div>
+                <div>Quantity: <strong>{(Number(messageModalContext.lineQty) || 0).toLocaleString()} Units</strong></div>
               </div>
 
               {/* Suggested Quick Messages */}
@@ -979,7 +979,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12.5 }}>
                       <div style={{ background: '#DCFCE7', border: '1px solid #86EFAC', padding: '6px 10px', borderRadius: 6, color: '#15803D' }}>
-                        💵 <strong>Lowest Price:</strong> {lowest?.mfgName} — <strong>₹{lowest?.unitPrice.toFixed(2)}/unit</strong>
+                        💵 <strong>Lowest Price:</strong> {lowest?.mfgName} — <strong>₹{(Number(lowest?.unitPrice) || 0).toFixed(2)}/unit</strong>
                       </div>
 
                       <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '6px 10px', borderRadius: 6, color: '#1D4ED8' }}>
@@ -993,7 +993,7 @@ export const BuyerQuoteComparisonModule: React.FC = () => {
                       <div style={{ background: '#FAF5FF', border: '1px solid #E9D5FF', padding: '8px 10px', borderRadius: 6, color: '#6B21A8', marginTop: 4 }}>
                         🏆 <strong>AI Recommendation:</strong> <strong>{preferred?.mfgName || lowest?.mfgName}</strong>
                         <div style={{ fontSize: 11.5, color: '#7E22CE', marginTop: 2 }}>
-                          Reason: Lowest evaluated price + preferred contract facility + MOQ compliant ({ln.quantity.toLocaleString()} units).
+                          Reason: Lowest evaluated price + preferred contract facility + MOQ compliant ({(Number(ln.quantity) || 0).toLocaleString()} units).
                         </div>
                       </div>
                     </div>

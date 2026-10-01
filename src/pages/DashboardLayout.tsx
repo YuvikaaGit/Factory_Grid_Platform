@@ -17,9 +17,17 @@ import {
   LayoutDashboard, Users, Factory, Package, FileText, Tag, Award,
   ShoppingBag, Receipt, ShieldAlert, ShieldCheck, BarChart3, Bell, Settings,
   Search, ChevronDown, ChevronRight, Home, Menu, X, Sun, Moon, Sparkles, Command,
-  ChevronLeft, PanelLeftClose, PanelLeftOpen, Pin, Clock, Star, LogOut, Cpu, Truck, Landmark, UserCheck, PieChart, FileCheck, Key, Activity, Layers, Percent, RotateCcw, CreditCard
+  ChevronLeft, PanelLeftClose, PanelLeftOpen, Pin, Clock, Star, LogOut, Cpu, Truck, Landmark, UserCheck, PieChart, FileCheck, Key, Activity, Layers, Percent, RotateCcw, CreditCard, Link2, ArrowLeft
 } from 'lucide-react';
+import { AttributeMasterModule } from '../components/modules/AttributeMasterModule';
+import { CustomerSegmentMasterModule } from '../components/modules/CustomerSegmentMasterModule';
+import { ProductPriceModule } from '../components/modules/ProductPriceModule';
+import { ProductTaxModule } from '../components/modules/ProductTaxModule';
+import { ProductUomModule } from '../components/modules/ProductUomModule';
 import { CategoryMasterModule } from '../components/modules/CategoryMasterModule';
+import { BrandMasterModule } from '../components/modules/BrandMasterModule';
+import { ManufacturerMasterModule } from '../components/modules/ManufacturerMasterModule';
+import { ProductManufacturerMappingModule } from '../components/modules/ProductManufacturerMappingModule';
 import { MarginEngineModule } from '../components/modules/MarginEngineModule';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
@@ -245,14 +253,6 @@ const navGroups = [
     ],
   },
   {
-    label: 'CATALOG & MARGIN MANAGEMENT',
-    items: [
-      { id: 'category-master', label: 'Category Master', icon: Layers, roles: ['ADMIN'] },
-      { id: 'margin-engine', label: 'Margin Engine', icon: Percent, roles: ['ADMIN'] },
-      { id: 'products', label: 'Product Catalog Master', icon: Package, roles: ['ADMIN'] },
-    ],
-  },
-  {
     label: 'COMPLIANCE & VERIFICATION',
     items: [
       { id: 'compliance-verification', label: 'Customer Verification', icon: UserCheck, badge: 'compliance', roles: ['COMPLIANCE_OFFICER', 'ADMIN'] },
@@ -271,9 +271,6 @@ const navGroups = [
   {
     label: 'SYSTEM ADMINISTRATION',
     items: [
-      { id: 'reports', label: 'Audit Logs', icon: FileCheck, roles: ['ADMIN', 'SALES_MANAGER', 'ACCOUNTS_MANAGER'] },
-      { id: 'admin-approval', label: 'System Health', icon: Activity, roles: ['ADMIN'] },
-      { id: 'shipment-api', label: 'Shipment API', icon: Truck, roles: ['ADMIN'] },
       { id: 'settings', label: 'Settings', icon: Settings, roles: ['ADMIN'] },
     ],
   },
@@ -380,7 +377,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
         setActiveTab('category-master');
       }
       if (path === '/buyer/product-catalog' || path.startsWith('/buyer/product-catalog') ||
-          path === '/buyer/catalog' || path.startsWith('/buyer/catalog')) {
+        path === '/buyer/catalog' || path.startsWith('/buyer/catalog')) {
         setCurrentRole('BUYER');
         setActiveTab('buyer-catalog');
       }
@@ -509,6 +506,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
     }));
   };
 
+  // Master & Product Settings child tabs that belong under Settings
+  const SETTINGS_CHILD_TABS = [
+    'category-master',
+    'brand-master',
+    'manufacturer-master',
+    'products',
+    'attribute-master',
+    'product-manufacturer-mapping',
+    'customer-segment',
+    'product-price',
+    'product-tax',
+    'product-uom',
+    'margin-engine',
+  ];
+
   // Track which profile sub-item was last clicked for active-state highlighting
   const [lastProfileItem, setLastProfileItem] = useState<string>('profile-personal');
 
@@ -516,6 +528,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
   const isNavItemActive = (itemId: string): boolean => {
     if (itemId === 'profile-personal' || itemId === 'profile-organization' || itemId === 'profile-documents') {
       return activeTab === 'profile' && lastProfileItem === itemId;
+    }
+    if (itemId === 'settings') {
+      return activeTab === 'settings' || SETTINGS_CHILD_TABS.includes(activeTab);
     }
     return activeTab === itemId;
   };
@@ -564,8 +579,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
       case 'customers': return <CustomerModule />;
       case 'manufacturers': return <ManufacturerModule />;
       case 'category-master': return <CategoryMasterModule />;
+      case 'brand-master': return <BrandMasterModule />;
+      case 'manufacturer-master': return <ManufacturerMasterModule />;
       case 'margin-engine': return <MarginEngineModule />;
       case 'products': return <ProductCatalogModule />;
+      case 'attribute-master': return <AttributeMasterModule />;
+      case 'product-manufacturer-mapping': return <ProductManufacturerMappingModule />;
+      case 'customer-segment': return <CustomerSegmentMasterModule />;
+      case 'product-price': return <ProductPriceModule />;
+      case 'product-tax': return <ProductTaxModule />;
+      case 'product-uom': return <ProductUomModule />;
       case 'rfqs': return currentRole === 'ADMIN' ? <AdminRfqMonitor /> : <RFQModule />;
       case 'quotes': return currentRole === 'ADMIN' ? <AdminQuoteMonitor /> : <QuoteModule />;
       case 'orders': return currentRole === 'ADMIN' ? <AdminOrderMonitor /> : <OrderModule />;
@@ -594,7 +617,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
         if (currentRole === 'BUYER') {
           return <ProfileModule />;
         }
-        return <SettingsModule />;
+        return <SettingsModule onNavigateTab={handleTabClick} />;
       case 'admin-approval': return <AdminApprovalModule />;
       case 'shipment-api': return <IntegrationsSettingsModule initialCategory="GST" />;
       case 'qa-support':
@@ -956,7 +979,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
                   {visibleItems.map(item => {
                     const Icon = item.icon;
                     const count = getBadgeCount((item as any).badge);
-                    const isActive = activeTab === item.id;
+                    const isActive = isNavItemActive(item.id);
                     return (
                       <button
                         key={item.id}
@@ -1120,42 +1143,52 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
                 <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>FactoryGrid</span>
                 <span>/</span>
-                <span style={{ color: 'var(--text-secondary)' }}>{currentRole.replace(/_/g, ' ').toLowerCase()}</span>
-                <span>/</span>
-                <span style={{ color: 'var(--c-primary)', fontWeight: 700, textTransform: 'capitalize' }}>
-                  {activeTab === 'category-master' ? 'Category Master' :
-                    activeTab === 'margin-engine' ? 'Margin Engine' :
-                    activeTab === 'customer-verification' ? 'Customer Verification' :
-                    activeTab === 'manufacturer-verification' ? 'Manufacturer Verification' :
-                      activeTab === 'trademark-verification' ? 'Trademark Verification' :
+                {SETTINGS_CHILD_TABS.includes(activeTab) ? (
+                  <>
+                    <span
+                      onClick={() => handleTabClick('settings')}
+                      style={{ color: 'var(--text-secondary)', cursor: 'pointer', transition: 'color 120ms ease' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = '#0F766E')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
+                      title="Back to Master Settings Hub"
+                    >
+                      Settings
+                    </span>
+                    <span>/</span>
+                    <span style={{ color: 'var(--c-primary)', fontWeight: 700 }}>
+                      {activeTab === 'category-master' ? 'Product Type & Category Master' :
+                        activeTab === 'brand-master' ? 'Brand Master' :
+                        activeTab === 'manufacturer-master' ? 'Manufacturer Master' :
+                        activeTab === 'products' ? 'Product Catalog Master' :
+                        activeTab === 'attribute-master' ? 'Product Attribute Master' :
+                        activeTab === 'product-manufacturer-mapping' ? 'Product Manufacturer Mapping' :
+                        activeTab === 'customer-segment' ? 'Customer Segment Master' :
+                        activeTab === 'product-price' ? 'Product Price Management' :
+                        activeTab === 'product-tax' ? 'Product Tax Management' :
+                        activeTab === 'product-uom' ? 'Product UOM Management' :
+                        activeTab === 'margin-engine' ? 'Margin Engine' :
+                        activeTab.replace(/-/g, ' ')}
+                    </span>
+                  </>
+                ) : activeTab === 'settings' ? (
+                  <span style={{ color: 'var(--c-primary)', fontWeight: 700 }}>Settings</span>
+                ) : (
+                  <>
+                    <span style={{ color: 'var(--text-secondary)' }}>{currentRole.replace(/_/g, ' ').toLowerCase()}</span>
+                    <span>/</span>
+                    <span style={{ color: 'var(--c-primary)', fontWeight: 700, textTransform: 'capitalize' }}>
+                      {activeTab === 'customer-verification' ? 'Customer Verification' :
+                        activeTab === 'manufacturer-verification' ? 'Manufacturer Verification' :
+                        activeTab === 'trademark-verification' ? 'Trademark Verification' :
                         activeTab === 'brand-verification' ? 'Brand Verification' :
-                          activeTab === 'compliance' ? 'Compliance Verification' :
-                            activeTab === 'reports' ? 'Executive Reports' :
-                              activeTab.replace(/-/g, ' ')}
-                </span>
+                        activeTab === 'compliance' ? 'Compliance Verification' :
+                        activeTab === 'reports' ? 'Executive Reports' :
+                        activeTab.replace(/-/g, ' ')}
+                    </span>
+                  </>
+                )}
               </div>
             )}
-
-            {/* Global Search Bar Trigger */}
-            <div
-              onClick={() => setCmdOpen(true)}
-              style={{
-                cursor: 'pointer',
-                background: 'var(--bg-subtle)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 8,
-                padding: isMobile ? '6px 10px' : '6px 14px',
-                width: isMobile ? 'auto' : 320,
-                maxWidth: 320,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8
-              }}
-            >
-              <Search size={14} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
-              {!isMobile && <span style={{ fontSize: 12, color: 'var(--text-tertiary)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Search RFQs, products, manufacturers...</span>}
-              {!isMobile && <kbd className="ent-mono" style={{ fontSize: 10, color: 'var(--text-quaternary)', border: '1px solid var(--border-default)', padding: '1px 5px', borderRadius: 4, background: 'var(--bg-surface)' }}>⌘K</kbd>}
-            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 12, flexShrink: 0 }}>
@@ -1343,6 +1376,43 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.18 }}
             >
+              {/* Back to Settings navigation control for all master pages */}
+              {SETTINGS_CHILD_TABS.includes(activeTab) && (
+                <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleTabClick('settings')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '5px 12px',
+                      borderRadius: 6,
+                      background: '#FFFFFF',
+                      border: '1px solid #CBD5E1',
+                      color: '#0F766E',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 2px rgba(15,23,42,0.04)',
+                      transition: 'all 120ms ease'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = '#F0FDFA';
+                      e.currentTarget.style.borderColor = '#99F6E4';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = '#FFFFFF';
+                      e.currentTarget.style.borderColor = '#CBD5E1';
+                    }}
+                    title="Return to Master Settings Hub"
+                  >
+                    <ArrowLeft size={13} strokeWidth={2.5} />
+                    <span>Back to Settings</span>
+                  </button>
+                </div>
+              )}
+
               <WorkspaceErrorBoundary>
                 {renderContent()}
               </WorkspaceErrorBoundary>

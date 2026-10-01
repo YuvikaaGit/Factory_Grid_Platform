@@ -49,9 +49,11 @@ export type QuoteStatus = 'DRAFT' | 'SUBMITTED' | 'BUYER REVIEWING' | 'NEGOTIATI
 
 export type MasterOrderStatus =
   | 'PENDING_ADMIN_APPROVAL'
-  | 'REJECTED_BY_ADMIN'
   | 'PENDING_ADVANCE'
   | 'CONFIRMED_RELEASED'
+  | 'IN_PROCESS'
+  | 'COMPLETED_CLOSED'
+  | 'REJECTED_BY_ADMIN'
   | 'OPEN'
   | 'SCHEDULED'
   | 'IN_PRODUCTION'
@@ -208,9 +210,24 @@ export interface ManufacturerRatingDetails {
   };
 }
 
+export type ManufacturerLifecycleStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'EOL';
+
 export interface Manufacturer {
+  // Client Approved Manufacturer Master Schema
+  manufacturer_id?: string;
+  manufacturer_code?: string;
+  manufacturer_name?: string;
+  description?: string;
+  lifecycle_status?: ManufacturerLifecycleStatus;
+  effective_from?: string;
+  discontinued_on?: string | null;
+  created_at?: string;
+  updated_at?: string;
+
+  // Existing property fields preserved for UI & marketplace workflow compatibility
   id: string;
   code: string;
+  name?: string;
   companyName: string;
   brandName?: string;
   mfgLicenseNo: string;
@@ -221,7 +238,7 @@ export interface Manufacturer {
   phone: string;
   city: string;
   state: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'PENDING';
+  status: 'ACTIVE' | 'INACTIVE' | 'PENDING' | ManufacturerLifecycleStatus;
   complianceStatus: ComplianceStatus;
   rating: number;
   ratingsDetails?: ManufacturerRatingDetails;
@@ -234,18 +251,77 @@ export interface Manufacturer {
   logoUrl?: string;
   coverImageUrl?: string;
   verifiedBadge?: boolean;
+  establishedYear?: number;
+  facilityInfo?: FacilityInfo;
+  manufacturingTypes?: string[];
+  shortlisted?: boolean;
+  ratingDetails?: any;
+  recentReviews?: any[];
 }
 
-export interface CategoryMaster {
-  id: string;
-  code: string;
-  name: string;
+export type LifecycleStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED' | 'EOL';
+
+export interface ProductType {
+  product_type_id: string;
+  product_type_code: string;
+  product_type_name: string;
   description?: string;
-  status: 'Active' | 'Inactive';
-  createdAt: string;
-  updatedAt?: string;
-  productCount?: number;
+  lifecycle_status: LifecycleStatus;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+  // Backward compatibility / UI aliases
+  id?: string;
+  code?: string;
+  name?: string;
+  status?: string;
 }
+
+export interface Brand {
+  brand_id: string;
+  brand_code: string;
+  brand_name: string;
+  description?: string;
+  lifecycle_status: LifecycleStatus;
+  created_at: string;
+  updated_at: string;
+  // Backward compatibility / UI aliases
+  id?: string;
+  code?: string;
+  name?: string;
+  status?: string;
+  trademarkRegistrationNo?: string;
+  ownerPartyId?: string;
+  verified?: boolean;
+}
+export type BrandMaster = Brand;
+
+export interface Category {
+  category_id: string;
+  product_type_id: string;
+  category: string;
+  sub_category?: string | null;
+  sub_sub_category?: string | null;
+  category_code: string;
+  description?: string;
+  lifecycle_status: LifecycleStatus;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+  // UI aliases and backward compatibility
+  id?: string;
+  code?: string;
+  name?: string;
+  status?: 'Active' | 'Inactive' | LifecycleStatus;
+  productCount?: number;
+  productTypeId?: string;
+  subCategory?: string | null;
+  subSubCategory?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type CategoryMaster = Category;
 
 export interface SubCategoryMaster {
   id: string;
@@ -315,28 +391,51 @@ export interface MarginRule {
 }
 
 export interface Product {
+  // Approved Product Master schema
+  product_id?: string;
+  product_code?: string;
+  product_type_id?: string;
+  brand_id?: string | null;
+  category_id?: string;
+  product_name?: string;
+  product_short_name?: string;
+  product_description?: string;
+  base_uom?: string;
+  pack_size?: string;
+  pack_uom?: string;
+  lifecycle_status?: LifecycleStatus;
+  available_from?: string;
+  discontinued_on?: string | null;
+  replacement_product_id?: string | null;
+  is_sellable?: boolean;
+  created_at?: string;
+  updated_at?: string;
+
+  // Existing property fields preserved for UI compatibility
   id: string;
   code: string;
   name: string;
-  genericName: string;
-  dosageForm: string;
+  genericName?: string;
+  dosageForm?: string;
   composition?: string;
-  packSize: string;
-  moq: number;
+  packSize?: string;
+  moq?: number;
   mrp?: number;
   targetPrice?: number;
   hsnCode?: string;
-  status?: 'ACTIVE' | 'INACTIVE' | 'Active' | 'Inactive';
+  status?: 'ACTIVE' | 'INACTIVE' | 'Active' | 'Inactive' | LifecycleStatus;
   registeredCount?: number;
   storageCondition?: string;
   shelfLifeMonths?: number;
   therapeuticCategory?: string;
   brandNames?: string[];
+  brandId?: string | null;
+  productTypeId?: string;
+  categoryId?: string;
   requiresColdChain?: boolean;
   approvalStatus?: 'APPROVED' | 'PENDING' | 'REJECTED';
   sku?: string;
   category?: string;
-  categoryId?: string;
   subCategory?: string;
   subCategoryId?: string;
   subSubCategory?: string;
@@ -352,6 +451,7 @@ export interface Product {
   isGeneric?: boolean;
   supplierSource?: string;
 }
+export type ProductMaster = Product;
 
 export type QaCategory = 'QUALITY_CONTROL' | 'ASSAY_TESTING' | 'PACKAGING_LABELING' | 'REGULATORY_COMPLIANCE' | 'GENERAL_QA';
 export type QaPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -390,37 +490,195 @@ export interface QaRequestItem {
   messages?: QaMessageThread[];
 }
 
-export interface ProductManufacturerMapping {
-  id: string;
-  productId: string;
-  productName: string;
-  manufacturerId: string;
-  manufacturerName: string;
-  manufacturerCode: string;
-  contractStatus: 'ACTIVE' | 'UNDER_RENEWAL' | 'TERMINATED';
-  contractValidUntil: string;
+// ── DYNAMIC PRODUCT ATTRIBUTE MODEL (CRITICAL) ──────────────────────
+export type AttributeDataType = 'TEXT' | 'NUMBER' | 'DECIMAL' | 'BOOLEAN' | 'DATE' | 'LIST';
+
+export interface AttributeMaster {
+  attribute_id: string;
+  attribute_code: string;
+  attribute_name: string;
+  data_type: AttributeDataType;
+  unit_of_measure?: string;
+  is_filterable: boolean;
+  is_searchable: boolean;
+  is_required: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Aliases
+  id?: string;
+  code?: string;
+  name?: string;
+  dataType?: AttributeDataType;
 }
 
-export interface ManufacturerProductMapping {
+export interface ProductAttribute {
+  product_attribute_id: string;
+  product_id: string;
+  attribute_id: string;
+  attribute_value: string;
+  created_at: string;
+  updated_at: string;
+  // Aliases and UI helpers
   id?: string;
-  productId: string;
+  productId?: string;
+  attributeId?: string;
+  attributeValue?: string;
+  attributeName?: string;
+  attributeCode?: string;
+  unitOfMeasure?: string;
+}
+
+// ── PRODUCT MANUFACTURER (CRITICAL) ──────────────────────────────────
+export interface ProductManufacturer {
+  product_manufacturer_id: string;
+  product_id: string;
+  manufacturer_id: string;
+  manufacturer_product_code: string;
+  manufacturer_part_number?: string;
+  manufacturer_sku?: string;
+  lifecycle_status: 'ACTIVE' | 'INACTIVE' | 'DISCONTINUED' | 'EOL' | 'SUSPENDED';
+  effective_from: string;
+  effective_to?: string | null;
+  is_preferred: boolean;
+  created_at: string;
+  updated_at: string;
+  // Backward compatibility / UI aliases
+  id?: string;
+  productId?: string;
+  productName?: string;
   manufacturerId?: string;
   manufacturerCode?: string;
   manufacturerName?: string;
-  mfgProductCode: string;
-  moq: number;
-  standardLeadTimeDays: number;
+  mfgProductCode?: string;
+  moq?: number;
+  standardLeadTimeDays?: number;
   unitPriceEstimate?: number;
   productSpecificCertifications?: string[];
   packaging?: string;
   status?: string;
-  // Product-level margin configuration (strictly at Product level)
-  marginType?: MarginType; // 'PERCENTAGE' | 'FIXED_RATE'
-  marginValue?: number; // active value according to marginType
-  marginRate?: number; // ₹/unit when FIXED_RATE
-  marginStatus?: 'Active' | 'Inactive' | 'Pending';
+  contractStatus?: 'ACTIVE' | 'UNDER_RENEWAL' | 'TERMINATED';
+  contractValidUntil?: string;
+  isPreferred?: boolean;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  marginType?: MarginType;
+  marginValue?: number;
+  marginRate?: number;
+  marginStatus?: 'Active' | 'Inactive' | 'Pending' | 'Configured';
   marginUpdatedAt?: string;
 }
+
+export type ProductManufacturerMapping = ProductManufacturer;
+export type ManufacturerProductMapping = ProductManufacturer;
+
+// ── CUSTOMER SEGMENT & PRODUCT PRICE (REQUIRED) ───────────────────────
+export interface CustomerSegment {
+  customer_segment_id: string;
+  segment_code: string;
+  segment_name: string;
+  description?: string;
+  lifecycle_status: LifecycleStatus | 'ACTIVE' | 'INACTIVE';
+  created_at: string;
+  updated_at: string;
+  // Aliases & UI compatibility
+  id?: string;
+  code?: string;
+  name?: string;
+  is_active?: boolean;
+}
+
+export interface ProductPrice {
+  product_price_id: string;
+  product_id: string;
+  product_manufacturer_id?: string | null;
+  customer_segment_id: string;
+  price_type: 'FIXED' | 'TIERED' | 'CONTRACT' | 'LIST';
+  currency: string;
+  unit_price: number;
+  minimum_quantity: number;
+  maximum_quantity?: number | null;
+  effective_from: string;
+  effective_to?: string | null;
+  price_status: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'DRAFT';
+  created_at: string;
+  updated_at: string;
+  // Aliases
+  id?: string;
+  productId?: string;
+  productManufacturerId?: string | null;
+  customerSegmentId?: string;
+  priceType?: string;
+  unitPrice?: number;
+  minQuantity?: number;
+  maxQuantity?: number | null;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  status?: string;
+}
+
+// ── PRODUCT TAX ──────────────────────────────────────────────────────
+export interface ProductTax {
+  product_tax_id: string;
+  product_id: string;
+  tax_code: string;
+  tax_rate: number;
+  effective_from: string;
+  effective_to?: string | null;
+  status: 'ACTIVE' | 'INACTIVE';
+  created_at: string;
+  updated_at: string;
+  // Aliases
+  id?: string;
+  productId?: string;
+  taxCode?: string;
+  taxRate?: number;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+}
+
+// ── PRODUCT UOM ──────────────────────────────────────────────────────
+export interface ProductUom {
+  product_uom_id: string;
+  product_id: string;
+  uom: string;
+  conversion_factor: number;
+  is_base_uom: boolean;
+  is_order_uom: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Aliases
+  id?: string;
+  productId?: string;
+  conversionFactor?: number;
+  isBaseUom?: boolean;
+  isOrderUom?: boolean;
+  isActive?: boolean;
+}
+
+// ── DIRECT ORDER ELIGIBILITY ─────────────────────────────────────────
+export interface ManufacturerDirectOrderEligibility {
+  eligibility_id: string;
+  manufacturer_id: string;
+  product_id?: string | null;
+  category_id?: string | null;
+  is_direct_order_eligible: boolean;
+  eligibility_reason?: string;
+  valid_from: string;
+  valid_to?: string | null;
+  status: 'ACTIVE' | 'SUSPENDED' | 'EXPIRED';
+  created_at: string;
+  updated_at: string;
+  // Aliases
+  id?: string;
+  manufacturerId?: string;
+  productId?: string | null;
+  categoryId?: string | null;
+  isDirectOrderEligible?: boolean;
+}
+export type DirectOrderEligibility = ManufacturerDirectOrderEligibility;
+export type ProductManufacturerEligibility = ManufacturerDirectOrderEligibility;
 
 export interface ProductMargin {
   id: string;
@@ -565,6 +823,104 @@ export interface ManufacturerQuote {
   quoteType?: 'FULL_QUOTE' | 'PARTIAL_QUOTE';
 }
 
+// ── ORDER LINE (CRITICAL GAP) ─────────────────────────────────────────
+export interface OrderLine {
+  id: string;
+  orderLineId?: string;
+  order_line_id?: string;
+  masterOrderId: string;
+  master_order_id?: string;
+  masterOrderNumber?: string;
+  subOrderId?: string;
+  sub_order_id?: string;
+  subOrderNumber?: string;
+  productId: string;
+  product_id?: string;
+  productCode?: string;
+  product_code?: string;
+  productName: string;
+  product_name?: string;
+  dosageForm?: string;
+  sku?: string;
+  uom?: string;
+  quantity: number;
+  unitPrice: number;
+  unit_price?: number;
+  taxPercent?: number;
+  tax_percent?: number;
+  discountPercent?: number;
+  discount_percent?: number;
+  totalPrice: number;
+  total_price?: number;
+  manufacturerId?: string;
+  manufacturer_id?: string;
+  manufacturerName?: string;
+  manufacturer_name?: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+export type MasterOrderLine = OrderLine;
+
+// ── CUSTOMER QUOTE (CRITICAL BUSINESS STAGE) ─────────────────────────
+export type CustomerQuoteStatus =
+  | 'DRAFT'
+  | 'ISSUED'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'ORDER_CREATED';
+
+export interface CustomerQuoteLine {
+  id: string;
+  quoteId: string;
+  rfqLineId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  uom?: string;
+  baseUnitPrice: number;
+  marginAmount: number;
+  platformFeeAmount: number;
+  commercialUnitPrice: number;
+  taxPercent: number;
+  lineTotal: number;
+  leadTimeDays: number;
+  allocatedManufacturerId?: string;
+  allocatedManufacturerName?: string;
+}
+
+export interface CustomerQuote {
+  id: string;
+  customerQuoteId?: string;
+  quoteNumber: string;
+  rfqId: string;
+  rfqNumber: string;
+  customerId: string;
+  customerName: string;
+  customerCode: string;
+  status: CustomerQuoteStatus;
+  createdDate: string;
+  validUntil: string;
+  subtotal: number;
+  taxTotal: number;
+  totalAmount: number;
+  advanceRequired: boolean;
+  advanceMethod?: AdvanceMethod;
+  advancePercentage?: number;
+  requiredAdvanceAmount?: number;
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  lines: CustomerQuoteLine[];
+  masterOrderId?: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectionReason?: string;
+  remarks?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface SubOrderLine {
   id: string;
   productId: string;
@@ -617,6 +973,9 @@ export interface MasterOrder {
   status: MasterOrderStatus;
   totalAmount: number;
   subOrders: SubOrder[];
+  orderLines?: OrderLine[];
+  lines?: OrderLine[];
+  statusHistory?: { status: MasterOrderStatus; timestamp: string; changedBy?: string; remarks?: string }[];
   shippingAddress: string;
   billingAddress?: string;
   poNumber?: string;
