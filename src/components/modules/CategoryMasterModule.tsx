@@ -4,7 +4,7 @@ import { ProductType, Category, LifecycleStatus } from '../../types';
 import {
   FolderTree, Layers, Search, Plus, Edit3, Trash2, CheckCircle2,
   AlertTriangle, X, Power, ArrowLeft, ChevronRight, ChevronDown,
-  Sparkles, Check, Info, FileText, Table, ListTree, Filter, Tag
+  Sparkles, Check, Info, FileText, Table, ListTree, Filter, Tag, Eye
 } from 'lucide-react';
 
 export const CategoryMasterModule: React.FC = () => {
@@ -19,6 +19,13 @@ export const CategoryMasterModule: React.FC = () => {
     updateUnifiedCategory,
     deleteUnifiedCategory,
     toggleUnifiedCategoryStatus,
+    attributeMasters,
+    categoryAttributes,
+    addCategoryAttribute,
+    removeCategoryAttribute,
+    setCategoryAttributesForCategory,
+    getCategoryAttributes,
+    getCategoryConfiguredAttributes,
     setActiveTab
   } = useApp();
 
@@ -116,6 +123,77 @@ export const CategoryMasterModule: React.FC = () => {
     display_order: 1
   });
   const [catFormError, setCatFormError] = useState<string | null>(null);
+
+  // ── CATEGORY -> ATTRIBUTE ASSOCIATION STATE ──
+  const [catAttrDrafts, setCatAttrDrafts] = useState<{ attribute_id: string; remark: string }[]>([]);
+
+  // ── VIEW CATEGORY MODAL STATE ──
+  const [viewingCat, setViewingCat] = useState<Category | null>(null);
+  const [isViewCatModalOpen, setIsViewCatModalOpen] = useState(false);
+
+  // ── ADD ATTRIBUTE ASSIGNMENT MODAL STATE (Section 4) ──
+  const [isAddAttrModalOpen, setIsAddAttrModalOpen] = useState(false);
+  const [selectedAttrId, setSelectedAttrId] = useState<string>('');
+  const [addAttrModalContext, setAddAttrModalContext] = useState<'VIEW_MODAL' | 'DRAFT_MODAL'>('VIEW_MODAL');
+  const [addAttrError, setAddAttrError] = useState<string | null>(null);
+
+  // Active ATTRIBUTE_MASTER records available to assign (not already in catAttrDrafts)
+  const availableAttributesForModal = useMemo(() => {
+    const assignedIds = catAttrDrafts.map(d => d.attribute_id);
+    return (attributeMasters || []).filter(attr => {
+      if (!attr.is_active) return false;
+      const aId = attr.attribute_id || attr.id || '';
+      return !assignedIds.includes(aId);
+    });
+  }, [attributeMasters, catAttrDrafts]);
+
+  // Active ATTRIBUTE_MASTER records available to assign in View Category modal
+  const availableAttributesForViewModal = useMemo(() => {
+    if (!viewingCat) return [];
+    const catId = viewingCat.category_id || viewingCat.id || '';
+    const assignedIds = getCategoryAttributes(catId).map(ca => ca.attribute_id || ca.attributeId);
+    return (attributeMasters || []).filter(attr => {
+      if (!attr.is_active) return false;
+      const aId = attr.attribute_id || attr.id || '';
+      return !assignedIds.includes(aId);
+    });
+  }, [attributeMasters, viewingCat, categoryAttributes]);
+
+  const handleConfirmAddAttribute = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAttrId) {
+      setAddAttrError('Please select an Attribute.');
+      return;
+    }
+
+    const master = (attributeMasters || []).find(m => (m.attribute_id || m.id) === selectedAttrId);
+    const attrName = master?.attribute_name || master?.name || selectedAttrId;
+
+    if (addAttrModalContext === 'VIEW_MODAL') {
+      if (!viewingCat) return;
+      const catId = viewingCat.category_id || viewingCat.id || '';
+      const res = addCategoryAttribute({
+        category_id: catId,
+        attribute_id: selectedAttrId,
+        remark: ''
+      });
+      if (res.success) {
+        showToast(`Assigned "${attrName}" to ${viewingCat.category}`);
+        setIsAddAttrModalOpen(false);
+      } else {
+        setAddAttrError(res.error || 'Failed to assign attribute');
+      }
+    } else {
+      // DRAFT_MODAL
+      if (catAttrDrafts.length >= 10) {
+        setAddAttrError('Maximum 10 attributes allowed for this category.');
+        return;
+      }
+      setCatAttrDrafts(prev => [...prev, { attribute_id: selectedAttrId, remark: '' }]);
+      showToast(`Added "${attrName}" to category attributes`);
+      setIsAddAttrModalOpen(false);
+    }
+  };
 
   // 3. Delete Confirmation Modal
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
@@ -293,6 +371,13 @@ export const CategoryMasterModule: React.FC = () => {
       lifecycle_status: 'ACTIVE',
       display_order: nextOrder
     });
+    setCatAttrDrafts([
+      { attribute_id: 'attr_generic_name', remark: '' },
+      { attribute_id: 'attr_strength', remark: '' },
+      { attribute_id: 'attr_dosage_form', remark: '' },
+      { attribute_id: 'attr_pack_size', remark: '' }
+    ]);
+    setIsAddAttrModalOpen(false);
     setCatFormError(null);
     setIsCatModalOpen(true);
   };
@@ -310,8 +395,22 @@ export const CategoryMasterModule: React.FC = () => {
       lifecycle_status: (cat.lifecycle_status || (cat.status === 'Active' ? 'ACTIVE' : 'INACTIVE')) as LifecycleStatus,
       display_order: Number(cat.display_order) || 1
     });
+    const catId = cat.category_id || cat.id || '';
+    const existing = getCategoryAttributes(catId);
+    setCatAttrDrafts(existing.map(ca => ({
+      attribute_id: ca.attribute_id || ca.attributeId || '',
+      remark: ca.remark || ''
+    })));
+    setIsAddAttrModalOpen(false);
     setCatFormError(null);
     setIsCatModalOpen(true);
+  };
+
+  const handleOpenViewCategory = (cat: Category, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setViewingCat(cat);
+    setIsViewCatModalOpen(true);
+    setIsAddAttrModalOpen(false);
   };
 
   const handleSaveCategory = (e: React.FormEvent) => {
@@ -326,6 +425,10 @@ export const CategoryMasterModule: React.FC = () => {
     }
     if (!catFormData.category_code.trim()) {
       setCatFormError('Category Code is required.');
+      return;
+    }
+    if (catAttrDrafts.length > 10) {
+      setCatFormError('Maximum 10 attributes allowed for this category.');
       return;
     }
 
@@ -367,6 +470,7 @@ export const CategoryMasterModule: React.FC = () => {
         status: catFormData.lifecycle_status === 'ACTIVE' ? 'Active' : 'Inactive',
         updated_at: today
       });
+      setCategoryAttributesForCategory(catId, catAttrDrafts);
       showToast(`Updated Category record "${cleanCode}" (${cleanCat})`);
     } else {
       // Auto-generate canonical category_id e.g. CAT033
@@ -399,6 +503,7 @@ export const CategoryMasterModule: React.FC = () => {
       };
 
       addUnifiedCategory(newRecord);
+      setCategoryAttributesForCategory(newCatId, catAttrDrafts);
       showToast(`Created Category record ${newCatId} — ${cleanCode}`);
     }
 
@@ -607,12 +712,39 @@ export const CategoryMasterModule: React.FC = () => {
               <Plus size={16} /> + Add Product Type
             </button>
           ) : (
-            <button
-              onClick={() => handleOpenAddCatModal()}
-              style={{ padding: '9px 18px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 4px rgba(15,118,110,0.2)' }}
-            >
-              <Plus size={16} /> + Add Category
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('attribute-master');
+                  if (typeof window !== 'undefined' && window.location.pathname !== '/admin/attribute-master') {
+                    window.history.pushState({}, '', '/admin/attribute-master');
+                  }
+                }}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: 8,
+                  background: '#F0FDFA',
+                  color: '#0F766E',
+                  border: '1px solid #99F6E4',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+                title="View & Manage Attributes in Attribute Master"
+              >
+                <Sparkles size={15} /> Attributes
+              </button>
+              <button
+                onClick={() => handleOpenAddCatModal()}
+                style={{ padding: '9px 18px', borderRadius: 8, background: '#0F766E', color: '#FFFFFF', border: 'none', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 4px rgba(15,118,110,0.2)' }}
+              >
+                <Plus size={16} /> + Add Category
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -1104,6 +1236,36 @@ export const CategoryMasterModule: React.FC = () => {
                             <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                               <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
                                 <button
+                                  type="button"
+                                  onClick={() => handleOpenViewCategory(cat)}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    padding: '5px 9px',
+                                    borderRadius: 5,
+                                    background: '#F0FDFA',
+                                    color: '#0F766E',
+                                    border: '1px solid #99F6E4',
+                                    fontSize: 11.5,
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                  }}
+                                  title="View Category & Assigned Attributes"
+                                >
+                                  <Sparkles size={12} />
+                                  <span>Attributes ({getCategoryAttributes(catId).length}/10)</span>
+                                </button>
+
+                                <button
+                                  onClick={() => handleOpenViewCategory(cat)}
+                                  style={{ padding: '5px 8px', borderRadius: 5, background: '#FFFFFF', color: '#0F766E', border: '1px solid #99F6E4', cursor: 'pointer' }}
+                                  title="View Category Record & Attributes"
+                                >
+                                  <Eye size={13} />
+                                </button>
+
+                                <button
                                   onClick={(e) => handleOpenEditCatModal(cat, e)}
                                   style={{ padding: '5px 8px', borderRadius: 5, background: '#FFFFFF', color: '#475569', border: '1px solid #CBD5E1', cursor: 'pointer' }}
                                   title="Edit Category Record"
@@ -1279,6 +1441,22 @@ export const CategoryMasterModule: React.FC = () => {
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <button
+                                  type="button"
+                                  onClick={() => handleOpenViewCategory(rec)}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '3px 6px', borderRadius: 4, background: '#F0FDFA', color: '#0F766E', border: '1px solid #99F6E4', fontSize: 10.5, fontWeight: 600, cursor: 'pointer' }}
+                                  title="View Category Details & Configured Attributes"
+                                >
+                                  <Sparkles size={11} />
+                                  <span>Attributes ({getCategoryAttributes(rec.category_id).length}/10)</span>
+                                </button>
+                                <button
+                                  onClick={() => handleOpenViewCategory(rec)}
+                                  style={{ padding: '3px 6px', borderRadius: 4, background: '#FFF', color: '#0F766E', border: '1px solid #99F6E4', cursor: 'pointer' }}
+                                  title="View Category Record & Attributes"
+                                >
+                                  <Eye size={11} />
+                                </button>
+                                <button
                                   onClick={(e) => handleOpenEditCatModal(rec, e)}
                                   style={{ padding: '3px 6px', borderRadius: 4, background: '#FFF', color: '#475569', border: '1px solid #CBD5E1', cursor: 'pointer' }}
                                 >
@@ -1399,6 +1577,22 @@ export const CategoryMasterModule: React.FC = () => {
 
                                           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                             <button
+                                              type="button"
+                                              onClick={() => handleOpenViewCategory(leaf)}
+                                              style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '3px 6px', borderRadius: 4, background: '#F0FDFA', color: '#0F766E', border: '1px solid #99F6E4', fontSize: 10.5, fontWeight: 600, cursor: 'pointer' }}
+                                              title="View Category Details & Configured Attributes"
+                                            >
+                                              <Sparkles size={11} />
+                                              <span>Attributes ({getCategoryAttributes(leaf.category_id).length}/10)</span>
+                                            </button>
+                                            <button
+                                              onClick={() => handleOpenViewCategory(leaf)}
+                                              style={{ padding: '3px 6px', borderRadius: 4, background: '#FFF', color: '#0F766E', border: '1px solid #99F6E4', cursor: 'pointer' }}
+                                              title="View Category Record & Attributes"
+                                            >
+                                              <Eye size={11} />
+                                            </button>
+                                            <button
                                               onClick={(e) => handleOpenEditCatModal(leaf, e)}
                                               style={{ padding: '3px 7px', borderRadius: 4, background: '#FFF', color: '#475569', border: '1px solid #CBD5E1', cursor: 'pointer' }}
                                               title="Edit Category Record"
@@ -1450,7 +1644,7 @@ export const CategoryMasterModule: React.FC = () => {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {isCatModalOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 10005, background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setIsCatModalOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 540, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 22, boxShadow: '0 20px 48px rgba(15,23,42,0.2)', display: 'flex', flexDirection: 'column' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 22, boxShadow: '0 20px 48px rgba(15,23,42,0.2)', display: 'flex', flexDirection: 'column' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1625,6 +1819,150 @@ export const CategoryMasterModule: React.FC = () => {
                 </div>
               </div>
 
+              {/* ── CATEGORY ATTRIBUTES SECTION (CRITICAL CLIENT REQUIREMENT) ── */}
+              <div style={{
+                background: '#F8FAFC',
+                border: '1px solid #CBD5E1',
+                borderRadius: 8,
+                padding: '14px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 8
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
+                      CATEGORY ATTRIBUTES
+                    </label>
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      background: catAttrDrafts.length >= 10 ? '#FEF2F2' : (catAttrDrafts.length > 0 ? '#E0F2FE' : '#F1F5F9'),
+                      color: catAttrDrafts.length >= 10 ? '#DC2626' : (catAttrDrafts.length > 0 ? '#0369A1' : '#64748B'),
+                      border: `1px solid ${catAttrDrafts.length >= 10 ? '#FECACA' : (catAttrDrafts.length > 0 ? '#BAE6FD' : '#E2E8F0')}`
+                    }}>
+                      Assigned Attributes {catAttrDrafts.length} / 10
+                    </span>
+                  </div>
+
+                  {catAttrDrafts.length >= 10 ? (
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '3px 8px', borderRadius: 4, border: '1px solid #FECACA' }}>
+                      Maximum 10 attributes allowed for this category.
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddAttrModalContext('DRAFT_MODAL');
+                        setSelectedAttrId('');
+                        setAddAttrError(null);
+                        setIsAddAttrModalOpen(true);
+                      }}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: 6,
+                        background: '#0F766E',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        boxShadow: '0 1px 2px rgba(15,118,110,0.2)'
+                      }}
+                    >
+                      <Plus size={14} /> Add Attribute
+                    </button>
+                  )}
+                </div>
+
+                {/* Assigned Attributes List */}
+                {catAttrDrafts.length === 0 ? (
+                  <div style={{ fontSize: 12, color: '#94A3B8', fontStyle: 'italic', padding: '8px 2px' }}>
+                    No attributes assigned yet. Click "+ Add Attribute" to select from Attribute Master (max 10 attributes).
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 200, overflowY: 'auto' }}>
+                    {catAttrDrafts.map((draft, idx) => {
+                      const attr = (attributeMasters || []).find(a => (a.attribute_id || a.id) === draft.attribute_id);
+                      if (!attr) return null;
+                      const code = attr.attribute_code || attr.code || '';
+                      const name = attr.attribute_name || attr.name || '';
+                      const uom = attr.unit_of_measure;
+
+                      return (
+                        <div
+                          key={`${draft.attribute_id}_${idx}`}
+                          style={{
+                            padding: '8px 12px',
+                            background: '#FFFFFF',
+                            border: '1px solid #E2E8F0',
+                            borderRadius: 6,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            flexWrap: 'wrap',
+                            gap: 6
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 700, color: '#0F172A', fontSize: 12.5 }}>{name}</span>
+                            <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#0F766E', background: '#F0FDFA', padding: '1px 5px', borderRadius: 3, border: '1px solid #CCFBF1' }}>
+                              {code}
+                            </span>
+                            <span style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              background: '#F1F5F9',
+                              color: '#334155',
+                              border: '1px solid #E2E8F0'
+                            }}>
+                              {attr.data_type}
+                            </span>
+                            {uom && (
+                              <span style={{ fontSize: 11, color: '#64748B' }}>({uom})</span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setCatAttrDrafts(prev => prev.filter((_, i) => i !== idx))}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 4,
+                              background: '#FEF2F2',
+                              border: '1px solid #FECACA',
+                              color: '#DC2626',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3
+                            }}
+                            title="Remove attribute from this category"
+                          >
+                            <X size={12} /> Remove
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* System Info when editing */}
               {editingCat && (
                 <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: '#64748B', display: 'flex', gap: 16 }}>
@@ -1653,6 +1991,358 @@ export const CategoryMasterModule: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: VIEW CATEGORY & MANAGE ATTRIBUTES */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {isViewCatModalOpen && viewingCat && (() => {
+        const viewCatId = viewingCat.category_id || viewingCat.id || '';
+        const viewCatCode = viewingCat.category_code || viewingCat.code || '';
+        const viewPt = getPt(viewingCat.product_type_id);
+        const assignedList = getCategoryAttributes(viewCatId);
+        const isAtCapacity = assignedList.length >= 10;
+
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10005,
+              background: 'rgba(15, 23, 42, 0.55)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 20
+            }}
+            onClick={() => setIsViewCatModalOpen(false)}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 680,
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: 12,
+                padding: 22,
+                boxShadow: '0 20px 48px rgba(15,23,42,0.2)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16
+              }}
+            >
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 12, borderBottom: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: '#F0FDFA', color: '#0F766E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Eye size={18} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                        {viewingCat.category}
+                      </h3>
+                      <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
+                        {viewCatCode}
+                      </span>
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: (viewingCat.lifecycle_status === 'ACTIVE' || viewingCat.status === 'Active') ? '#DCFCE7' : '#FEE2E2',
+                        color: (viewingCat.lifecycle_status === 'ACTIVE' || viewingCat.status === 'Active') ? '#15803D' : '#B91C1C'
+                      }}>
+                        {viewingCat.lifecycle_status || viewingCat.status || 'ACTIVE'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                      Product Type: <strong>{viewPt?.product_type_name || viewPt?.name || viewingCat.product_type_id}</strong>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsViewCatModalOpen(false)}
+                  style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Category Details Summary Card */}
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.04em' }}>
+                  Category Details
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, fontSize: 12 }}>
+                  <div>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Category:</span>
+                    <strong style={{ color: '#0F172A' }}>{viewingCat.category}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Sub Category:</span>
+                    <strong style={{ color: '#0F172A' }}>{viewingCat.sub_category || '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Sub-Sub Category:</span>
+                    <strong style={{ color: '#0F172A' }}>{viewingCat.sub_sub_category || '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Category ID:</span>
+                    <span style={{ fontFamily: 'monospace', color: '#0F766E', fontWeight: 600 }}>{viewCatId}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Display Order:</span>
+                    <span style={{ color: '#0F172A', fontWeight: 600 }}>{viewingCat.display_order ?? 1}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Last Updated:</span>
+                    <span style={{ color: '#0F172A' }}>{formatMasterDate(viewingCat.updated_at)}</span>
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #E2E8F0', fontSize: 11.5, color: '#475569' }}>
+                  <span style={{ color: '#64748B', fontWeight: 600 }}>Description: </span>
+                  {viewingCat.description || '—'}
+                </div>
+              </div>
+
+              {/* Category Attributes Section */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Category Attributes
+                    </span>
+                    <span style={{ fontSize: 11.5, color: '#64748B', marginLeft: 8 }}>
+                      (Category-specific dynamic attributes)
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      background: isAtCapacity ? '#FEE2E2' : '#F0FDFA',
+                      color: isAtCapacity ? '#B91C1C' : '#0F766E',
+                      border: isAtCapacity ? '1px solid #FCA5A5' : '1px solid #99F6E4'
+                    }}>
+                      Assigned: {assignedList.length} / 10
+                    </span>
+                    {!isAtCapacity && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAddAttrModalContext('VIEW_MODAL');
+                          setSelectedAttrId('');
+                          setAddAttrError(null);
+                          setIsAddAttrModalOpen(true);
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '4px 10px',
+                          borderRadius: 5,
+                          background: '#0F766E',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Plus size={13} /> Add Attribute
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Capacity alert if max 10 reached */}
+                {isAtCapacity && (
+                  <div style={{
+                    background: '#FEF2F2',
+                    border: '1px solid #FCA5A5',
+                    borderRadius: 6,
+                    padding: '8px 12px',
+                    fontSize: 12,
+                    color: '#B91C1C',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontWeight: 600
+                  }}>
+                    <AlertTriangle size={14} />
+                    <span>Maximum 10 attributes allowed for this category.</span>
+                  </div>
+                )}
+
+                {/* Assigned Attributes List */}
+                {assignedList.length === 0 ? (
+                  <div style={{
+                    padding: 20,
+                    textAlign: 'center',
+                    background: '#F8FAFC',
+                    border: '1px dashed #CBD5E1',
+                    borderRadius: 6,
+                    color: '#64748B',
+                    fontSize: 12.5
+                  }}>
+                    No attributes assigned to this category yet.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
+                    {assignedList.map((ca, idx) => {
+                      const attrId = ca.attribute_id || ca.attributeId || '';
+                      const master = (attributeMasters || []).find(m => (m.attribute_id === attrId || m.id === attrId));
+                      const attrName = master?.attribute_name || master?.name || attrId;
+                      const attrCode = master?.attribute_code || master?.code || '—';
+                      const attrType = master?.data_type || 'TEXT';
+                      const attrUom = master?.unit_of_measure;
+                      const isRequired = !!master?.is_required;
+
+                      return (
+                        <div
+                          key={ca.category_attribute_id || `${viewCatId}_${attrId}_${idx}`}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '8px 12px',
+                            background: '#FFFFFF',
+                            border: '1px solid #E2E8F0',
+                            borderRadius: 6
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: '50%',
+                              background: '#F1F5F9',
+                              color: '#475569',
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              {idx + 1}
+                            </span>
+                            <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#0F766E' }}>
+                              {attrCode}
+                            </span>
+                            <strong style={{ fontSize: 12.5, color: '#0F172A' }}>
+                              {attrName}
+                            </strong>
+                            {attrUom && (
+                              <span style={{ fontSize: 11, color: '#64748B' }}>
+                                ({attrUom})
+                              </span>
+                            )}
+                            <span style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              background: '#E0F2FE',
+                              color: '#0369A1'
+                            }}>
+                              {attrType}
+                            </span>
+                            {isRequired && (
+                              <span style={{
+                                fontSize: 9.5,
+                                fontWeight: 800,
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                background: '#FEF3C7',
+                                color: '#92400E'
+                              }}>
+                                REQUIRED
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              removeCategoryAttribute(viewCatId, attrId);
+                              showToast(`Removed "${attrName}" from category`);
+                            }}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: 4,
+                              border: '1px solid #FECACA',
+                              background: '#FFF',
+                              color: '#DC2626',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                            title="Remove attribute from this category"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTop: '1px solid #E2E8F0' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const catToEdit = viewingCat;
+                    setIsViewCatModalOpen(false);
+                    handleOpenEditCatModal(catToEdit);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 6,
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#0F766E',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Edit3 size={13} /> Edit Category Record
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsViewCatModalOpen(false)}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: '#0F766E',
+                    color: '#FFFFFF',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* MODAL: ADD / EDIT PRODUCT TYPE */}
@@ -1772,6 +2462,176 @@ export const CategoryMasterModule: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* MODAL: ADD ATTRIBUTE ASSIGNMENT (Client Requirement Section 4) */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {isAddAttrModalOpen && (() => {
+        const availableList = addAttrModalContext === 'VIEW_MODAL'
+          ? availableAttributesForViewModal
+          : availableAttributesForModal;
+        const targetCategoryName = addAttrModalContext === 'VIEW_MODAL'
+          ? (viewingCat?.category || 'Selected Category')
+          : (catFormData.category || 'Category');
+
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 10020,
+              background: 'rgba(15, 23, 42, 0.6)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 20
+            }}
+            onClick={() => setIsAddAttrModalOpen(false)}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 480,
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: 12,
+                padding: 22,
+                boxShadow: '0 20px 48px rgba(15,23,42,0.2)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16
+              }}
+            >
+              {/* Modal Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 6, background: '#F0FDFA', color: '#0F766E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Plus size={18} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Add Attribute Assignment
+                    </h3>
+                    <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                      Category: <strong style={{ color: '#0F766E' }}>{targetCategoryName}</strong>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddAttrModalOpen(false)}
+                  style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Error Message */}
+              {addAttrError && (
+                <div style={{
+                  background: '#FEE2E2',
+                  border: '1px solid #FCA5A5',
+                  borderRadius: 6,
+                  padding: '8px 12px',
+                  color: '#B91C1C',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}>
+                  <AlertTriangle size={15} />
+                  <span>{addAttrError}</span>
+                </div>
+              )}
+
+              {/* Assignment Form */}
+              <form onSubmit={handleConfirmAddAttribute} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Field 1: ATTRIBUTE * */}
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4, letterSpacing: '0.03em' }}>
+                    ATTRIBUTE *
+                  </label>
+                  <select
+                    required
+                    value={selectedAttrId}
+                    onChange={e => {
+                      setSelectedAttrId(e.target.value);
+                      setAddAttrError(null);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: 6,
+                      fontSize: 13,
+                      background: '#FFF',
+                      outline: 'none',
+                      color: selectedAttrId ? '#0F172A' : '#64748B'
+                    }}
+                  >
+                    <option value="">[ Select Attribute ▼ ]</option>
+                    {availableList.map(attr => {
+                      const attrId = attr.attribute_id || attr.id!;
+                      const code = attr.attribute_code || attr.code;
+                      const name = attr.attribute_name || attr.name;
+                      const uom = attr.unit_of_measure ? ` (${attr.unit_of_measure})` : '';
+                      return (
+                        <option key={attrId} value={attrId}>
+                          {code} — {name} [{attr.data_type}]{uom}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {availableList.length === 0 && (
+                    <div style={{ fontSize: 11.5, color: '#94A3B8', marginTop: 4, fontStyle: 'italic' }}>
+                      All active attributes from Attribute Master are already assigned to this category.
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer / Buttons */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6, paddingTop: 12, borderTop: '1px solid #E2E8F0' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddAttrModalOpen(false)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 6,
+                      border: '1px solid #CBD5E1',
+                      background: '#FFF',
+                      color: '#475569',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={availableList.length === 0}
+                    style={{
+                      padding: '8px 20px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: availableList.length === 0 ? '#94A3B8' : '#0F766E',
+                      color: '#FFF',
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      cursor: availableList.length === 0 ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    Add Attribute
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* MODAL: DELETE CONFIRMATION */}

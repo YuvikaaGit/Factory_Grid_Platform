@@ -376,6 +376,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
       if (path.includes('category-master') || path.includes('subcategories')) {
         setActiveTab('category-master');
       }
+      if (path.includes('attribute-master')) {
+        setActiveTab('attribute-master');
+      }
       if (path === '/buyer/product-catalog' || path.startsWith('/buyer/product-catalog') ||
         path === '/buyer/catalog' || path.startsWith('/buyer/catalog')) {
         setCurrentRole('BUYER');
@@ -551,6 +554,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
       if (tabId === 'category-master') {
         if (typeof window !== 'undefined' && window.location.pathname !== '/admin/category-master') {
           window.history.pushState({}, '', '/admin/category-master');
+        }
+      } else if (tabId === 'attribute-master') {
+        if (typeof window !== 'undefined' && window.location.pathname !== '/admin/attribute-master') {
+          window.history.pushState({}, '', '/admin/attribute-master');
         }
       } else if (tabId === 'buyer-catalog' || tabId === 'buyer-product-catalog') {
         if (typeof window !== 'undefined' && window.location.pathname !== '/buyer/product-catalog') {
@@ -1160,7 +1167,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onNavigate }) 
                         activeTab === 'brand-master' ? 'Brand Master' :
                         activeTab === 'manufacturer-master' ? 'Manufacturer Master' :
                         activeTab === 'products' ? 'Product Catalog Master' :
-                        activeTab === 'attribute-master' ? 'Product Attribute Master' :
+                        activeTab === 'attribute-master' ? 'Attribute Master' :
                         activeTab === 'product-manufacturer-mapping' ? 'Product Manufacturer Mapping' :
                         activeTab === 'customer-segment' ? 'Customer Segment Master' :
                         activeTab === 'product-price' ? 'Product Price Management' :

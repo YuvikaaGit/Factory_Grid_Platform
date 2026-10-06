@@ -499,6 +499,7 @@ export interface AttributeMaster {
   attribute_name: string;
   data_type: AttributeDataType;
   unit_of_measure?: string;
+  remark?: string;
   is_filterable: boolean;
   is_searchable: boolean;
   is_required: boolean;
@@ -527,6 +528,20 @@ export interface ProductAttribute {
   attributeName?: string;
   attributeCode?: string;
   unitOfMeasure?: string;
+}
+
+// ── CATEGORY -> ATTRIBUTE ASSOCIATION (CRITICAL CLIENT REQUIREMENT) ──
+export interface CategoryAttribute {
+  category_attribute_id: string;
+  category_id: string;
+  attribute_id: string;
+  remark?: string;
+  created_at?: string;
+  updated_at?: string;
+  // Aliases and UI helpers
+  id?: string;
+  categoryId?: string;
+  attributeId?: string;
 }
 
 // ── PRODUCT MANUFACTURER (CRITICAL) ──────────────────────────────────

@@ -17,7 +17,9 @@ export const ProductPriceModule: React.FC = () => {
     updateProductPrice,
     removeProductPrice,
     addAuditLog,
-    currentRole
+    currentRole,
+    productTypes,
+    unifiedCategories
   } = useApp();
 
   const canEdit = currentRole === 'ADMIN';
@@ -33,6 +35,11 @@ export const ProductPriceModule: React.FC = () => {
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Hierarchy Selection Context for Modal (Selection context only - NOT stored in PRODUCT_PRICE)
+  const [modalProductTypeId, setModalProductTypeId] = useState<string>('');
+  const [modalCategory, setModalCategory] = useState<string>('');
+  const [modalSubCategory, setModalSubCategory] = useState<string>('');
+
   const [formData, setFormData] = useState({
     product_id: '',
     product_manufacturer_id: '' as string | null,
@@ -46,6 +53,70 @@ export const ProductPriceModule: React.FC = () => {
     effective_to: '',
     price_status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'DRAFT'
   });
+
+  // Available Categories in Modal (Filtered by selected Product Type)
+  const modalCategories = useMemo(() => {
+    if (!modalProductTypeId) return [];
+    const catSet = new Set<string>();
+    (unifiedCategories || []).forEach(c => {
+      if (
+        c.product_type_id === modalProductTypeId &&
+        (c.lifecycle_status === 'ACTIVE' || (c as any).status === 'Active') &&
+        c.category
+      ) {
+        catSet.add(c.category);
+      }
+    });
+    return Array.from(catSet).sort();
+  }, [unifiedCategories, modalProductTypeId]);
+
+  // Available Sub-Categories in Modal (Filtered by selected Product Type & Category)
+  const modalSubCategories = useMemo(() => {
+    if (!modalProductTypeId || !modalCategory) return [];
+    const subSet = new Set<string>();
+    (unifiedCategories || []).forEach(c => {
+      if (
+        c.product_type_id === modalProductTypeId &&
+        c.category === modalCategory &&
+        (c.lifecycle_status === 'ACTIVE' || (c as any).status === 'Active') &&
+        c.sub_category
+      ) {
+        subSet.add(c.sub_category);
+      }
+    });
+    return Array.from(subSet).sort();
+  }, [unifiedCategories, modalProductTypeId, modalCategory]);
+
+  // Available Products in Modal (Filtered by selected Product Type, Category, and Sub-Category)
+  const modalAvailableProducts = useMemo(() => {
+    if (!modalProductTypeId || !modalCategory) return [];
+    // If sub-categories exist for this category, require sub-category selection first
+    if (modalSubCategories.length > 0 && !modalSubCategory) return [];
+
+    return (products || []).filter(p => {
+      // Find category record in unifiedCategories
+      const catRecord = (unifiedCategories || []).find(c =>
+        c.category_id === (p.category_id || p.categoryId) ||
+        c.id === (p.category_id || p.categoryId)
+      );
+
+      // Verify Product Type
+      const prdPtId = p.product_type_id || p.productTypeId || catRecord?.product_type_id;
+      if (prdPtId && prdPtId !== modalProductTypeId) return false;
+
+      // Verify Category
+      const prdCat = catRecord?.category || p.category;
+      if (prdCat && prdCat !== modalCategory) return false;
+
+      // Verify Sub-Category if chosen
+      if (modalSubCategory) {
+        const prdSub = catRecord?.sub_category || p.subCategory || (p as any).sub_category;
+        if (prdSub && prdSub !== modalSubCategory) return false;
+      }
+
+      return true;
+    });
+  }, [products, unifiedCategories, modalProductTypeId, modalCategory, modalSubCategory, modalSubCategories.length]);
 
   // Mapped manufacturers for the selected product in modal
   const modalAvailableMappings = useMemo(() => {
@@ -75,35 +146,77 @@ export const ProductPriceModule: React.FC = () => {
   // Handlers
   const handleOpenAddModal = (defaultProductId?: string) => {
     setEditingPriceId(null);
-    const pId = defaultProductId || (products[0]?.id || '');
-    const firstSeg = customerSegments[0]?.customer_segment_id || '';
-    setFormData({
-      product_id: pId,
-      product_manufacturer_id: null,
-      customer_segment_id: firstSeg,
-      price_type: 'FIXED',
-      currency: 'INR',
-      unit_price: 15.00,
-      minimum_quantity: 100,
-      maximum_quantity: '',
-      effective_from: new Date().toISOString().split('T')[0],
-      effective_to: '',
-      price_status: 'ACTIVE'
-    });
+    const firstSeg = customerSegments[0]?.customer_segment_id || customerSegments[0]?.id || '';
+
+    if (defaultProductId) {
+      const prd = (products || []).find(p => p.id === defaultProductId || p.product_id === defaultProductId);
+      const catRecord = (unifiedCategories || []).find(c =>
+        c.category_id === (prd?.category_id || prd?.categoryId) ||
+        c.id === (prd?.category_id || prd?.categoryId)
+      );
+      setModalProductTypeId(prd?.product_type_id || prd?.productTypeId || catRecord?.product_type_id || '');
+      setModalCategory(catRecord?.category || prd?.category || '');
+      setModalSubCategory(catRecord?.sub_category || prd?.subCategory || (prd as any)?.sub_category || '');
+      setFormData({
+        product_id: defaultProductId,
+        product_manufacturer_id: null,
+        customer_segment_id: firstSeg,
+        price_type: 'FIXED',
+        currency: 'INR',
+        unit_price: 15.00,
+        minimum_quantity: 100,
+        maximum_quantity: '',
+        effective_from: new Date().toISOString().split('T')[0],
+        effective_to: '',
+        price_status: 'ACTIVE'
+      });
+    } else {
+      setModalProductTypeId('');
+      setModalCategory('');
+      setModalSubCategory('');
+      setFormData({
+        product_id: '',
+        product_manufacturer_id: null,
+        customer_segment_id: firstSeg,
+        price_type: 'FIXED',
+        currency: 'INR',
+        unit_price: 15.00,
+        minimum_quantity: 100,
+        maximum_quantity: '',
+        effective_from: new Date().toISOString().split('T')[0],
+        effective_to: '',
+        price_status: 'ACTIVE'
+      });
+    }
     setFormError(null);
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (prc: ProductPrice) => {
     setEditingPriceId(prc.product_price_id || prc.id || '');
+    const pId = prc.product_id || prc.productId || '';
+    const prd = (products || []).find(p => p.id === pId || p.product_id === pId);
+    const catRecord = (unifiedCategories || []).find(c =>
+      c.category_id === (prd?.category_id || prd?.categoryId) ||
+      c.id === (prd?.category_id || prd?.categoryId)
+    );
+
+    const ptId = prd?.product_type_id || prd?.productTypeId || catRecord?.product_type_id || (productTypes[0]?.product_type_id || '');
+    const catName = catRecord?.category || prd?.category || '';
+    const subCatName = catRecord?.sub_category || prd?.subCategory || (prd as any)?.sub_category || '';
+
+    setModalProductTypeId(ptId);
+    setModalCategory(catName);
+    setModalSubCategory(subCatName);
+
     setFormData({
-      product_id: prc.product_id || prc.productId || '',
+      product_id: pId,
       product_manufacturer_id: prc.product_manufacturer_id || prc.productManufacturerId || null,
       customer_segment_id: prc.customer_segment_id || prc.customerSegmentId || '',
       price_type: prc.price_type || 'FIXED',
       currency: prc.currency || 'INR',
-      unit_price: prc.unit_price || prc.unitPrice || 0,
-      minimum_quantity: prc.minimum_quantity || prc.minQuantity || 1,
+      unit_price: prc.unit_price ?? prc.unitPrice ?? 0,
+      minimum_quantity: prc.minimum_quantity ?? prc.minQuantity ?? 1,
       maximum_quantity: prc.maximum_quantity ?? prc.maxQuantity ?? '',
       effective_from: prc.effective_from || prc.effectiveFrom || '2025-01-01',
       effective_to: prc.effective_to || prc.effectiveTo || '',
@@ -116,12 +229,32 @@ export const ProductPriceModule: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!modalProductTypeId) {
+      setFormError('Product Type is mandatory.');
+      return;
+    }
+    if (!modalCategory) {
+      setFormError('Category is mandatory.');
+      return;
+    }
+    if (modalSubCategories.length > 0 && !modalSubCategory) {
+      setFormError('Sub-Category is mandatory for the selected category.');
+      return;
+    }
     if (!formData.product_id) {
       setFormError('Product is mandatory.');
       return;
     }
     if (!formData.customer_segment_id) {
       setFormError('Customer Segment is mandatory.');
+      return;
+    }
+    if (!formData.price_type) {
+      setFormError('Price Type is mandatory.');
+      return;
+    }
+    if (!formData.currency) {
+      setFormError('Currency is mandatory.');
       return;
     }
     if (formData.unit_price <= 0) {
@@ -131,6 +264,56 @@ export const ProductPriceModule: React.FC = () => {
     if (formData.minimum_quantity < 1) {
       setFormError('Minimum Quantity must be at least 1.');
       return;
+    }
+    if (!formData.effective_from) {
+      setFormError('Effective From date is mandatory.');
+      return;
+    }
+    if (!formData.price_status) {
+      setFormError('Price Status is mandatory.');
+      return;
+    }
+
+    // Validate that the product belongs to the selected hierarchy
+    const selectedPrd = (products || []).find(p => p.id === formData.product_id || p.product_id === formData.product_id);
+    if (!selectedPrd) {
+      setFormError('Selected Product is invalid.');
+      return;
+    }
+    const catRecord = (unifiedCategories || []).find(c =>
+      c.category_id === (selectedPrd?.category_id || selectedPrd?.categoryId) ||
+      c.id === (selectedPrd?.category_id || selectedPrd?.categoryId)
+    );
+    const prdPtId = selectedPrd.product_type_id || selectedPrd.productTypeId || catRecord?.product_type_id;
+    if (prdPtId && prdPtId !== modalProductTypeId) {
+      setFormError('Selected Product does not belong to the selected Product Type.');
+      return;
+    }
+    const prdCat = catRecord?.category || selectedPrd.category;
+    if (prdCat && prdCat !== modalCategory) {
+      setFormError('Selected Product does not belong to the selected Category.');
+      return;
+    }
+    if (modalSubCategory) {
+      const prdSub = catRecord?.sub_category || selectedPrd.subCategory || (selectedPrd as any).sub_category;
+      if (prdSub && prdSub !== modalSubCategory) {
+        setFormError('Selected Product does not belong to the selected Sub-Category.');
+        return;
+      }
+    }
+
+    // Validate Product Manufacturer if selected
+    if (formData.product_manufacturer_id) {
+      const isValidMfg = modalAvailableMappings.some(m =>
+        m.product_manufacturer_id === formData.product_manufacturer_id ||
+        m.id === formData.product_manufacturer_id ||
+        m.manufacturer_id === formData.product_manufacturer_id ||
+        m.manufacturerId === formData.product_manufacturer_id
+      );
+      if (!isValidMfg) {
+        setFormError('Selected Product Manufacturer is not mapped to this product.');
+        return;
+      }
     }
 
     const nowIso = new Date().toISOString().split('T')[0];
@@ -159,8 +342,9 @@ export const ProductPriceModule: React.FC = () => {
       });
       addAuditLog('UPDATE_PRODUCT_PRICE', `Updated price record for product ${formData.product_id}`);
     } else {
+      const newPriceId = `prc_${Date.now()}`;
       const newPrice: ProductPrice = {
-        product_price_id: `prc_${Date.now()}`,
+        product_price_id: newPriceId,
         product_id: formData.product_id,
         product_manufacturer_id: formData.product_manufacturer_id || null,
         customer_segment_id: formData.customer_segment_id,
@@ -175,7 +359,7 @@ export const ProductPriceModule: React.FC = () => {
         created_at: nowIso,
         updated_at: nowIso,
         // compatibility aliases
-        id: `prc_${Date.now()}`,
+        id: newPriceId,
         productId: formData.product_id,
         unitPrice: Number(formData.unit_price),
         minQuantity: Number(formData.minimum_quantity),
@@ -458,37 +642,183 @@ export const ProductPriceModule: React.FC = () => {
             )}
 
             <form onSubmit={handleSubmit} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Step 1: Product Type * */}
+              <div>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Product Type *
+                </label>
+                <select
+                  required
+                  value={modalProductTypeId}
+                  onChange={e => {
+                    const newPtId = e.target.value;
+                    setModalProductTypeId(newPtId);
+                    setModalCategory('');
+                    setModalSubCategory('');
+                    setFormData(prev => ({
+                      ...prev,
+                      product_id: '',
+                      product_manufacturer_id: null
+                    }));
+                  }}
+                  style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #0F766E', borderRadius: 6, fontSize: 13, fontWeight: 700, outline: 'none', background: '#F0FDFA', color: '#0F766E' }}
+                >
+                  <option value="" disabled>-- Select Product Type * --</option>
+                  {(productTypes || []).filter(t => (t.lifecycle_status || t.status) === 'ACTIVE').map(t => (
+                    <option key={t.product_type_id || t.id} value={t.product_type_id || t.id}>
+                      {t.product_type_name || t.name} ({t.product_type_code || t.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Step 2: Category * & Step 3: Sub-Category */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                    Category *
+                  </label>
+                  <select
+                    required
+                    disabled={!modalProductTypeId}
+                    value={modalCategory}
+                    onChange={e => {
+                      const newCat = e.target.value;
+                      setModalCategory(newCat);
+                      setModalSubCategory('');
+                      setFormData(prev => ({
+                        ...prev,
+                        product_id: '',
+                        product_manufacturer_id: null
+                      }));
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      background: !modalProductTypeId ? '#F8FAFC' : '#FFFFFF',
+                      color: !modalProductTypeId ? '#94A3B8' : '#0F172A',
+                      cursor: !modalProductTypeId ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <option value="" disabled>
+                      {!modalProductTypeId ? '-- Select Product Type First --' : '-- Select Category * --'}
+                    </option>
+                    {modalCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                    Sub-Category {modalSubCategories.length > 0 ? <span style={{ color: '#0F766E' }}>*</span> : <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>}
+                  </label>
+                  <select
+                    disabled={!modalCategory || modalSubCategories.length === 0}
+                    value={modalSubCategory}
+                    onChange={e => {
+                      const newSubCat = e.target.value;
+                      setModalSubCategory(newSubCat);
+                      setFormData(prev => ({
+                        ...prev,
+                        product_id: '',
+                        product_manufacturer_id: null
+                      }));
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      background: (!modalCategory || modalSubCategories.length === 0) ? '#F8FAFC' : '#FFFFFF',
+                      color: (!modalCategory || modalSubCategories.length === 0) ? '#94A3B8' : '#0F172A',
+                      cursor: (!modalCategory || modalSubCategories.length === 0) ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    <option value="" disabled={modalSubCategories.length > 0}>
+                      {!modalCategory
+                        ? '-- Select Category First --'
+                        : modalSubCategories.length === 0
+                        ? '-- No Sub-Categories (Direct) --'
+                        : '-- Select Sub-Category --'}
+                    </option>
+                    {modalSubCategories.map(subCat => (
+                      <option key={subCat} value={subCat}>{subCat}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Step 4: Product * */}
               <div>
                 <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
                   Product *
                 </label>
                 <select
                   required
+                  disabled={!modalProductTypeId || !modalCategory || (modalSubCategories.length > 0 && !modalSubCategory)}
                   value={formData.product_id}
-                  onChange={e => setFormData({ ...formData, product_id: e.target.value, product_manufacturer_id: null })}
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontWeight: 600 }}
+                  onChange={e => setFormData(prev => ({ ...prev, product_id: e.target.value, product_manufacturer_id: null }))}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    background: (!modalProductTypeId || !modalCategory || (modalSubCategories.length > 0 && !modalSubCategory)) ? '#F8FAFC' : '#FFFFFF',
+                    color: (!modalProductTypeId || !modalCategory || (modalSubCategories.length > 0 && !modalSubCategory)) ? '#94A3B8' : '#0F172A',
+                    cursor: (!modalProductTypeId || !modalCategory || (modalSubCategories.length > 0 && !modalSubCategory)) ? 'not-allowed' : 'pointer'
+                  }}
                 >
-                  <option value="" disabled>-- Select Product * --</option>
-                  {(products || []).map(p => (
-                    <option key={p.id} value={p.id}>
+                  <option value="" disabled>
+                    {!modalProductTypeId
+                      ? '-- Select Product Type First --'
+                      : !modalCategory
+                      ? '-- Select Category First --'
+                      : (modalSubCategories.length > 0 && !modalSubCategory)
+                      ? '-- Select Sub-Category First --'
+                      : modalAvailableProducts.length === 0
+                      ? '-- No Products Found in Selected Hierarchy --'
+                      : '-- Select Product * --'}
+                  </option>
+                  {modalAvailableProducts.map(p => (
+                    <option key={p.id || p.product_id} value={p.id || p.product_id}>
                       {p.product_code || p.code} - {p.product_name || p.name}
                     </option>
                   ))}
                 </select>
               </div>
 
+              {/* Step 5: Product Manufacturer (Optional) */}
               <div>
                 <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
                   Product Manufacturer <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional — NULLABLE in client model)</span>
                 </label>
                 <select
+                  disabled={!formData.product_id}
                   value={formData.product_manufacturer_id || ''}
-                  onChange={e => setFormData({ ...formData, product_manufacturer_id: e.target.value || null })}
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13 }}
+                  onChange={e => setFormData(prev => ({ ...prev, product_manufacturer_id: e.target.value || null }))}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    background: !formData.product_id ? '#F8FAFC' : '#FFFFFF',
+                    color: !formData.product_id ? '#94A3B8' : '#0F172A',
+                    cursor: !formData.product_id ? 'not-allowed' : 'pointer'
+                  }}
                 >
                   <option value="">-- All Manufacturers / Global Product Price --</option>
                   {modalAvailableMappings.map(m => (
-                    <option key={m.product_manufacturer_id} value={m.product_manufacturer_id}>
+                    <option key={m.product_manufacturer_id || (m as any).id} value={m.product_manufacturer_id || (m as any).id}>
                       {m.manufacturer_name || m.manufacturerName} ({m.manufacturer_product_code || m.mfgProductCode || 'Mapped'})
                     </option>
                   ))}

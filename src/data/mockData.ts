@@ -2,7 +2,7 @@ import {
   Customer, Manufacturer, Product, RFQ, ManufacturerQuote, MasterOrder, Invoice,
   ComplianceCase, NotificationItem, ManufacturerProductMapping, ProductManufacturer,
   CustomerVerificationRequest, CategoryMaster, SubCategoryMaster, SubSubCategoryMaster,
-  Category, ProductType, Brand, AttributeMaster, ProductAttribute, CustomerSegment,
+  Category, ProductType, Brand, AttributeMaster, ProductAttribute, CategoryAttribute, CustomerSegment,
   ProductPrice, ProductTax, ProductUom, ManufacturerDirectOrderEligibility,
   CustomerQuote, CustomerQuoteLine, OrderLine, CategoryMargin, MarginRule, InternalPriceListItem
 } from '../types';
@@ -2005,6 +2005,74 @@ export const mockUnifiedCategories: Category[] = [
   }
 ];
 
+
+// ── CATEGORY -> ATTRIBUTE ASSOCIATION (CATEGORY_ATTRIBUTE) ────────────
+export const mockCategoryAttributes: CategoryAttribute[] = [
+  // CAT001: Drugs > Tablets > Film Coated Tablets (e.g. Amoxyclav, Paracetamol, Azithromycin)
+  { category_attribute_id: 'ca_cat001_1', category_id: 'CAT001', attribute_id: 'attr_generic_name', remark: 'Mandatory active pharmaceutical molecule title', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat001_1', categoryId: 'CAT001', attributeId: 'attr_generic_name' },
+  { category_attribute_id: 'ca_cat001_2', category_id: 'CAT001', attribute_id: 'attr_salt', remark: 'Active pharmaceutical ingredient composition profile', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat001_2', categoryId: 'CAT001', attributeId: 'attr_salt' },
+  { category_attribute_id: 'ca_cat001_3', category_id: 'CAT001', attribute_id: 'attr_strength', remark: 'Applicable for pharmaceutical dosage strength', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat001_3', categoryId: 'CAT001', attributeId: 'attr_strength' },
+  { category_attribute_id: 'ca_cat001_4', category_id: 'CAT001', attribute_id: 'attr_dosage_form', remark: 'Solid oral tablet delivery specification', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat001_4', categoryId: 'CAT001', attributeId: 'attr_dosage_form' },
+  { category_attribute_id: 'ca_cat001_5', category_id: 'CAT001', attribute_id: 'attr_pack_size', remark: 'Primary packaging strip configuration', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat001_5', categoryId: 'CAT001', attributeId: 'attr_pack_size' },
+  { category_attribute_id: 'ca_cat001_6', category_id: 'CAT001', attribute_id: 'attr_storage_temp', remark: 'Warehouse storage temperature limits', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat001_6', categoryId: 'CAT001', attributeId: 'attr_storage_temp' },
+
+  // CAT002: Drugs > Tablets > Uncoated Tablets
+  { category_attribute_id: 'ca_cat002_1', category_id: 'CAT002', attribute_id: 'attr_generic_name', remark: 'Generic molecule denomination', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat002_1', categoryId: 'CAT002', attributeId: 'attr_generic_name' },
+  { category_attribute_id: 'ca_cat002_2', category_id: 'CAT002', attribute_id: 'attr_strength', remark: 'Dosage potency per tablet', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat002_2', categoryId: 'CAT002', attributeId: 'attr_strength' },
+  { category_attribute_id: 'ca_cat002_3', category_id: 'CAT002', attribute_id: 'attr_dosage_form', remark: 'Directly compressed tablet formulation', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat002_3', categoryId: 'CAT002', attributeId: 'attr_dosage_form' },
+  { category_attribute_id: 'ca_cat002_4', category_id: 'CAT002', attribute_id: 'attr_colour', remark: 'Finished core appearance or colour', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat002_4', categoryId: 'CAT002', attributeId: 'attr_colour' },
+
+  // CAT003: Drugs > Tablets > Chewable / Sustained Release (e.g. Paracetamol 650 ER)
+  { category_attribute_id: 'ca_cat003_1', category_id: 'CAT003', attribute_id: 'attr_generic_name', remark: 'Active drug component title', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat003_1', categoryId: 'CAT003', attributeId: 'attr_generic_name' },
+  { category_attribute_id: 'ca_cat003_2', category_id: 'CAT003', attribute_id: 'attr_salt', remark: 'Salt combination profile', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat003_2', categoryId: 'CAT003', attributeId: 'attr_salt' },
+  { category_attribute_id: 'ca_cat003_3', category_id: 'CAT003', attribute_id: 'attr_strength', remark: 'Applicable for pharmaceutical dosage strength', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat003_3', categoryId: 'CAT003', attributeId: 'attr_strength' },
+  { category_attribute_id: 'ca_cat003_4', category_id: 'CAT003', attribute_id: 'attr_dosage_form', remark: 'Formulation delivery system', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat003_4', categoryId: 'CAT003', attributeId: 'attr_dosage_form' },
+  { category_attribute_id: 'ca_cat003_5', category_id: 'CAT003', attribute_id: 'attr_pack_size', remark: 'Packaging unit configuration', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat003_5', categoryId: 'CAT003', attributeId: 'attr_pack_size' },
+
+  // CAT004: Drugs > Tablets > Extended Release (e.g. Metformin SR)
+  { category_attribute_id: 'ca_cat004_1', category_id: 'CAT004', attribute_id: 'attr_generic_name', remark: 'Generic INN substance title', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat004_1', categoryId: 'CAT004', attributeId: 'attr_generic_name' },
+  { category_attribute_id: 'ca_cat004_2', category_id: 'CAT004', attribute_id: 'attr_salt', remark: 'Salt combination chemical profile', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat004_2', categoryId: 'CAT004', attributeId: 'attr_salt' },
+  { category_attribute_id: 'ca_cat004_3', category_id: 'CAT004', attribute_id: 'attr_strength', remark: 'Potency per extended release unit', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat004_3', categoryId: 'CAT004', attributeId: 'attr_strength' },
+  { category_attribute_id: 'ca_cat004_4', category_id: 'CAT004', attribute_id: 'attr_dosage_form', remark: 'Extended release matrix system', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat004_4', categoryId: 'CAT004', attributeId: 'attr_dosage_form' },
+
+  // CAT005: Drugs > Capsules > Hard Gelatin Capsules (e.g. Pantoprazole + Domperidone)
+  { category_attribute_id: 'ca_cat005_1', category_id: 'CAT005', attribute_id: 'attr_generic_name', remark: 'Molecule title', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat005_1', categoryId: 'CAT005', attributeId: 'attr_generic_name' },
+  { category_attribute_id: 'ca_cat005_2', category_id: 'CAT005', attribute_id: 'attr_salt', remark: 'Salt combination profile', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat005_2', categoryId: 'CAT005', attributeId: 'attr_salt' },
+  { category_attribute_id: 'ca_cat005_3', category_id: 'CAT005', attribute_id: 'attr_strength', remark: 'Capsule fill potency', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat005_3', categoryId: 'CAT005', attributeId: 'attr_strength' },
+  { category_attribute_id: 'ca_cat005_4', category_id: 'CAT005', attribute_id: 'attr_dosage_form', remark: 'Hard gelatin capsule shell', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat005_4', categoryId: 'CAT005', attributeId: 'attr_dosage_form' },
+
+  // CAT007: Drugs > Syrups > Oral Syrups (Client Example: Generic Name, Strength, Volume/Pack Size, Dosage Form)
+  { category_attribute_id: 'ca_cat007_1', category_id: 'CAT007', attribute_id: 'attr_generic_name', remark: 'Liquid active pharmaceutical molecule', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat007_1', categoryId: 'CAT007', attributeId: 'attr_generic_name' },
+  { category_attribute_id: 'ca_cat007_2', category_id: 'CAT007', attribute_id: 'attr_salt', remark: 'Concentration per 5ml therapeutic unit', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat007_2', categoryId: 'CAT007', attributeId: 'attr_salt' },
+  { category_attribute_id: 'ca_cat007_3', category_id: 'CAT007', attribute_id: 'attr_strength', remark: 'Bottle net liquid volume / potency', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat007_3', categoryId: 'CAT007', attributeId: 'attr_strength' },
+  { category_attribute_id: 'ca_cat007_4', category_id: 'CAT007', attribute_id: 'attr_dosage_form', remark: 'Oral syrup formulation vehicle', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat007_4', categoryId: 'CAT007', attributeId: 'attr_dosage_form' },
+  { category_attribute_id: 'ca_cat007_5', category_id: 'CAT007', attribute_id: 'attr_storage_temp', remark: 'Keep away from direct sunlight', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat007_5', categoryId: 'CAT007', attributeId: 'attr_storage_temp' },
+
+  // CAT009: Drugs > Injections > IV Injection (e.g. Ceftriaxone)
+  { category_attribute_id: 'ca_cat009_1', category_id: 'CAT009', attribute_id: 'attr_generic_name', remark: 'Sterile parenteral active substance', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat009_1', categoryId: 'CAT009', attributeId: 'attr_generic_name' },
+  { category_attribute_id: 'ca_cat009_2', category_id: 'CAT009', attribute_id: 'attr_salt', remark: 'Sterile salt with Water For Injection (WFI)', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat009_2', categoryId: 'CAT009', attributeId: 'attr_salt' },
+  { category_attribute_id: 'ca_cat009_3', category_id: 'CAT009', attribute_id: 'attr_strength', remark: 'Sterile unit dosage strength', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat009_3', categoryId: 'CAT009', attributeId: 'attr_strength' },
+  { category_attribute_id: 'ca_cat009_4', category_id: 'CAT009', attribute_id: 'attr_dosage_form', remark: 'Sterile parenteral dosage form', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat009_4', categoryId: 'CAT009', attributeId: 'attr_dosage_form' },
+  { category_attribute_id: 'ca_cat009_5', category_id: 'CAT009', attribute_id: 'attr_route', remark: 'Intravenous systemic infusion', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat009_5', categoryId: 'CAT009', attributeId: 'attr_route' },
+
+  // CAT017: Medical Preparations > Ointments & Creams (e.g. Diclofenac Gel)
+  { category_attribute_id: 'ca_cat017_1', category_id: 'CAT017', attribute_id: 'attr_generic_name', remark: 'Topical pharmaceutical active title', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat017_1', categoryId: 'CAT017', attributeId: 'attr_generic_name' },
+  { category_attribute_id: 'ca_cat017_2', category_id: 'CAT017', attribute_id: 'attr_salt', remark: 'Topical active ingredient composition', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat017_2', categoryId: 'CAT017', attributeId: 'attr_salt' },
+  { category_attribute_id: 'ca_cat017_3', category_id: 'CAT017', attribute_id: 'attr_strength', remark: 'Percentage w/w or net tube weight', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat017_3', categoryId: 'CAT017', attributeId: 'attr_strength' },
+  { category_attribute_id: 'ca_cat017_4', category_id: 'CAT017', attribute_id: 'attr_dosage_form', remark: 'Dermal ointment, gel or cream', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat017_4', categoryId: 'CAT017', attributeId: 'attr_dosage_form' },
+
+  // CAT019: Dietary Supplements > Tablets (Nutraceutical)
+  { category_attribute_id: 'ca_cat019_1', category_id: 'CAT019', attribute_id: 'attr_generic_name', remark: 'Nutritional active formulation title', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat019_1', categoryId: 'CAT019', attributeId: 'attr_generic_name' },
+  { category_attribute_id: 'ca_cat019_2', category_id: 'CAT019', attribute_id: 'attr_strength', remark: 'Nutrient potency RDA benchmark', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat019_2', categoryId: 'CAT019', attributeId: 'attr_strength' },
+  { category_attribute_id: 'ca_cat019_3', category_id: 'CAT019', attribute_id: 'attr_dosage_form', remark: 'Nutraceutical tablet formulation', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat019_3', categoryId: 'CAT019', attributeId: 'attr_dosage_form' },
+  { category_attribute_id: 'ca_cat019_4', category_id: 'CAT019', attribute_id: 'attr_shelf_life', remark: 'FSSAI shelf life stability period', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat019_4', categoryId: 'CAT019', attributeId: 'attr_shelf_life' },
+
+  // CAT023: Clinical Skincare > Serums (Cosmetics)
+  { category_attribute_id: 'ca_cat023_1', category_id: 'CAT023', attribute_id: 'attr_generic_name', remark: 'Cosmeceutical active ingredient title', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat023_1', categoryId: 'CAT023', attributeId: 'attr_generic_name' },
+  { category_attribute_id: 'ca_cat023_2', category_id: 'CAT023', attribute_id: 'attr_strength', remark: 'Active concentration percentage', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat023_2', categoryId: 'CAT023', attributeId: 'attr_strength' },
+  { category_attribute_id: 'ca_cat023_3', category_id: 'CAT023', attribute_id: 'attr_pkg_type', remark: 'Amber glass dropper bottle', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat023_3', categoryId: 'CAT023', attributeId: 'attr_pkg_type' },
+  { category_attribute_id: 'ca_cat023_4', category_id: 'CAT023', attribute_id: 'attr_storage_temp', remark: 'Ambient cosmetic storage conditions', created_at: '2025-01-01', updated_at: '2026-08-01', id: 'ca_cat023_4', categoryId: 'CAT023', attributeId: 'attr_storage_temp' }
+];
 
 // ── DYNAMIC PRODUCT ATTRIBUTES (ATTRIBUTE_MASTER -> PRODUCT_ATTRIBUTE) ──
 export const mockProductAttributes: ProductAttribute[] = [

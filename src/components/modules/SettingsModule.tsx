@@ -104,8 +104,8 @@ export const MASTER_SETTINGS_TILES: MasterTile[] = [
   {
     id: 'attribute-master',
     tabId: 'attribute-master',
-    title: 'Product Attribute Master',
-    description: 'Dynamic clinical attributes: generic name, salt combinations, dosage forms, and strengths.',
+    title: 'Attribute Master',
+    description: 'Master specification attributes definition, data types, unit of measure, and search/filtering flags.',
     icon: Sparkles,
     entityTag: 'ATTRIBUTE_MASTER'
   },

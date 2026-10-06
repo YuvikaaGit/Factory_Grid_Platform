@@ -8,7 +8,7 @@ import {
   CustomerVerificationStatus, CustomerVerificationDocument,
   UserProfile, OrganizationProfile, UserDocument, ProfileDocStatus, DocumentVersion,
   CustomerClassification, AdvanceMethod, AdvanceStatus, AdvancePaymentRecord,
-  ProductType, Brand, Category, AttributeMaster, ProductAttribute, CustomerSegment,
+  ProductType, Brand, Category, AttributeMaster, ProductAttribute, CategoryAttribute, CustomerSegment,
   ProductPrice, ProductTax, ProductUom, ManufacturerDirectOrderEligibility,
   CustomerQuote, CustomerQuoteLine, CustomerQuoteStatus, OrderLine, ProductManufacturer
 } from '../types';
@@ -22,7 +22,7 @@ import {
   mockCategories, mockSubCategories, mockSubSubCategories, mockCategoryMargins, mockMarginRules,
   mockInternalPriceList,
   mockProductTypes, mockBrands, mockUnifiedCategories,
-  mockAttributeMasters, mockProductAttributes, mockCustomerSegments,
+  mockAttributeMasters, mockProductAttributes, mockCategoryAttributes, mockCustomerSegments,
   mockProductPrices, mockProductTaxes, mockProductUoms,
   mockDirectOrderEligibilities, mockCustomerQuotes
 } from '../data/mockData';
@@ -66,6 +66,13 @@ interface AppContextType {
   saveProductAttributesBulk: (productId: string, attributes: { attribute_id: string; attribute_value: string }[]) => void;
   getProductAttributes: (productId: string) => Record<string, string>;
   getProductAttributeValues: (productId: string) => { attribute: AttributeMaster; value: string }[];
+  categoryAttributes: CategoryAttribute[];
+  addCategoryAttribute: (catAttr: CategoryAttribute) => { success: boolean; error?: string };
+  removeCategoryAttribute: (categoryId: string, attributeId: string) => void;
+  updateCategoryAttributeRemark: (categoryId: string, attributeId: string, remark: string) => void;
+  setCategoryAttributesForCategory: (categoryId: string, attributes: { attribute_id: string; remark?: string }[]) => { success: boolean; error?: string };
+  getCategoryAttributes: (categoryId: string) => CategoryAttribute[];
+  getCategoryConfiguredAttributes: (categoryId: string) => { attribute: AttributeMaster; remark?: string; category_attribute_id: string }[];
   customerSegments: CustomerSegment[];
   addCustomerSegment: (segment: CustomerSegment) => void;
   updateCustomerSegment: (id: string, updates: Partial<CustomerSegment>) => void;
@@ -774,7 +781,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname.toLowerCase();
+      if (path.includes('attribute-master')) return 'attribute-master';
+      if (path.includes('category-master') || path.includes('subcategories')) return 'category-master';
+      if (path === '/buyer/product-catalog' || path.startsWith('/buyer/product-catalog') ||
+        path === '/buyer/catalog' || path.startsWith('/buyer/catalog')) return 'buyer-catalog';
+    }
+    return 'dashboard';
+  });
 
   const login = (role?: UserRole) => {
     const effectiveRole = role || currentRole || 'BUYER';
@@ -2726,6 +2742,114 @@ const getProductAttributes = (productId: string): Record<string, string> => {
         };
         return { attribute, value: pa.attribute_value || pa.attributeValue || '' };
       });
+  };
+
+  // ── CATEGORY -> ATTRIBUTE ASSOCIATION (CATEGORY_ATTRIBUTE) ──
+  const [categoryAttributes, setCategoryAttributes] = useState<CategoryAttribute[]>(() => {
+    try {
+      const saved = localStorage.getItem('fg_category_attributes_v2');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return mockCategoryAttributes;
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('fg_category_attributes_v2', JSON.stringify(categoryAttributes));
+    } catch(e) {}
+  }, [categoryAttributes]);
+
+  const addCategoryAttribute = (catAttr: CategoryAttribute): { success: boolean; error?: string } => {
+    const catId = catAttr.category_id || catAttr.categoryId || '';
+    const attrId = catAttr.attribute_id || catAttr.attributeId || '';
+    if (!catId || !attrId) {
+      return { success: false, error: 'Category ID and Attribute ID are required.' };
+    }
+    const existingForCategory = categoryAttributes.filter(ca => (ca.category_id === catId || ca.categoryId === catId));
+    if (existingForCategory.length >= 10) {
+      return { success: false, error: 'Maximum 10 attributes allowed for this category.' };
+    }
+    const alreadyExists = existingForCategory.some(ca => (ca.attribute_id === attrId || ca.attributeId === attrId));
+    if (alreadyExists) {
+      return { success: false, error: 'This attribute is already assigned to this category.' };
+    }
+    const today = new Date().toISOString().split('T')[0];
+    const newRecord: CategoryAttribute = {
+      category_attribute_id: catAttr.category_attribute_id || `ca_${catId}_${attrId}`,
+      category_id: catId,
+      attribute_id: attrId,
+      remark: catAttr.remark || '',
+      created_at: today,
+      updated_at: today,
+      id: catAttr.category_attribute_id || `ca_${catId}_${attrId}`,
+      categoryId: catId,
+      attributeId: attrId
+    };
+    setCategoryAttributes(prev => [...prev, newRecord]);
+    addAuditLog('Category Attribute', `Assigned attribute ${attrId} to category ${catId}`);
+    return { success: true };
+  };
+
+  const removeCategoryAttribute = (categoryId: string, attributeId: string) => {
+    setCategoryAttributes(prev => prev.filter(ca => 
+      !((ca.category_id === categoryId || ca.categoryId === categoryId) && 
+        (ca.attribute_id === attributeId || ca.attributeId === attributeId))
+    ));
+    addAuditLog('Category Attribute', `Removed attribute ${attributeId} from category ${categoryId}`);
+  };
+
+  const updateCategoryAttributeRemark = (categoryId: string, attributeId: string, remark: string) => {
+    setCategoryAttributes(prev => prev.map(ca => {
+      const isMatch = (ca.category_id === categoryId || ca.categoryId === categoryId) && 
+                      (ca.attribute_id === attributeId || ca.attributeId === attributeId);
+      return isMatch ? { ...ca, remark, updated_at: new Date().toISOString().split('T')[0] } : ca;
+    }));
+  };
+
+  const setCategoryAttributesForCategory = (categoryId: string, attributes: { attribute_id: string; remark?: string }[]): { success: boolean; error?: string } => {
+    if (attributes.length > 10) {
+      return { success: false, error: 'Maximum 10 attributes allowed for this category.' };
+    }
+    const uniqueIds = Array.from(new Set(attributes.map(a => a.attribute_id)));
+    if (uniqueIds.length !== attributes.length) {
+      return { success: false, error: 'Duplicate attributes cannot be assigned to the same category.' };
+    }
+    const today = new Date().toISOString().split('T')[0];
+    const newItems: CategoryAttribute[] = attributes.map(a => ({
+      category_attribute_id: `ca_${categoryId}_${a.attribute_id}`,
+      category_id: categoryId,
+      attribute_id: a.attribute_id,
+      remark: a.remark || '',
+      created_at: today,
+      updated_at: today,
+      id: `ca_${categoryId}_${a.attribute_id}`,
+      categoryId: categoryId,
+      attributeId: a.attribute_id
+    }));
+    setCategoryAttributes(prev => {
+      const remaining = prev.filter(ca => ca.category_id !== categoryId && ca.categoryId !== categoryId);
+      return [...remaining, ...newItems];
+    });
+    return { success: true };
+  };
+
+  const getCategoryAttributes = (categoryId: string): CategoryAttribute[] => {
+    return categoryAttributes.filter(ca => ca.category_id === categoryId || ca.categoryId === categoryId);
+  };
+
+  const getCategoryConfiguredAttributes = (categoryId: string): { attribute: AttributeMaster; remark?: string; category_attribute_id: string }[] => {
+    const mappings = categoryAttributes.filter(ca => ca.category_id === categoryId || ca.categoryId === categoryId);
+    return mappings
+      .map(ca => {
+        const attrId = ca.attribute_id || ca.attributeId || '';
+        const master = attributeMasters.find(m => (m.attribute_id === attrId || m.id === attrId) && m.is_active);
+        if (!master) return null;
+        return {
+          attribute: master,
+          remark: ca.remark,
+          category_attribute_id: ca.category_attribute_id || ca.id || `ca_${categoryId}_${attrId}`
+        };
+      })
+      .filter((item): item is { attribute: AttributeMaster; remark?: string; category_attribute_id: string } => item !== null);
   };
 
   // ── Customer Segments & Product Pricing ──
@@ -5071,6 +5195,13 @@ const getProductAttributes = (productId: string): Record<string, string> => {
         updateProductAttribute,
         getProductAttributes,
         getProductAttributeValues,
+        categoryAttributes,
+        addCategoryAttribute,
+        removeCategoryAttribute,
+        updateCategoryAttributeRemark,
+        setCategoryAttributesForCategory,
+        getCategoryAttributes,
+        getCategoryConfiguredAttributes,
         customerSegments,
         addCustomerSegment,
         updateCustomerSegment,

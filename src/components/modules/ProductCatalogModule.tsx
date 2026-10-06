@@ -59,6 +59,8 @@ export const ProductCatalogModule: React.FC = () => {
     attributeMasters,
     productAttributes,
     saveProductAttributesBulk,
+    categoryAttributes,
+    getCategoryConfiguredAttributes,
     customerSegments,
     productPrices,
     addProductPrice,
@@ -218,6 +220,15 @@ export const ProductCatalogModule: React.FC = () => {
     replacementProductId: '',
     isSellable: true
   });
+
+  // Dynamic attribute form values for Add / Edit Product modal
+  const [formAttrValues, setFormAttrValues] = useState<Record<string, string>>({});
+
+  // Active configured attributes for the selected category in Add / Edit Product modal (Client: Category Attributes)
+  const modalCategoryConfiguredAttributes = useMemo(() => {
+    if (!formData.categoryId) return [];
+    return getCategoryConfiguredAttributes(formData.categoryId);
+  }, [formData.categoryId, getCategoryConfiguredAttributes, categoryAttributes, attributeMasters]);
 
   // Active attribute masters list for rendering dynamic attributes
   const activeAttributesList = useMemo(() => {
@@ -467,6 +478,7 @@ export const ProductCatalogModule: React.FC = () => {
       isSellable: true
     });
 
+    setFormAttrValues({});
     setModalFormError(null);
     setIsAddModalOpen(true);
   };
@@ -497,18 +509,24 @@ export const ProductCatalogModule: React.FC = () => {
       isSellable: prd.is_sellable !== undefined ? prd.is_sellable : true
     });
 
+    const currentAttrs = getProductAttributeMap(prd.id);
+    setFormAttrValues(currentAttrs);
+
     setModalFormError(null);
     setIsAddModalOpen(true);
   };
 
-  // Open Manage Dynamic Attributes Modal (PRODUCT_ATTRIBUTE)
+  // Open Manage Dynamic Attributes Modal (PRODUCT_ATTRIBUTE configured for product's Category)
   const handleOpenManageAttributes = (prd?: Product) => {
     const target = prd || selectedProduct;
     if (!target) return;
     const currentAttrs = getProductAttributeMap(target.id);
+    const catId = target.category_id || target.categoryId || '';
+    const configuredAttrs = getCategoryConfiguredAttributes(catId);
     const draft: Record<string, string> = {};
-    activeAttributesList.forEach(a => {
-      draft[a.attribute_id] = currentAttrs[a.attribute_id] || '';
+    configuredAttrs.forEach(ca => {
+      const aId = ca.attribute.attribute_id;
+      draft[aId] = currentAttrs[aId] || '';
     });
     setAttributeDraftValues(draft);
     setIsAttrModalOpen(true);
@@ -518,16 +536,30 @@ export const ProductCatalogModule: React.FC = () => {
   const handleSaveProductAttributes = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) return;
-    const entries = Object.entries(attributeDraftValues).map(([attribute_id, attribute_value]) => ({
-      attribute_id,
-      attribute_value
+    const catId = selectedProduct.category_id || selectedProduct.categoryId || '';
+    const configuredAttrs = getCategoryConfiguredAttributes(catId);
+
+    // Validate is_required attributes
+    for (const ca of configuredAttrs) {
+      if (ca.attribute.is_required) {
+        const val = (attributeDraftValues[ca.attribute.attribute_id] || '').trim();
+        if (!val) {
+          alert(`Attribute "${ca.attribute.attribute_name}" is mandatory for this category.`);
+          return;
+        }
+      }
+    }
+
+    const entries = configuredAttrs.map(ca => ({
+      attribute_id: ca.attribute.attribute_id,
+      attribute_value: attributeDraftValues[ca.attribute.attribute_id] || ''
     }));
     saveProductAttributesBulk(selectedProduct.id, entries);
     addAuditLog('UPDATE_PRODUCT_ATTRIBUTES', `Updated dynamic attributes for product ${selectedProduct.product_code || selectedProduct.code}`);
     setIsAttrModalOpen(false);
   };
 
-  // Save Central Product Handler (Pure PRODUCT Entity)
+  // Save Central Product Handler (Pure PRODUCT Entity + Dynamic Category Attributes in PRODUCT_ATTRIBUTE)
   const handleSaveProductMaster = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -569,6 +601,18 @@ export const ProductCatalogModule: React.FC = () => {
     if (isDuplicateCode) {
       setModalFormError(`Product Code "${codeClean}" already exists. Product Code must be unique across the central master catalog.`);
       return;
+    }
+
+    // 3. Category Attributes Validation (Required Attributes as configured in ATTRIBUTE_MASTER)
+    const configuredAttrs = getCategoryConfiguredAttributes(formData.categoryId);
+    for (const ca of configuredAttrs) {
+      if (ca.attribute.is_required) {
+        const val = (formAttrValues[ca.attribute.attribute_id] || '').trim();
+        if (!val) {
+          setModalFormError(`Attribute "${ca.attribute.attribute_name}" is required by Category specifications.`);
+          return;
+        }
+      }
     }
 
     // Resolve category details for display helper
@@ -624,6 +668,13 @@ export const ProductCatalogModule: React.FC = () => {
       addProductMaster(productPayload);
       addAuditLog('CREATE_CENTRAL_PRODUCT', `Created Central Product Master: ${productPayload.product_name} (${productPayload.product_code})`);
     }
+
+    // Save Dynamic Category Attributes in PRODUCT_ATTRIBUTE
+    const dynamicAttrEntries = configuredAttrs.map(ca => ({
+      attribute_id: ca.attribute.attribute_id,
+      attribute_value: formAttrValues[ca.attribute.attribute_id] || ''
+    }));
+    saveProductAttributesBulk(targetId, dynamicAttrEntries);
 
     setIsAddModalOpen(false);
   };
@@ -1628,52 +1679,44 @@ export const ProductCatalogModule: React.FC = () => {
 
                 {(() => {
                   const pAttrs = getProductAttributeMap(selectedProduct.id);
-                  const attrEntries = Object.entries(pAttrs).filter(([_, val]) => val && val.trim() !== '');
+                  const selCatId = selectedProduct.category_id || selectedProduct.categoryId || '';
+                  const configuredAttrs = getCategoryConfiguredAttributes(selCatId);
 
-                  if (attrEntries.length === 0) {
+                  if (configuredAttrs.length === 0) {
                     return (
                       <div style={{ fontSize: 12.5, color: '#64748B', fontStyle: 'italic', padding: '12px 14px', background: '#FFFFFF', borderRadius: 8, border: '1px dashed #99F6E4' }}>
-                        <div>No dynamic attributes recorded for this product yet. Dynamic specifications belong to <code>PRODUCT_ATTRIBUTE</code>.</div>
-                        {canEditProducts && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenManageAttributes(selectedProduct)}
-                            style={{
-                              marginTop: 10,
-                              padding: '6px 14px',
-                              background: '#0F766E',
-                              color: '#FFFFFF',
-                              border: 'none',
-                              borderRadius: 6,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 6
-                            }}
-                          >
-                            <Sparkles size={13} /> + Assign Attributes
-                          </button>
-                        )}
+                        <div>No dynamic attributes configured for this product's category in Category Master.</div>
                       </div>
                     );
                   }
 
                   return (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12.5 }}>
-                      {attrEntries.map(([attrId, attrVal]) => {
-                        const master = (attributeMasters || []).find(m => m.attribute_id === attrId || m.attribute_code === attrId);
-                        const label = master?.attribute_name || attrId;
-                        const uom = master?.unit_of_measure;
+                      {configuredAttrs.map(ca => {
+                        const attr = ca.attribute;
+                        const attrId = attr.attribute_id;
+                        const val = pAttrs[attrId];
+                        const uom = attr.unit_of_measure;
+                        const remark = ca.remark;
+
                         return (
-                          <div key={attrId} style={{ background: '#FFFFFF', padding: '8px 12px', borderRadius: 6, border: '1px solid #CCFBF1' }}>
-                            <span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
-                              {label} {uom ? `(${uom})` : ''}
-                            </span>
-                            <strong style={{ color: '#0F172A', display: 'block', fontSize: 13, marginTop: 2 }}>
-                              {attrVal}
+                          <div key={attrId} style={{ background: '#FFFFFF', padding: '10px 12px', borderRadius: 6, border: '1px solid #CCFBF1', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ color: '#64748B', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
+                                {attr.attribute_name} {uom ? `(${uom})` : ''}
+                              </span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#F1F5F9', color: '#475569' }}>
+                                {attr.data_type}
+                              </span>
+                            </div>
+                            <strong style={{ color: val ? '#0F172A' : '#94A3B8', fontStyle: val ? 'normal' : 'italic', fontSize: 13, marginTop: 2 }}>
+                              {val || 'Not specified'}
                             </strong>
+                            {remark && (
+                              <div style={{ fontSize: 11, color: '#0F766E', fontStyle: 'italic', marginTop: 2 }}>
+                                Note: {remark}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -2576,46 +2619,67 @@ export const ProductCatalogModule: React.FC = () => {
             <form onSubmit={handleSaveProductMaster} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
               {/* ────────────────────────────────────────────────────────── */}
-              {/* 1. CLASSIFICATION */}
+              {/* ────────────────────────────────────────────────────────── */}
+              {/* 1. PRODUCT HIERARCHY & BRAND */}
               {/* ────────────────────────────────────────────────────────── */}
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Layers size={14} /> 1. PRODUCT CLASSIFICATION
+                  <Layers size={14} /> 1. PRODUCT HIERARCHY (TYPE → CATEGORY → BRAND)
+                </div>
+
+                {/* Step 1: Product Type * */}
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                    Step 1: Product Type *
+                  </label>
+                  <select
+                    required
+                    value={formData.productTypeId}
+                    onChange={e => {
+                      const newPtId = e.target.value;
+                      const matchingCats = (unifiedCategories || []).filter(c => c.product_type_id === newPtId && (c.lifecycle_status === 'ACTIVE' || (c as any).status === 'Active'));
+                      setFormData({
+                        ...formData,
+                        productTypeId: newPtId,
+                        categoryId: matchingCats[0]?.category_id || ''
+                      });
+                    }}
+                    style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #0F766E', borderRadius: 6, fontSize: 13, fontWeight: 700, outline: 'none', background: '#F0FDFA', color: '#0F766E' }}
+                  >
+                    <option value="" disabled>-- Select Product Type * --</option>
+                    {(productTypes || []).filter(t => (t.lifecycle_status || t.status) === 'ACTIVE').map(t => (
+                      <option key={t.product_type_id || t.id} value={t.product_type_id || t.id}>
+                        {t.product_type_name || t.name} ({t.product_type_code || t.code})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  {/* Product Type * */}
+                  {/* Step 2: Category * */}
                   <div>
                     <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Product Type *
+                      Step 2: Product Category *
                     </label>
                     <select
                       required
-                      value={formData.productTypeId}
-                      onChange={e => {
-                        const newPtId = e.target.value;
-                        const matchingCat = (unifiedCategories || []).find(c => c.product_type_id === newPtId && (c.lifecycle_status === 'ACTIVE' || (c as any).status === 'Active'));
-                        setFormData({
-                          ...formData,
-                          productTypeId: newPtId,
-                          categoryId: matchingCat?.category_id || ''
-                        });
-                      }}
-                      style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #0F766E', borderRadius: 6, fontSize: 13, fontWeight: 700, outline: 'none', background: '#F0FDFA', color: '#0F766E' }}
+                      value={formData.categoryId}
+                      onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
+                      style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #0F766E', borderRadius: 6, fontSize: 13, fontWeight: 600, background: '#FFFFFF' }}
                     >
-                      <option value="" disabled>-- Select Product Type * --</option>
-                      {(productTypes || []).filter(t => (t.lifecycle_status || t.status) === 'ACTIVE').map(t => (
-                        <option key={t.product_type_id || t.id} value={t.product_type_id || t.id}>
-                          {t.product_type_name || t.name} ({t.product_type_code || t.code})
+                      <option value="">-- Select Category from Master * --</option>
+                      {modalAvailableCategories.map(c => (
+                        <option key={c.category_id} value={c.category_id}>
+                          {c.category} › {c.sub_category || 'General'} {c.sub_sub_category ? `› ${c.sub_sub_category}` : ''} ({c.category_code})
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  {/* Brand (Nullable) */}
+                  {/* Step 3: Brand */}
                   <div>
                     <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Brand <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
+                      Step 3: Product Brand <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
                     </label>
                     <select
                       value={formData.brandId}
@@ -2632,31 +2696,11 @@ export const ProductCatalogModule: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Category * Dropdown from Canonical Unified Category Master */}
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Category *
-                  </label>
-                  <select
-                    required
-                    value={formData.categoryId}
-                    onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontWeight: 600, background: '#FFFFFF' }}
-                  >
-                    <option value="">-- Select Category from Master * --</option>
-                    {modalAvailableCategories.map(c => (
-                      <option key={c.category_id} value={c.category_id}>
-                        {c.category} › {c.sub_category || 'General'} {c.sub_sub_category ? `› ${c.sub_sub_category}` : ''} ({c.category_code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 {/* Read-only Derived Category Hierarchy Display */}
                 {selectedModalCategoryRecord && (
                   <div style={{ background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 8, padding: 12, fontSize: 12 }}>
                     <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.05em', marginBottom: 6 }}>
-                      Derived Category Hierarchy (Informational — Product stores category_id only):
+                      Derived Category Hierarchy:
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                       <div>
@@ -2677,11 +2721,146 @@ export const ProductCatalogModule: React.FC = () => {
               </div>
 
               {/* ────────────────────────────────────────────────────────── */}
-              {/* 2. PRODUCT INFORMATION */}
+              {/* 2. CATEGORY ATTRIBUTES (DYNAMIC BY CATEGORY) */}
+              {/* ────────────────────────────────────────────────────────── */}
+              <div style={{ background: '#FFFFFF', border: '1.5px solid #99F6E4', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Sparkles size={14} /> 2. CATEGORY ATTRIBUTES (SPECIFICATIONS)
+                  </div>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                    background: '#F0FDFA',
+                    color: '#0F766E',
+                    border: '1px solid #99F6E4'
+                  }}>
+                    {modalCategoryConfiguredAttributes.length} / 10 Attributes Configured
+                  </span>
+                </div>
+
+                <div style={{ fontSize: 12, color: '#64748B', lineHeight: 1.4 }}>
+                  Attributes configured specifically for category <strong>{selectedModalCategoryRecord?.category || formData.categoryId}</strong>. Values are saved to <code>PRODUCT_ATTRIBUTE</code>.
+                </div>
+
+                {modalCategoryConfiguredAttributes.length === 0 ? (
+                  <div style={{
+                    padding: '16px 20px',
+                    borderRadius: 8,
+                    background: '#F8FAFC',
+                    border: '1px dashed #CBD5E1',
+                    fontSize: 12.5,
+                    color: '#64748B',
+                    textAlign: 'center'
+                  }}>
+                    No attributes are currently assigned to this category. You can configure up to 10 attributes in the <strong>Category Master</strong>.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                    {modalCategoryConfiguredAttributes.map(ca => {
+                      const attr = ca.attribute;
+                      const attrId = attr.attribute_id;
+                      const val = formAttrValues[attrId] || '';
+                      const listOpts = LIST_ATTRIBUTE_OPTIONS[attr.attribute_code];
+
+                      return (
+                        <div key={attrId} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <label style={{ fontSize: 11.5, fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>
+                              {attr.attribute_name}
+                              {attr.unit_of_measure ? ` (${attr.unit_of_measure})` : ''}
+                              {attr.is_required && <span style={{ color: '#DC2626' }}> *</span>}
+                            </label>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#E2E8F0', color: '#475569' }}>
+                              {attr.data_type}
+                            </span>
+                          </div>
+
+                          {ca.remark && (
+                            <div style={{ fontSize: 11, color: '#0F766E', fontStyle: 'italic', marginBottom: 2 }}>
+                              Note: {ca.remark}
+                            </div>
+                          )}
+
+                          {attr.data_type === 'LIST' ? (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <input
+                                type="text"
+                                list={`form_attr_list_${attrId}`}
+                                placeholder={`Select or type ${attr.attribute_name.toLowerCase()}...`}
+                                value={val}
+                                onChange={e => setFormAttrValues({ ...formAttrValues, [attrId]: e.target.value })}
+                                style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
+                              />
+                              {listOpts && (
+                                <datalist id={`form_attr_list_${attrId}`}>
+                                  {listOpts.map(opt => (
+                                    <option key={opt} value={opt} />
+                                  ))}
+                                </datalist>
+                              )}
+                            </div>
+                          ) : attr.data_type === 'BOOLEAN' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 36 }}>
+                              <input
+                                type="checkbox"
+                                id={`form_attr_check_${attrId}`}
+                                checked={val === 'true'}
+                                onChange={e => setFormAttrValues({ ...formAttrValues, [attrId]: e.target.checked ? 'true' : 'false' })}
+                                style={{ width: 18, height: 18, cursor: 'pointer' }}
+                              />
+                              <label htmlFor={`form_attr_check_${attrId}`} style={{ fontSize: 12.5, color: '#334155', cursor: 'pointer', fontWeight: 600 }}>
+                                {val === 'true' ? 'Enabled (True)' : 'Disabled (False)'}
+                              </label>
+                            </div>
+                          ) : attr.data_type === 'NUMBER' ? (
+                            <input
+                              type="number"
+                              placeholder="e.g. 500"
+                              value={val}
+                              onChange={e => setFormAttrValues({ ...formAttrValues, [attrId]: e.target.value })}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
+                            />
+                          ) : attr.data_type === 'DECIMAL' ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              placeholder="e.g. 10.5"
+                              value={val}
+                              onChange={e => setFormAttrValues({ ...formAttrValues, [attrId]: e.target.value })}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
+                            />
+                          ) : attr.data_type === 'DATE' ? (
+                            <input
+                              type="date"
+                              value={val}
+                              onChange={e => setFormAttrValues({ ...formAttrValues, [attrId]: e.target.value })}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              placeholder={`Enter ${attr.attribute_name.toLowerCase()}...`}
+                              value={val}
+                              onChange={e => setFormAttrValues({ ...formAttrValues, [attrId]: e.target.value })}
+                              style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* ────────────────────────────────────────────────────────── */}
+              {/* 3. PRODUCT INFORMATION */}
               {/* ────────────────────────────────────────────────────────── */}
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Package size={14} /> 2. PRODUCT INFORMATION
+                  <Package size={14} /> 3. PRODUCT INFORMATION
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -2742,11 +2921,11 @@ export const ProductCatalogModule: React.FC = () => {
               </div>
 
               {/* ────────────────────────────────────────────────────────── */}
-              {/* 3. UNIT / PACKAGING */}
+              {/* 4. UNIT / PACKAGING */}
               {/* ────────────────────────────────────────────────────────── */}
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Package size={14} /> 3. UNIT / PACKAGING
+                  <Package size={14} /> 4. UNIT / PACKAGING
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
@@ -2796,11 +2975,11 @@ export const ProductCatalogModule: React.FC = () => {
               </div>
 
               {/* ────────────────────────────────────────────────────────── */}
-              {/* 4. LIFECYCLE & SELLABILITY */}
+              {/* 5. LIFECYCLE & SELLABILITY */}
               {/* ────────────────────────────────────────────────────────── */}
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Calendar size={14} /> 4. LIFECYCLE &amp; SELLABILITY
+                  <Calendar size={14} /> 5. LIFECYCLE &amp; SELLABILITY
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
@@ -2934,115 +3113,144 @@ export const ProductCatalogModule: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProductAttributes} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 8, padding: 12, fontSize: 12, color: '#0F766E', lineHeight: 1.4 }}>
-                <strong>Dynamic Product Attribute Architecture:</strong> These specifications are stored in <code>PRODUCT_ATTRIBUTE</code> (referenced to <code>ATTRIBUTE_MASTER</code>), keeping the core <code>PRODUCT</code> entity clean and generic.
-              </div>
+            {(() => {
+              const selCatId = selectedProduct.category_id || selectedProduct.categoryId || '';
+              const configuredAttrs = getCategoryConfiguredAttributes(selCatId);
+              const catRecord = resolveCategoryRecord(selCatId);
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                {activeAttributesList.map(attr => {
-                  const attrKey = attr.attribute_id;
-                  const val = attributeDraftValues[attrKey] || '';
-                  const listOpts = LIST_ATTRIBUTE_OPTIONS[attr.attribute_code];
+              return (
+                <form onSubmit={handleSaveProductAttributes} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 8, padding: 12, fontSize: 12, color: '#0F766E', lineHeight: 1.4 }}>
+                    <strong>Category Attributes Architecture:</strong> Only attributes configured for category <strong>{catRecord?.category || selCatId}</strong> in Category Master are active here. Values are stored in <code>PRODUCT_ATTRIBUTE</code> (referenced to <code>ATTRIBUTE_MASTER</code>).
+                  </div>
 
-                  return (
-                    <div key={attr.attribute_id}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <label style={{ fontSize: 11.5, fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>
-                          {attr.attribute_name}
-                          {attr.unit_of_measure ? ` (${attr.unit_of_measure})` : ''}
-                          {attr.is_required && <span style={{ color: '#DC2626' }}> *</span>}
-                        </label>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#E2E8F0', color: '#475569' }}>
-                          {attr.data_type}
-                        </span>
-                      </div>
-
-                      {attr.data_type === 'LIST' ? (
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <input
-                            type="text"
-                            list={`modal_attr_list_${attr.attribute_id}`}
-                            placeholder={`Select or type ${attr.attribute_name.toLowerCase()}...`}
-                            value={val}
-                            onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.value })}
-                            style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
-                          />
-                          {listOpts && (
-                            <datalist id={`modal_attr_list_${attr.attribute_id}`}>
-                              {listOpts.map(opt => (
-                                <option key={opt} value={opt} />
-                              ))}
-                            </datalist>
-                          )}
-                        </div>
-                      ) : attr.data_type === 'BOOLEAN' ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 38 }}>
-                          <input
-                            type="checkbox"
-                            id={`modal_attr_check_${attr.attribute_id}`}
-                            checked={val === 'true'}
-                            onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.checked ? 'true' : 'false' })}
-                            style={{ width: 18, height: 18, cursor: 'pointer' }}
-                          />
-                          <label htmlFor={`modal_attr_check_${attr.attribute_id}`} style={{ fontSize: 13, color: '#334155', cursor: 'pointer', fontWeight: 600 }}>
-                            {val === 'true' ? 'Enabled (True)' : 'Disabled (False)'}
-                          </label>
-                        </div>
-                      ) : attr.data_type === 'NUMBER' ? (
-                        <input
-                          type="number"
-                          placeholder="e.g. 24"
-                          value={val}
-                          onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.value })}
-                          style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
-                        />
-                      ) : attr.data_type === 'DECIMAL' ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="e.g. 15.5"
-                          value={val}
-                          onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.value })}
-                          style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
-                        />
-                      ) : attr.data_type === 'DATE' ? (
-                        <input
-                          type="date"
-                          value={val}
-                          onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.value })}
-                          style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          placeholder={`Enter ${attr.attribute_name.toLowerCase()}...`}
-                          value={val}
-                          onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.value })}
-                          style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
-                        />
-                      )}
+                  {configuredAttrs.length === 0 ? (
+                    <div style={{
+                      padding: '24px 20px',
+                      background: '#F8FAFC',
+                      border: '1px dashed #CBD5E1',
+                      borderRadius: 8,
+                      textAlign: 'center',
+                      fontSize: 13,
+                      color: '#64748B'
+                    }}>
+                      No attributes configured for category <strong>{catRecord?.category || selCatId}</strong>. You can configure up to 10 attributes in Category Master.
                     </div>
-                  );
-                })}
-              </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                      {configuredAttrs.map(ca => {
+                        const attr = ca.attribute;
+                        const attrKey = attr.attribute_id;
+                        const val = attributeDraftValues[attrKey] || '';
+                        const listOpts = LIST_ATTRIBUTE_OPTIONS[attr.attribute_code];
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 14, borderTop: '1px solid #E2E8F0' }}>
-                <button
-                  type="button"
-                  onClick={() => setIsAttrModalOpen(false)}
-                  style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ padding: '9px 22px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFF', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 1px 3px rgba(15,118,110,0.2)' }}
-                >
-                  Save Attributes
-                </button>
-              </div>
-            </form>
+                        return (
+                          <div key={attr.attribute_id}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <label style={{ fontSize: 11.5, fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>
+                                {attr.attribute_name}
+                                {attr.unit_of_measure ? ` (${attr.unit_of_measure})` : ''}
+                                {attr.is_required && <span style={{ color: '#DC2626' }}> *</span>}
+                              </label>
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#E2E8F0', color: '#475569' }}>
+                                {attr.data_type}
+                              </span>
+                            </div>
+
+                            {ca.remark && (
+                              <div style={{ fontSize: 11, color: '#0F766E', fontStyle: 'italic', marginBottom: 2 }}>
+                                Note: {ca.remark}
+                              </div>
+                            )}
+
+                            {attr.data_type === 'LIST' ? (
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <input
+                                  type="text"
+                                  list={`modal_attr_list_${attr.attribute_id}`}
+                                  placeholder={`Select or type ${attr.attribute_name.toLowerCase()}...`}
+                                  value={val}
+                                  onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.value })}
+                                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
+                                />
+                                {listOpts && (
+                                  <datalist id={`modal_attr_list_${attr.attribute_id}`}>
+                                    {listOpts.map(opt => (
+                                      <option key={opt} value={opt} />
+                                    ))}
+                                  </datalist>
+                                )}
+                              </div>
+                            ) : attr.data_type === 'BOOLEAN' ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 38 }}>
+                                <input
+                                  type="checkbox"
+                                  id={`modal_attr_check_${attr.attribute_id}`}
+                                  checked={val === 'true'}
+                                  onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.checked ? 'true' : 'false' })}
+                                  style={{ width: 18, height: 18, cursor: 'pointer' }}
+                                />
+                                <label htmlFor={`modal_attr_check_${attr.attribute_id}`} style={{ fontSize: 13, color: '#334155', cursor: 'pointer', fontWeight: 600 }}>
+                                  {val === 'true' ? 'Enabled (True)' : 'Disabled (False)'}
+                                </label>
+                              </div>
+                            ) : attr.data_type === 'NUMBER' ? (
+                              <input
+                                type="number"
+                                placeholder="e.g. 24"
+                                value={val}
+                                onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.value })}
+                                style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
+                              />
+                            ) : attr.data_type === 'DECIMAL' ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                placeholder="e.g. 15.5"
+                                value={val}
+                                onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.value })}
+                                style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
+                              />
+                            ) : attr.data_type === 'DATE' ? (
+                              <input
+                                type="date"
+                                value={val}
+                                onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.value })}
+                                style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                placeholder={`Enter ${attr.attribute_name.toLowerCase()}...`}
+                                value={val}
+                                onChange={e => setAttributeDraftValues({ ...attributeDraftValues, [attrKey]: e.target.value })}
+                                style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, background: '#FFFFFF', outline: 'none' }}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 14, borderTop: '1px solid #E2E8F0' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAttrModalOpen(false)}
+                      style={{ padding: '9px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ padding: '9px 22px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFF', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 1px 3px rgba(15,118,110,0.2)' }}
+                    >
+                      Save Attributes
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
           </div>
         </div>
       )}
