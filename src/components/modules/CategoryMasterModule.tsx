@@ -115,8 +115,6 @@ export const CategoryMasterModule: React.FC = () => {
   const [catFormData, setCatFormData] = useState({
     product_type_id: '',
     category: '',
-    sub_category: '',
-    sub_sub_category: '',
     category_code: '',
     description: '',
     lifecycle_status: 'ACTIVE' as LifecycleStatus,
@@ -341,16 +339,6 @@ export const CategoryMasterModule: React.FC = () => {
     return Array.from(new Set(pool.map(c => c.category).filter(Boolean)));
   }, [unifiedCategories, catFormData.product_type_id]);
 
-  // Existing distinct sub-category suggestions for Add Category form
-  const existingSubCategorySuggestions = useMemo(() => {
-    const targetCat = catFormData.category.trim().toLowerCase();
-    if (!targetCat) return [];
-    return Array.from(new Set(
-      (unifiedCategories || [])
-        .filter(c => c.category.toLowerCase().trim() === targetCat && c.sub_category)
-        .map(c => c.sub_category!)
-    ));
-  }, [unifiedCategories, catFormData.category]);
 
   // ── ACTION HANDLERS: CATEGORY ──
 
@@ -364,8 +352,6 @@ export const CategoryMasterModule: React.FC = () => {
     setCatFormData({
       product_type_id: defaultPtId,
       category: preset?.category || '',
-      sub_category: preset?.subCategory || '',
-      sub_sub_category: '',
       category_code: '',
       description: '',
       lifecycle_status: 'ACTIVE',
@@ -388,8 +374,6 @@ export const CategoryMasterModule: React.FC = () => {
     setCatFormData({
       product_type_id: cat.product_type_id,
       category: cat.category,
-      sub_category: cat.sub_category || '',
-      sub_sub_category: cat.sub_sub_category || '',
       category_code: cat.category_code || cat.code || '',
       description: cat.description || '',
       lifecycle_status: (cat.lifecycle_status || (cat.status === 'Active' ? 'ACTIVE' : 'INACTIVE')) as LifecycleStatus,
@@ -434,8 +418,6 @@ export const CategoryMasterModule: React.FC = () => {
 
     const cleanCode = catFormData.category_code.trim().toUpperCase();
     const cleanCat = catFormData.category.trim();
-    const cleanSub = catFormData.sub_category.trim() || undefined;
-    const cleanSubSub = catFormData.sub_sub_category.trim() || undefined;
 
     // Validate UNIQUE category_code within selected product type
     const duplicateCode = (unifiedCategories || []).find(c => {
@@ -459,8 +441,8 @@ export const CategoryMasterModule: React.FC = () => {
       updateUnifiedCategory(catId, {
         product_type_id: catFormData.product_type_id,
         category: cleanCat,
-        sub_category: cleanSub,
-        sub_sub_category: cleanSubSub,
+        sub_category: editingCat.sub_category,
+        sub_sub_category: editingCat.sub_sub_category,
         category_code: cleanCode,
         description: catFormData.description.trim() || undefined,
         lifecycle_status: catFormData.lifecycle_status,
@@ -488,8 +470,6 @@ export const CategoryMasterModule: React.FC = () => {
         category_id: newCatId,
         product_type_id: catFormData.product_type_id,
         category: cleanCat,
-        sub_category: cleanSub,
-        sub_sub_category: cleanSubSub,
         category_code: cleanCode,
         description: catFormData.description.trim() || undefined,
         lifecycle_status: catFormData.lifecycle_status,
@@ -1722,40 +1702,7 @@ export const CategoryMasterModule: React.FC = () => {
                 </datalist>
               </div>
 
-              {/* Sub-Category and Sub-Sub-Category */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Sub-Category <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    list="existing-subcategory-options"
-                    placeholder="e.g. Tablets, Capsules, Syrups"
-                    value={catFormData.sub_category}
-                    onChange={e => setCatFormData({ ...catFormData, sub_category: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
-                  />
-                  <datalist id="existing-subcategory-options">
-                    {existingSubCategorySuggestions.map(s => (
-                      <option key={s} value={s} />
-                    ))}
-                  </datalist>
-                </div>
 
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Sub-Sub-Category <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Film Coated Tablets, Softgel"
-                    value={catFormData.sub_sub_category}
-                    onChange={e => setCatFormData({ ...catFormData, sub_sub_category: e.target.value })}
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
-                  />
-                </div>
-              </div>
 
               {/* Category Code * (UNIQUE) */}
               <div>
@@ -2083,29 +2030,44 @@ export const CategoryMasterModule: React.FC = () => {
                     <strong style={{ color: '#0F172A' }}>{viewingCat.category}</strong>
                   </div>
                   <div>
-                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Sub Category:</span>
-                    <strong style={{ color: '#0F172A' }}>{viewingCat.sub_category || '—'}</strong>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Category Code:</span>
+                    <span style={{ fontFamily: 'monospace', color: '#1D4ED8', fontWeight: 700 }}>{viewCatCode}</span>
                   </div>
                   <div>
-                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Sub-Sub Category:</span>
-                    <strong style={{ color: '#0F172A' }}>{viewingCat.sub_sub_category || '—'}</strong>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Product Type:</span>
+                    <strong style={{ color: '#0F172A' }}>{viewPt?.product_type_name || viewPt?.name || viewingCat.product_type_id}</strong>
                   </div>
                   <div>
                     <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Category ID:</span>
                     <span style={{ fontFamily: 'monospace', color: '#0F766E', fontWeight: 600 }}>{viewCatId}</span>
                   </div>
                   <div>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Lifecycle Status:</span>
+                    <span style={{
+                      display: 'inline-block',
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      borderRadius: 4,
+                      background: (viewingCat.lifecycle_status === 'ACTIVE' || viewingCat.status === 'Active') ? '#DCFCE7' : '#FEE2E2',
+                      color: (viewingCat.lifecycle_status === 'ACTIVE' || viewingCat.status === 'Active') ? '#15803D' : '#B91C1C'
+                    }}>
+                      {viewingCat.lifecycle_status || viewingCat.status || 'ACTIVE'}
+                    </span>
+                  </div>
+                  <div>
                     <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Display Order:</span>
                     <span style={{ color: '#0F172A', fontWeight: 600 }}>{viewingCat.display_order ?? 1}</span>
                   </div>
-                  <div>
-                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Last Updated:</span>
-                    <span style={{ color: '#0F172A' }}>{formatMasterDate(viewingCat.updated_at)}</span>
-                  </div>
                 </div>
-                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #E2E8F0', fontSize: 11.5, color: '#475569' }}>
-                  <span style={{ color: '#64748B', fontWeight: 600 }}>Description: </span>
-                  {viewingCat.description || '—'}
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #E2E8F0', fontSize: 11.5, color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span style={{ color: '#64748B', fontWeight: 600 }}>Description: </span>
+                    {viewingCat.description || '—'}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94A3B8' }}>
+                    Updated: {formatMasterDate(viewingCat.updated_at)}
+                  </div>
                 </div>
               </div>
 
