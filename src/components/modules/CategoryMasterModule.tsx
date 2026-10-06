@@ -109,12 +109,13 @@ export const CategoryMasterModule: React.FC = () => {
   });
   const [ptFormError, setPtFormError] = useState<string | null>(null);
 
-  // 2. Category Modal (ONE CATEGORY MODEL)
+  // 2. Category Modal (ONE CATEGORY MODEL — HIERARCHICAL CREATION WORKFLOW)
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [catFormData, setCatFormData] = useState({
     product_type_id: '',
-    category: '',
+    parent_key: '', // '' (None -> Level 1) | 'L1:::Category' (Level 2) | 'L2:::Category:::SubCategory' (Level 3)
+    name: '',       // Dynamic name for Level 1, 2, or 3
     category_code: '',
     description: '',
     lifecycle_status: 'ACTIVE' as LifecycleStatus,
@@ -330,28 +331,167 @@ export const CategoryMasterModule: React.FC = () => {
     }));
   }, [filteredCategoryList]);
 
-  // Existing distinct category suggestions for Add Category form
-  const existingCategorySuggestions = useMemo(() => {
-    const targetPt = catFormData.product_type_id;
-    const pool = targetPt
-      ? (unifiedCategories || []).filter(c => c.product_type_id === targetPt)
-      : (unifiedCategories || []);
-    return Array.from(new Set(pool.map(c => c.category).filter(Boolean)));
+  // ── DYNAMIC HIERARCHY EVALUATION FOR CATEGORY MODAL ──
+  const parsedParent = useMemo(() => {
+    if (!catFormData.parent_key) {
+      return { level: 1 as 1 | 2 | 3, category: '', sub_category: '' };
+    }
+    const parts = catFormData.parent_key.split(':::');
+    if (parts[0] === 'L1') {
+      return { level: 2 as 1 | 2 | 3, category: parts[1] || '', sub_category: '' };
+    }
+    if (parts[0] === 'L2') {
+      return { level: 3 as 1 | 2 | 3, category: parts[1] || '', sub_category: parts[2] || '' };
+    }
+    return { level: 1 as 1 | 2 | 3, category: '', sub_category: '' };
+  }, [catFormData.parent_key]);
+
+  const currentLevel = parsedParent.level;
+
+  const levelLabel = currentLevel === 1
+    ? 'Category'
+    : currentLevel === 2
+      ? 'Sub-Category'
+      : 'Sub-Sub-Category';
+
+  const nameFieldLabel = currentLevel === 1
+    ? 'Category Name'
+    : currentLevel === 2
+      ? 'Sub-Category Name'
+      : 'Sub-Sub-Category Name';
+
+  const namePlaceholder = currentLevel === 1
+    ? 'e.g. Drugs, Dietary Supplements, Apparel'
+    : currentLevel === 2
+      ? 'e.g. Tablets, Capsules, Topwear'
+      : 'e.g. Film Coated Tablets, Softgels, Casual Shirts';
+
+  // Available Parent categories (strictly Level 1 and Level 2 within selected Product Type)
+  const availableParents = useMemo(() => {
+    const ptId = catFormData.product_type_id;
+    if (!ptId) return { level1List: [], level2List: [] };
+
+    const pool = (unifiedCategories || []).filter(c => c.product_type_id === ptId);
+
+    // Level 1: distinct category names
+    const l1Map = new Map<string, string>();
+    pool.forEach(c => {
+      const cat = c.category?.trim();
+      if (cat && !l1Map.has(cat)) {
+        l1Map.set(cat, cat);
+      }
+    });
+
+    const level1List = Array.from(l1Map.values())
+      .sort((a, b) => a.localeCompare(b))
+      .map(cat => ({
+        key: `L1:::${cat}`,
+        category: cat,
+        label: cat
+      }));
+
+    // Level 2: distinct pairs of (category, sub_category) where sub_category is present
+    const l2Map = new Map<string, { category: string; sub_category: string }>();
+    pool.forEach(c => {
+      const cat = c.category?.trim();
+      const sub = c.sub_category?.trim();
+      if (cat && sub) {
+        const pairKey = `L2:::${cat}:::${sub}`;
+        if (!l2Map.has(pairKey)) {
+          l2Map.set(pairKey, { category: cat, sub_category: sub });
+        }
+      }
+    });
+
+    const level2List = Array.from(l2Map.values())
+      .sort((a, b) => (a.category + a.sub_category).localeCompare(b.category + b.sub_category))
+      .map(item => ({
+        key: `L2:::${item.category}:::${item.sub_category}`,
+        category: item.category,
+        sub_category: item.sub_category,
+        label: `${item.category} → ${item.sub_category}`
+      }));
+
+    return { level1List, level2List };
   }, [unifiedCategories, catFormData.product_type_id]);
 
+  // Derived target preview mapping to existing single CATEGORY entity
+  const targetCategoryPreview = currentLevel === 1
+    ? (catFormData.name.trim() || '—')
+    : parsedParent.category;
+
+  const targetSubCategoryPreview = currentLevel === 2
+    ? (catFormData.name.trim() || null)
+    : (currentLevel === 3 ? parsedParent.sub_category : null);
+
+  const targetSubSubCategoryPreview = currentLevel === 3
+    ? (catFormData.name.trim() || null)
+    : null;
+
+  // Selected Product Type object
+  const selectedModalPt = useMemo(() => {
+    return getPt(catFormData.product_type_id);
+  }, [catFormData.product_type_id, productTypes]);
+
+  // Handler: Change Product Type in modal
+  const handleProductTypeChange = (newPtId: string) => {
+    const nextOrder = (unifiedCategories.filter(c => c.product_type_id === newPtId).length || 0) + 1;
+    setCatFormData(prev => ({
+      ...prev,
+      product_type_id: newPtId,
+      parent_key: '', // Reset parent when product type changes
+      display_order: nextOrder
+    }));
+  };
+
+  // Helper: Auto-suggest category code
+  const handleAutoGenerateCode = () => {
+    const pt = getPt(catFormData.product_type_id);
+    const ptCode = (pt?.product_type_code || pt?.code || 'CAT').replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
+
+    const parts: string[] = [ptCode];
+    if (currentLevel === 2 && parsedParent.category) {
+      const p1 = parsedParent.category.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
+      if (p1) parts.push(p1);
+    } else if (currentLevel === 3) {
+      const p1 = parsedParent.category.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
+      const p2 = parsedParent.sub_category.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase();
+      if (p1) parts.push(p1);
+      if (p2) parts.push(p2);
+    }
+
+    const words = (catFormData.name.trim() || 'NEW').split(/\s+/);
+    let selfPart = '';
+    if (words.length > 1) {
+      selfPart = words.map(w => w[0]).join('').slice(0, 4).toUpperCase();
+    } else {
+      selfPart = catFormData.name.trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase() || 'CAT';
+    }
+
+    parts.push(selfPart);
+    setCatFormData(prev => ({ ...prev, category_code: parts.join('-') }));
+  };
 
   // ── ACTION HANDLERS: CATEGORY ──
 
   const handleOpenAddCatModal = (preset?: { ptId?: string; category?: string; subCategory?: string }) => {
     setEditingCat(null);
     const defaultPtId = preset?.ptId || (categoryPtFilter !== 'ALL' ? categoryPtFilter : (productTypes[0]?.product_type_id || productTypes[0]?.id || 'pt_med'));
-    
+
+    let parentKey = '';
+    if (preset?.category && preset?.subCategory) {
+      parentKey = `L2:::${preset.category}:::${preset.subCategory}`;
+    } else if (preset?.category) {
+      parentKey = `L1:::${preset.category}`;
+    }
+
     // Suggest next display order
     const nextOrder = (unifiedCategories.filter(c => c.product_type_id === defaultPtId).length || 0) + 1;
 
     setCatFormData({
       product_type_id: defaultPtId,
-      category: preset?.category || '',
+      parent_key: parentKey,
+      name: '',
       category_code: '',
       description: '',
       lifecycle_status: 'ACTIVE',
@@ -371,9 +511,25 @@ export const CategoryMasterModule: React.FC = () => {
   const handleOpenEditCatModal = (cat: Category, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setEditingCat(cat);
+
+    let parentKey = '';
+    let nameVal = cat.category;
+
+    if (cat.sub_sub_category) {
+      parentKey = `L2:::${cat.category}:::${cat.sub_category || ''}`;
+      nameVal = cat.sub_sub_category;
+    } else if (cat.sub_category) {
+      parentKey = `L1:::${cat.category}`;
+      nameVal = cat.sub_category;
+    } else {
+      parentKey = '';
+      nameVal = cat.category;
+    }
+
     setCatFormData({
       product_type_id: cat.product_type_id,
-      category: cat.category,
+      parent_key: parentKey,
+      name: nameVal,
       category_code: cat.category_code || cat.code || '',
       description: cat.description || '',
       lifecycle_status: (cat.lifecycle_status || (cat.status === 'Active' ? 'ACTIVE' : 'INACTIVE')) as LifecycleStatus,
@@ -397,27 +553,25 @@ export const CategoryMasterModule: React.FC = () => {
     setIsAddAttrModalOpen(false);
   };
 
-  const handleSaveCategory = (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeSaveCategory = (options: { closeAfterSave: boolean }): boolean => {
     if (!catFormData.product_type_id) {
       setCatFormError('Please select a Product Type.');
-      return;
+      return false;
     }
-    if (!catFormData.category.trim()) {
-      setCatFormError('Category Name is required.');
-      return;
+    const cleanName = catFormData.name.trim();
+    if (!cleanName) {
+      setCatFormError(`Please enter a ${nameFieldLabel}.`);
+      return false;
     }
-    if (!catFormData.category_code.trim()) {
+    const cleanCode = catFormData.category_code.trim().toUpperCase();
+    if (!cleanCode) {
       setCatFormError('Category Code is required.');
-      return;
+      return false;
     }
     if (catAttrDrafts.length > 10) {
       setCatFormError('Maximum 10 attributes allowed for this category.');
-      return;
+      return false;
     }
-
-    const cleanCode = catFormData.category_code.trim().toUpperCase();
-    const cleanCat = catFormData.category.trim();
 
     // Validate UNIQUE category_code within selected product type
     const duplicateCode = (unifiedCategories || []).find(c => {
@@ -431,29 +585,51 @@ export const CategoryMasterModule: React.FC = () => {
 
     if (duplicateCode) {
       setCatFormError(`Category Code "${cleanCode}" is already in use within this Product Type. Category codes must be unique.`);
-      return;
+      return false;
     }
 
     const today = new Date().toISOString().split('T')[0];
+
+    // Determine 3-tier hierarchy values mapping to single CATEGORY table:
+    let targetCategory = '';
+    let targetSubCategory: string | null = null;
+    let targetSubSubCategory: string | null = null;
+
+    if (currentLevel === 1) {
+      targetCategory = cleanName;
+      targetSubCategory = null;
+      targetSubSubCategory = null;
+    } else if (currentLevel === 2) {
+      targetCategory = parsedParent.category;
+      targetSubCategory = cleanName;
+      targetSubSubCategory = null;
+    } else {
+      // currentLevel === 3
+      targetCategory = parsedParent.category;
+      targetSubCategory = parsedParent.sub_category;
+      targetSubSubCategory = cleanName;
+    }
 
     if (editingCat) {
       const catId = editingCat.category_id || editingCat.id!;
       updateUnifiedCategory(catId, {
         product_type_id: catFormData.product_type_id,
-        category: cleanCat,
-        sub_category: editingCat.sub_category,
-        sub_sub_category: editingCat.sub_sub_category,
+        category: targetCategory,
+        sub_category: targetSubCategory,
+        sub_sub_category: targetSubSubCategory,
         category_code: cleanCode,
         description: catFormData.description.trim() || undefined,
         lifecycle_status: catFormData.lifecycle_status,
         display_order: Number(catFormData.display_order) || 1,
-        name: cleanCat,
+        name: cleanName,
         code: cleanCode,
         status: catFormData.lifecycle_status === 'ACTIVE' ? 'Active' : 'Inactive',
+        subCategory: targetSubCategory,
+        subSubCategory: targetSubSubCategory,
         updated_at: today
       });
       setCategoryAttributesForCategory(catId, catAttrDrafts);
-      showToast(`Updated Category record "${cleanCode}" (${cleanCat})`);
+      showToast(`Updated ${levelLabel} record "${cleanCode}" (${cleanName})`);
     } else {
       // Auto-generate canonical category_id e.g. CAT033
       const existingMaxNum = (unifiedCategories || []).reduce((max, c) => {
@@ -469,7 +645,9 @@ export const CategoryMasterModule: React.FC = () => {
       const newRecord: Category = {
         category_id: newCatId,
         product_type_id: catFormData.product_type_id,
-        category: cleanCat,
+        category: targetCategory,
+        sub_category: targetSubCategory,
+        sub_sub_category: targetSubSubCategory,
         category_code: cleanCode,
         description: catFormData.description.trim() || undefined,
         lifecycle_status: catFormData.lifecycle_status,
@@ -478,16 +656,53 @@ export const CategoryMasterModule: React.FC = () => {
         updated_at: today,
         id: newCatId,
         code: cleanCode,
-        name: cleanCat,
-        status: catFormData.lifecycle_status === 'ACTIVE' ? 'Active' : 'Inactive'
+        name: cleanName,
+        status: catFormData.lifecycle_status === 'ACTIVE' ? 'Active' : 'Inactive',
+        subCategory: targetSubCategory,
+        subSubCategory: targetSubSubCategory
       };
 
       addUnifiedCategory(newRecord);
       setCategoryAttributesForCategory(newCatId, catAttrDrafts);
-      showToast(`Created Category record ${newCatId} — ${cleanCode}`);
+      showToast(`Created ${levelLabel} record ${newCatId} — ${cleanCode}`);
     }
 
-    setIsCatModalOpen(false);
+    if (options.closeAfterSave) {
+      setIsCatModalOpen(false);
+    } else {
+      // Save & Add Another: preserve Product Type and parent, reset name/code/description
+      const currentPt = catFormData.product_type_id;
+      const currentParent = catFormData.parent_key;
+      const nextOrder = Number(catFormData.display_order) + 1;
+      setCatFormData({
+        product_type_id: currentPt,
+        parent_key: currentParent,
+        name: '',
+        category_code: '',
+        description: '',
+        lifecycle_status: 'ACTIVE',
+        display_order: nextOrder
+      });
+      setCatAttrDrafts([
+        { attribute_id: 'attr_generic_name', remark: '' },
+        { attribute_id: 'attr_strength', remark: '' },
+        { attribute_id: 'attr_dosage_form', remark: '' },
+        { attribute_id: 'attr_pack_size', remark: '' }
+      ]);
+      setCatFormError(null);
+    }
+
+    return true;
+  };
+
+  const handleSaveCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeSaveCategory({ closeAfterSave: true });
+  };
+
+  const handleSaveAndAddAnother = (e: React.MouseEvent) => {
+    e.preventDefault();
+    executeSaveCategory({ closeAfterSave: false });
   };
 
   // ── ACTION HANDLERS: PRODUCT TYPE ──
@@ -1623,321 +1838,947 @@ export const CategoryMasterModule: React.FC = () => {
       {/* MODAL: ADD / EDIT CATEGORY (ONE CANONICAL CATEGORY ENTITY) */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {isCatModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10005, background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }} onClick={() => setIsCatModalOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: 12, padding: 22, boxShadow: '0 20px 48px rgba(15,23,42,0.2)', display: 'flex', flexDirection: 'column' }}>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid #E2E8F0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 6, background: '#F0FDFA', color: '#0F766E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FolderTree size={18} />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    {editingCat ? `Edit Category Record (${editingCat.category_id})` : 'Add Category Record'}
-                  </h3>
-                  <div style={{ fontSize: 11, color: '#64748B', marginTop: 1 }}>
-                    PRODUCT_TYPE → CATEGORY (Client single table model)
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setIsCatModalOpen(false)} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', padding: 4 }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            {catFormError && (
-              <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 6, padding: '8px 12px', marginBottom: 14, color: '#B91C1C', fontSize: 12.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <AlertTriangle size={15} />
-                <span>{catFormError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveCategory} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              
-              {/* Product Type * (FK) */}
-              <div>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  Product Type *
-                </label>
-                <select
-                  required
-                  value={catFormData.product_type_id}
-                  onChange={e => setCatFormData({ ...catFormData, product_type_id: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #0F766E', borderRadius: 6, fontSize: 13, fontWeight: 700, background: '#F0FDFA', color: '#0F766E', outline: 'none' }}
-                >
-                  {(productTypes || []).map(pt => (
-                    <option key={pt.product_type_id || pt.id} value={pt.product_type_id || pt.id}>
-                      {pt.product_type_name || pt.name} ({pt.product_type_code || pt.code})
-                    </option>
-                  ))}
-                </select>
-                <div style={{ fontSize: 11, color: '#64748B', marginTop: 3 }}>
-                  FK → PRODUCT_TYPE table (product_type_id)
-                </div>
-              </div>
-
-              {/* Category Name * */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
-                    Category *
-                  </label>
-                  {existingCategorySuggestions.length > 0 && (
-                    <span style={{ fontSize: 11, color: '#64748B' }}>Existing: {existingCategorySuggestions.slice(0, 3).join(', ')}</span>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  required
-                  list="existing-category-options"
-                  placeholder="e.g. Drugs, OTC Medicines, Dietary Supplements"
-                  value={catFormData.category}
-                  onChange={e => setCatFormData({ ...catFormData, category: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
-                />
-                <datalist id="existing-category-options">
-                  {existingCategorySuggestions.map(c => (
-                    <option key={c} value={c} />
-                  ))}
-                </datalist>
-              </div>
-
-
-
-              {/* Category Code * (UNIQUE) */}
-              <div>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  Category Code * <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Unique within product type)</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. DRG-TAB-FCT, DRG-CAP-HGC, NUT-SUP-TAB"
-                  value={catFormData.category_code}
-                  onChange={e => setCatFormData({ ...catFormData, category_code: e.target.value.toUpperCase() })}
-                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontFamily: 'monospace', fontWeight: 700, outline: 'none' }}
-                />
-                <div style={{ fontSize: 11, color: '#64748B', marginTop: 3 }}>
-                  Client model has one single category_code representing this complete record.
-                </div>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  Description <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Formulation details, therapeutic focus, specifications..."
-                  value={catFormData.description}
-                  onChange={e => setCatFormData({ ...catFormData, description: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12.5, outline: 'none', resize: 'vertical' }}
-                />
-              </div>
-
-              {/* Status and Display Order */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Lifecycle Status *
-                  </label>
-                  <select
-                    value={catFormData.lifecycle_status}
-                    onChange={e => setCatFormData({ ...catFormData, lifecycle_status: e.target.value as LifecycleStatus })}
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12.5, fontWeight: 600, background: '#FFF' }}
-                  >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="INACTIVE">INACTIVE</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Display Order
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={catFormData.display_order}
-                    onChange={e => setCatFormData({ ...catFormData, display_order: parseInt(e.target.value) || 1 })}
-                    style={{ width: '100%', padding: '8px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, outline: 'none' }}
-                  />
-                </div>
-              </div>
-
-              {/* ── CATEGORY ATTRIBUTES SECTION (CRITICAL CLIENT REQUIREMENT) ── */}
-              <div style={{
-                background: '#F8FAFC',
-                border: '1px solid #CBD5E1',
-                borderRadius: 8,
-                padding: '14px 16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12
-              }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10005, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px 20px' }} onClick={() => setIsCatModalOpen(false)}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 1040,
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              background: '#FFFFFF',
+              border: '1px solid #CBD5E1',
+              borderRadius: 14,
+              boxShadow: '0 25px 60px -15px rgba(15,23,42,0.25)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {/* ── MODAL HEADER (TOP AREA) ── */}
+            <div style={{
+              padding: '18px 24px',
+              borderBottom: '1px solid #E2E8F0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 12,
+              background: '#F8FAFC',
+              borderTopLeftRadius: 14,
+              borderTopRightRadius: 14
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 8,
+                  background: '#F0FDFA',
+                  color: '#0F766E',
                   display: 'flex',
-                  justifyContent: 'space-between',
                   alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: 8
+                  justifyContent: 'center',
+                  border: '1px solid #CCFBF1'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <label style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
-                      CATEGORY ATTRIBUTES
-                    </label>
+                  <FolderTree size={22} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <h3 style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      {editingCat ? `Edit Category Record (${editingCat.category_id})` : 'Add Category'}
+                    </h3>
                     <span style={{
                       fontSize: 11,
                       fontWeight: 700,
                       padding: '2px 8px',
                       borderRadius: 12,
-                      background: catAttrDrafts.length >= 10 ? '#FEF2F2' : (catAttrDrafts.length > 0 ? '#E0F2FE' : '#F1F5F9'),
-                      color: catAttrDrafts.length >= 10 ? '#DC2626' : (catAttrDrafts.length > 0 ? '#0369A1' : '#64748B'),
-                      border: `1px solid ${catAttrDrafts.length >= 10 ? '#FECACA' : (catAttrDrafts.length > 0 ? '#BAE6FD' : '#E2E8F0')}`
+                      background: currentLevel === 1 ? '#E0F2FE' : currentLevel === 2 ? '#FEF3C7' : '#DCFCE7',
+                      color: currentLevel === 1 ? '#0369A1' : currentLevel === 2 ? '#92400E' : '#15803D',
+                      border: `1px solid ${currentLevel === 1 ? '#BAE6FD' : currentLevel === 2 ? '#FDE68A' : '#86EFAC'}`
                     }}>
-                      Assigned Attributes {catAttrDrafts.length} / 10
+                      Level {currentLevel} · {levelLabel}
                     </span>
                   </div>
-
-                  {catAttrDrafts.length >= 10 ? (
-                    <span style={{ fontSize: 11.5, fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '3px 8px', borderRadius: 4, border: '1px solid #FECACA' }}>
-                      Maximum 10 attributes allowed for this category.
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddAttrModalContext('DRAFT_MODAL');
-                        setSelectedAttrId('');
-                        setAddAttrError(null);
-                        setIsAddAttrModalOpen(true);
-                      }}
-                      style={{
-                        padding: '5px 12px',
-                        borderRadius: 6,
-                        background: '#0F766E',
-                        color: '#FFFFFF',
-                        border: 'none',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        boxShadow: '0 1px 2px rgba(15,118,110,0.2)'
-                      }}
-                    >
-                      <Plus size={14} /> Add Attribute
-                    </button>
-                  )}
+                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 3 }}>
+                    Create a category, sub-category or sub-sub-category by choosing where it sits in the hierarchy.
+                  </div>
                 </div>
+              </div>
 
-                {/* Assigned Attributes List */}
-                {catAttrDrafts.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#94A3B8', fontStyle: 'italic', padding: '8px 2px' }}>
-                    No attributes assigned yet. Click "+ Add Attribute" to select from Attribute Master (max 10 attributes).
+              {/* Top-right Actions */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsCatModalOpen(false)}
+                  style={{
+                    padding: '7px 14px',
+                    borderRadius: 6,
+                    border: '1px solid #CBD5E1',
+                    background: '#FFFFFF',
+                    color: '#475569',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                {!editingCat && (
+                  <button
+                    type="button"
+                    onClick={handleSaveAndAddAnother}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: 6,
+                      border: '1px solid #0F766E',
+                      background: '#F0FDFA',
+                      color: '#0F766E',
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Save & add another
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSaveCategory}
+                  style={{
+                    padding: '7px 18px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: '#0F766E',
+                    color: '#FFFFFF',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(15,118,110,0.2)'
+                  }}
+                >
+                  {editingCat ? 'Save Changes' : 'Save category'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCatModalOpen(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#64748B',
+                    cursor: 'pointer',
+                    padding: 6,
+                    marginLeft: 2
+                  }}
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* ── MODAL BODY FORM ── */}
+            <form onSubmit={handleSaveCategory} style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                {catFormError && (
+                  <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '10px 14px', color: '#B91C1C', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <AlertTriangle size={16} />
+                    <span>{catFormError}</span>
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 200, overflowY: 'auto' }}>
-                    {catAttrDrafts.map((draft, idx) => {
-                      const attr = (attributeMasters || []).find(a => (a.attribute_id || a.id) === draft.attribute_id);
-                      if (!attr) return null;
-                      const code = attr.attribute_code || attr.code || '';
-                      const name = attr.attribute_name || attr.name || '';
-                      const uom = attr.unit_of_measure;
+                )}
 
-                      return (
-                        <div
-                          key={`${draft.attribute_id}_${idx}`}
+                {/* TWO-COLUMN RESPONSIVE LAYOUT */}
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 22,
+                  alignItems: 'flex-start'
+                }}>
+                  {/* ────────────────────────────────────────────────────────── */}
+                  {/* LEFT COLUMN: Placement, Details, Settings, Attributes      */}
+                  {/* ────────────────────────────────────────────────────────── */}
+                  <div style={{ flex: '1 1 540px', minWidth: 320, display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+                    {/* ── 1. PLACEMENT SECTION ── */}
+                    <div style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 10,
+                      padding: '16px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Placement
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                          Pick the product type, then the parent. Leave the parent empty to create a top-level category.
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+                        {/* PRODUCT TYPE (Required) */}
+                        <div>
+                          <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                            Product Type *
+                          </label>
+                          <select
+                            required
+                            value={catFormData.product_type_id}
+                            onChange={e => handleProductTypeChange(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1.5px solid #0F766E',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              fontWeight: 700,
+                              background: '#F0FDFA',
+                              color: '#0F766E',
+                              outline: 'none'
+                            }}
+                          >
+                            {(productTypes || []).map(pt => (
+                              <option key={pt.product_type_id || pt.id} value={pt.product_type_id || pt.id}>
+                                {pt.product_type_name || pt.name} ({pt.product_type_code || pt.code})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* PARENT CATEGORY (Optional) */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                            <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                              Parent Category
+                            </label>
+                            {catFormData.parent_key && (
+                              <button
+                                type="button"
+                                onClick={() => setCatFormData(prev => ({ ...prev, parent_key: '' }))}
+                                style={{ fontSize: 11, color: '#0F766E', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                              >
+                                Clear (Top-level)
+                              </button>
+                            )}
+                          </div>
+                          <select
+                            value={catFormData.parent_key}
+                            onChange={e => setCatFormData(prev => ({ ...prev, parent_key: e.target.value }))}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              fontWeight: 600,
+                              background: '#FFFFFF',
+                              color: '#0F172A',
+                              outline: 'none'
+                            }}
+                          >
+                            <option value="">None (Top-level Category — Level 1)</option>
+
+                            {availableParents.level1List.length > 0 && (
+                              <optgroup label="Level 1 Categories (creates Sub-Category — Level 2)">
+                                {availableParents.level1List.map(p => (
+                                  <option key={p.key} value={p.key}>
+                                    {p.category}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {availableParents.level2List.length > 0 && (
+                              <optgroup label="Level 2 Sub-Categories (creates Sub-Sub-Category — Level 3)">
+                                {availableParents.level2List.map(p => (
+                                  <option key={p.key} value={p.key}>
+                                    {p.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </select>
+                          <div style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
+                            Only levels 1–2 can be parents. Max depth is 3.
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ── CURRENT LEVEL PREVIEW ── */}
+                      <div style={{
+                        background: '#F0FDFA',
+                        border: '1px solid #CCFBF1',
+                        borderRadius: 8,
+                        padding: '10px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                        flexWrap: 'wrap'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            padding: '3px 9px',
+                            borderRadius: 12,
+                            background: currentLevel === 1 ? '#E0F2FE' : currentLevel === 2 ? '#FEF3C7' : '#DCFCE7',
+                            color: currentLevel === 1 ? '#0369A1' : currentLevel === 2 ? '#92400E' : '#15803D',
+                            border: `1px solid ${currentLevel === 1 ? '#BAE6FD' : currentLevel === 2 ? '#FDE68A' : '#86EFAC'}`,
+                            whiteSpace: 'nowrap'
+                          }}>
+                            [Level {currentLevel} · {levelLabel}]
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#0F172A', fontWeight: 600, flexWrap: 'wrap' }}>
+                            <span>{selectedModalPt?.product_type_name || selectedModalPt?.name || 'Product Type'}</span>
+                            <ChevronRight size={13} style={{ color: '#94A3B8' }} />
+                            {currentLevel >= 2 && (
+                              <>
+                                <span style={{ color: '#334155' }}>{parsedParent.category}</span>
+                                <ChevronRight size={13} style={{ color: '#94A3B8' }} />
+                              </>
+                            )}
+                            {currentLevel === 3 && (
+                              <>
+                                <span style={{ color: '#334155' }}>{parsedParent.sub_category}</span>
+                                <ChevronRight size={13} style={{ color: '#94A3B8' }} />
+                              </>
+                            )}
+                            <span style={{
+                              fontWeight: 800,
+                              color: '#0F766E',
+                              background: '#CCFBF1',
+                              padding: '1px 8px',
+                              borderRadius: 4
+                            }}>
+                              {catFormData.name.trim() || `(${nameFieldLabel})`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── 2. DETAILS SECTION ── */}
+                    <div style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 10,
+                      padding: '16px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Details
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                          How this category appears across the catalog.
+                        </div>
+                      </div>
+
+                      {/* Name Field (Dynamic Label) */}
+                      <div>
+                        <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                          {nameFieldLabel} *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder={namePlaceholder}
+                          value={catFormData.name}
+                          onChange={e => setCatFormData(prev => ({ ...prev, name: e.target.value }))}
                           style={{
-                            padding: '8px 12px',
-                            background: '#FFFFFF',
-                            border: '1px solid #E2E8F0',
+                            width: '100%',
+                            padding: '9px 12px',
+                            border: '1px solid #CBD5E1',
                             borderRadius: 6,
+                            fontSize: 13,
+                            outline: 'none',
+                            fontWeight: 600
+                          }}
+                        />
+                      </div>
+
+                      {/* Category Code (Unique) */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                          <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                            Category Code * <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Unique within product type)</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleAutoGenerateCode}
+                            style={{
+                              fontSize: 11,
+                              color: '#0F766E',
+                              background: '#F0FDFA',
+                              border: '1px solid #CCFBF1',
+                              borderRadius: 4,
+                              padding: '2px 8px',
+                              cursor: 'pointer',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <Sparkles size={11} /> Auto-suggest Code
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. DRUG-TAB-FCT, APP-MEN-TOP"
+                          value={catFormData.category_code}
+                          onChange={e => setCatFormData(prev => ({ ...prev, category_code: e.target.value.toUpperCase() }))}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: 6,
+                            fontSize: 13,
+                            fontFamily: 'monospace',
+                            fontWeight: 700,
+                            outline: 'none'
+                          }}
+                        />
+                        <div style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
+                          Client model has one single category_code representing this complete record.
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <div>
+                        <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                          Description <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder="Formulation details, therapeutic focus, specifications..."
+                          value={catFormData.description}
+                          onChange={e => setCatFormData(prev => ({ ...prev, description: e.target.value }))}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            border: '1px solid #CBD5E1',
+                            borderRadius: 6,
+                            fontSize: 12.5,
+                            outline: 'none',
+                            resize: 'vertical'
+                          }}
+                        />
+                        <div style={{ fontSize: 11, color: '#64748B', marginTop: 3 }}>
+                          Category Description only. No remark.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── 3. SETTINGS SECTION ── */}
+                    <div style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 10,
+                      padding: '16px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Settings
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                          Catalog lifecycle status and listing display priority.
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+                        <div>
+                          <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                            Lifecycle Status *
+                          </label>
+                          <select
+                            value={catFormData.lifecycle_status}
+                            onChange={e => setCatFormData(prev => ({ ...prev, lifecycle_status: e.target.value as LifecycleStatus }))}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: 6,
+                              fontSize: 12.5,
+                              fontWeight: 600,
+                              background: '#FFF',
+                              outline: 'none'
+                            }}
+                          >
+                            <option value="ACTIVE">ACTIVE</option>
+                            <option value="INACTIVE">INACTIVE</option>
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="DISCONTINUED">DISCONTINUED</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                            Display Order
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={catFormData.display_order}
+                            onChange={e => setCatFormData(prev => ({ ...prev, display_order: parseInt(e.target.value) || 1 }))}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: 6,
+                              fontSize: 13,
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── 4. CATEGORY ATTRIBUTES (PRESERVED) ── */}
+                    <div style={{
+                      background: '#F8FAFC',
+                      border: '1px solid #CBD5E1',
+                      borderRadius: 10,
+                      padding: '16px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 8
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <label style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
+                            Category Attributes
+                          </label>
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 12,
+                            background: catAttrDrafts.length >= 10 ? '#FEF2F2' : (catAttrDrafts.length > 0 ? '#E0F2FE' : '#F1F5F9'),
+                            color: catAttrDrafts.length >= 10 ? '#DC2626' : (catAttrDrafts.length > 0 ? '#0369A1' : '#64748B'),
+                            border: `1px solid ${catAttrDrafts.length >= 10 ? '#FECACA' : (catAttrDrafts.length > 0 ? '#BAE6FD' : '#E2E8F0')}`
+                          }}>
+                            Assigned Attributes {catAttrDrafts.length} / 10
+                          </span>
+                        </div>
+
+                        {catAttrDrafts.length >= 10 ? (
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '3px 8px', borderRadius: 4, border: '1px solid #FECACA' }}>
+                            Maximum 10 attributes allowed for this category.
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddAttrModalContext('DRAFT_MODAL');
+                              setSelectedAttrId('');
+                              setAddAttrError(null);
+                              setIsAddAttrModalOpen(true);
+                            }}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 6,
+                              background: '#0F766E',
+                              color: '#FFFFFF',
+                              border: 'none',
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              boxShadow: '0 1px 2px rgba(15,118,110,0.2)'
+                            }}
+                          >
+                            <Plus size={14} /> Add Attribute
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Assigned Attributes List */}
+                      {catAttrDrafts.length === 0 ? (
+                        <div style={{ fontSize: 12, color: '#94A3B8', fontStyle: 'italic', padding: '8px 2px' }}>
+                          No attributes assigned yet. Click "+ Add Attribute" to select from Attribute Master (max 10 attributes).
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 200, overflowY: 'auto' }}>
+                          {catAttrDrafts.map((draft, idx) => {
+                            const attr = (attributeMasters || []).find(a => (a.attribute_id || a.id) === draft.attribute_id);
+                            if (!attr) return null;
+                            const code = attr.attribute_code || attr.code || '';
+                            const name = attr.attribute_name || attr.name || '';
+                            const uom = attr.unit_of_measure;
+
+                            return (
+                              <div
+                                key={`${draft.attribute_id}_${idx}`}
+                                style={{
+                                  padding: '8px 12px',
+                                  background: '#FFFFFF',
+                                  border: '1px solid #E2E8F0',
+                                  borderRadius: 6,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 6
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: 700, color: '#0F172A', fontSize: 12.5 }}>{name}</span>
+                                  <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#0F766E', background: '#F0FDFA', padding: '1px 5px', borderRadius: 3, border: '1px solid #CCFBF1' }}>
+                                    {code}
+                                  </span>
+                                  <span style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    padding: '1px 6px',
+                                    borderRadius: 4,
+                                    background: '#F1F5F9',
+                                    color: '#334155',
+                                    border: '1px solid #E2E8F0'
+                                  }}>
+                                    {attr.data_type}
+                                  </span>
+                                  {uom && (
+                                    <span style={{ fontSize: 11, color: '#64748B' }}>({uom})</span>
+                                  )}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setCatAttrDrafts(prev => prev.filter((_, i) => i !== idx))}
+                                  style={{
+                                    padding: '3px 8px',
+                                    borderRadius: 4,
+                                    background: '#FEF2F2',
+                                    border: '1px solid #FECACA',
+                                    color: '#DC2626',
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 3
+                                  }}
+                                  title="Remove attribute from this category"
+                                >
+                                  <X size={12} /> Remove
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ────────────────────────────────────────────────────────── */}
+                  {/* RIGHT COLUMN: Hierarchy Preview & Record Mapping           */}
+                  {/* ────────────────────────────────────────────────────────── */}
+                  <div style={{ flex: '1 1 360px', minWidth: 280, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                    {/* ── 8. HIERARCHY PREVIEW PANEL ── */}
+                    <div style={{
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 10,
+                      padding: '16px 18px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 14
+                    }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <FolderTree size={16} style={{ color: '#0F766E' }} />
+                          <span style={{ fontSize: 12, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Hierarchy Preview
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                          Live catalog placement across 3 hierarchy tiers.
+                        </div>
+                      </div>
+
+                      {/* Visual Tree */}
+                      <div style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
+                        borderRadius: 8,
+                        padding: '14px 16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10
+                      }}>
+                        {/* Root: Product Type */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 10px',
+                          borderRadius: 6,
+                          background: '#F1F5F9',
+                          border: '1px solid #E2E8F0'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Layers size={15} style={{ color: '#475569' }} />
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: '#0F172A' }}>
+                              {selectedModalPt?.product_type_name || selectedModalPt?.name || 'Product Type'}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#475569', background: '#E2E8F0', padding: '1px 6px', borderRadius: 4 }}>
+                            Product type
+                          </span>
+                        </div>
+
+                        {/* Level 1 Node */}
+                        <div style={{
+                          marginLeft: 14,
+                          paddingLeft: 12,
+                          borderLeft: '2px solid #CBD5E1',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8
+                        }}>
+                          <div style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            flexWrap: 'wrap',
-                            gap: 6
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 700, color: '#0F172A', fontSize: 12.5 }}>{name}</span>
-                            <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#0F766E', background: '#F0FDFA', padding: '1px 5px', borderRadius: 3, border: '1px solid #CCFBF1' }}>
-                              {code}
-                            </span>
+                            padding: '6px 10px',
+                            borderRadius: 6,
+                            background: currentLevel === 1 ? '#F0FDFA' : '#F8FAFC',
+                            border: currentLevel === 1 ? '1.5px solid #0F766E' : '1px solid #E2E8F0'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <FolderTree size={14} style={{ color: currentLevel === 1 ? '#0F766E' : '#64748B' }} />
+                              <span style={{
+                                fontSize: 12,
+                                fontWeight: currentLevel === 1 ? 800 : 600,
+                                color: currentLevel === 1 ? '#0F766E' : '#334155'
+                              }}>
+                                {currentLevel === 1 ? (catFormData.name.trim() || 'New Category') : parsedParent.category}
+                              </span>
+                            </div>
                             <span style={{
                               fontSize: 10,
                               fontWeight: 700,
                               padding: '1px 6px',
                               borderRadius: 4,
-                              background: '#F1F5F9',
-                              color: '#334155',
-                              border: '1px solid #E2E8F0'
+                              background: currentLevel === 1 ? '#CCFBF1' : '#F1F5F9',
+                              color: currentLevel === 1 ? '#0F766E' : '#64748B'
                             }}>
-                              {attr.data_type}
+                              {currentLevel === 1 ? 'L1 · New' : 'L1'}
                             </span>
-                            {uom && (
-                              <span style={{ fontSize: 11, color: '#64748B' }}>({uom})</span>
-                            )}
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => setCatAttrDrafts(prev => prev.filter((_, i) => i !== idx))}
-                            style={{
-                              padding: '3px 8px',
-                              borderRadius: 4,
-                              background: '#FEF2F2',
-                              border: '1px solid #FECACA',
-                              color: '#DC2626',
-                              fontSize: 11,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 3
-                            }}
-                            title="Remove attribute from this category"
-                          >
-                            <X size={12} /> Remove
-                          </button>
+                          {/* Level 2 Node */}
+                          {currentLevel >= 2 && (
+                            <div style={{
+                              marginLeft: 14,
+                              paddingLeft: 12,
+                              borderLeft: '2px solid #CBD5E1',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 8
+                            }}>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '6px 10px',
+                                borderRadius: 6,
+                                background: currentLevel === 2 ? '#F0FDFA' : '#F8FAFC',
+                                border: currentLevel === 2 ? '1.5px solid #0F766E' : '1px solid #E2E8F0'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <FolderTree size={14} style={{ color: currentLevel === 2 ? '#0F766E' : '#64748B' }} />
+                                  <span style={{
+                                    fontSize: 12,
+                                    fontWeight: currentLevel === 2 ? 800 : 600,
+                                    color: currentLevel === 2 ? '#0F766E' : '#334155'
+                                  }}>
+                                    {currentLevel === 2 ? (catFormData.name.trim() || 'New Sub-Category') : parsedParent.sub_category}
+                                  </span>
+                                </div>
+                                <span style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  background: currentLevel === 2 ? '#CCFBF1' : '#F1F5F9',
+                                  color: currentLevel === 2 ? '#0F766E' : '#64748B'
+                                }}>
+                              {currentLevel === 2 ? 'L2 · New' : 'L2'}
+                            </span>
+                          </div>
+
+                          {/* Level 3 Node */}
+                          {currentLevel === 3 && (
+                            <div style={{
+                              marginLeft: 14,
+                              paddingLeft: 12,
+                              borderLeft: '2px solid #CBD5E1'
+                            }}>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '6px 10px',
+                                borderRadius: 6,
+                                background: '#F0FDFA',
+                                border: '1.5px solid #0F766E'
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <FolderTree size={14} style={{ color: '#0F766E' }} />
+                                  <span style={{ fontSize: 12, fontWeight: 800, color: '#0F766E' }}>
+                                    {catFormData.name.trim() || 'New Sub-Sub-Category'}
+                                  </span>
+                                </div>
+                                <span style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  padding: '1px 6px',
+                                  borderRadius: 4,
+                                  background: '#CCFBF1',
+                                  color: '#0F766E'
+                                }}>
+                                  L3 · New
+                                </span>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── RECORD INFO & MODEL MAPPING CARD ── */}
+                <div style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: 10,
+                  padding: '16px 18px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: 11.5, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Record Info
+                    </div>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: '#0F766E', background: '#F0FDFA', padding: '2px 7px', borderRadius: 4, border: '1px solid #CCFBF1' }}>
+                      Single CATEGORY Entity
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed #E2E8F0' }}>
+                      <span style={{ color: '#64748B' }}>Target Level:</span>
+                      <strong style={{ color: '#0F172A' }}>Level {currentLevel} ({levelLabel})</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed #E2E8F0' }}>
+                      <span style={{ color: '#64748B' }}>category:</span>
+                      <strong style={{ color: '#0F172A' }}>{targetCategoryPreview}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed #E2E8F0' }}>
+                      <span style={{ color: '#64748B' }}>sub_category:</span>
+                      <span style={{ color: targetSubCategoryPreview ? '#0F172A' : '#94A3B8', fontWeight: targetSubCategoryPreview ? 700 : 400 }}>
+                        {targetSubCategoryPreview || '— (null)'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed #E2E8F0' }}>
+                      <span style={{ color: '#64748B' }}>sub_sub_category:</span>
+                      <span style={{ color: targetSubSubCategoryPreview ? '#0F172A' : '#94A3B8', fontWeight: targetSubSubCategoryPreview ? 700 : 400 }}>
+                        {targetSubSubCategoryPreview || '— (null)'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px dashed #E2E8F0' }}>
+                      <span style={{ color: '#64748B' }}>category_code:</span>
+                      <span style={{ fontFamily: 'monospace', color: '#1D4ED8', fontWeight: 700 }}>
+                        {catFormData.category_code || '—'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                      <span style={{ color: '#64748B' }}>lifecycle_status:</span>
+                      <span style={{ fontWeight: 700, color: catFormData.lifecycle_status === 'ACTIVE' ? '#15803D' : '#B91C1C' }}>
+                        {catFormData.lifecycle_status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* System Info when editing */}
+                {editingCat && (
+                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '12px 14px', fontSize: 11, color: '#64748B', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div><strong>category_id:</strong> {editingCat.category_id}</div>
+                    <div><strong>created_at:</strong> {formatMasterDate(editingCat.created_at)}</div>
+                    <div><strong>updated_at:</strong> {formatMasterDate(editingCat.updated_at)}</div>
                   </div>
                 )}
               </div>
+            </div>
+          </div>
 
-              {/* System Info when editing */}
-              {editingCat && (
-                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: '#64748B', display: 'flex', gap: 16 }}>
-                  <div><strong>category_id:</strong> {editingCat.category_id}</div>
-                  <div><strong>created_at:</strong> {formatMasterDate(editingCat.created_at)}</div>
-                  <div><strong>updated_at:</strong> {formatMasterDate(editingCat.updated_at)}</div>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6, paddingTop: 12, borderTop: '1px solid #E2E8F0' }}>
+          {/* ── MODAL FOOTER ── */}
+          <div style={{
+            padding: '16px 24px',
+            borderTop: '1px solid #E2E8F0',
+            background: '#F8FAFC',
+            borderBottomLeftRadius: 14,
+            borderBottomRightRadius: 14,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12
+          }}>
+            <div style={{ fontSize: 12, color: '#64748B' }}>
+              Target: <strong style={{ color: '#0F172A' }}>Level {currentLevel} · {levelLabel}</strong> ({selectedModalPt?.product_type_name || selectedModalPt?.name || 'Catalog'})
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setIsCatModalOpen(false)}
+                style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              {!editingCat && (
                 <button
                   type="button"
-                  onClick={() => setIsCatModalOpen(false)}
-                  style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', color: '#475569', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                  onClick={handleSaveAndAddAnother}
+                  style={{ padding: '8px 16px', borderRadius: 6, border: '1px solid #0F766E', background: '#F0FDFA', color: '#0F766E', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
                 >
-                  Cancel
+                  Save & add another
                 </button>
-                <button
-                  type="submit"
-                  style={{ padding: '8px 20px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFF', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
-                >
-                  {editingCat ? 'Save Changes' : 'Save Category'}
-                </button>
-              </div>
-            </form>
+              )}
+              <button
+                type="submit"
+                style={{ padding: '8px 22px', borderRadius: 6, border: 'none', background: '#0F766E', color: '#FFF', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 4px rgba(15,118,110,0.2)' }}
+              >
+                {editingCat ? 'Save Changes' : 'Save category'}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        </form>
+      </div>
+    </div>
+  )}
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* MODAL: VIEW CATEGORY & MANAGE ATTRIBUTES */}
@@ -2024,10 +2865,22 @@ export const CategoryMasterModule: React.FC = () => {
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.04em' }}>
                   Category Details
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, fontSize: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, fontSize: 12 }}>
                   <div>
-                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Category:</span>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Category (L1):</span>
                     <strong style={{ color: '#0F172A' }}>{viewingCat.category}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Sub-Category (L2):</span>
+                    <span style={{ color: viewingCat.sub_category ? '#0F172A' : '#94A3B8', fontWeight: viewingCat.sub_category ? 700 : 400 }}>
+                      {viewingCat.sub_category || '—'}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Sub-Sub-Category (L3):</span>
+                    <span style={{ color: viewingCat.sub_sub_category ? '#0F172A' : '#94A3B8', fontWeight: viewingCat.sub_sub_category ? 700 : 400 }}>
+                      {viewingCat.sub_sub_category || '—'}
+                    </span>
                   </div>
                   <div>
                     <span style={{ color: '#64748B', fontSize: 11, display: 'block' }}>Category Code:</span>
@@ -2434,7 +3287,7 @@ export const CategoryMasterModule: React.FC = () => {
           : availableAttributesForModal;
         const targetCategoryName = addAttrModalContext === 'VIEW_MODAL'
           ? (viewingCat?.category || 'Selected Category')
-          : (catFormData.category || 'Category');
+          : (catFormData.name.trim() || targetCategoryPreview || 'Category');
 
         return (
           <div
