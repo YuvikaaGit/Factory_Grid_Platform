@@ -745,6 +745,20 @@ export const ManufacturerMasterModule: React.FC = () => {
                 </div>
               </div>
 
+              {/* Audit Metadata when editing */}
+              {editingMfg && (
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12 }}>
+                  <div>
+                    <span style={{ color: '#64748B' }}>Created At: </span>
+                    <strong style={{ color: '#334155' }}>{editingMfg.created_at || '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B' }}>Updated At: </span>
+                    <strong style={{ color: '#334155' }}>{editingMfg.updated_at || '—'}</strong>
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 10, borderTop: '1px solid #E2E8F0' }}>
                 <button
@@ -860,6 +874,14 @@ export const ManufacturerMasterModule: React.FC = () => {
                   <div>
                     <span style={{ color: '#64748B' }}>Location:</span>
                     <strong style={{ color: '#334155', display: 'block' }}>{selectedMfgForDetail.city ? `${selectedMfgForDetail.city}, ${selectedMfgForDetail.state}` : '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B' }}>Created At:</span>
+                    <strong style={{ color: '#334155', display: 'block' }}>{selectedMfgForDetail.created_at || '—'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748B' }}>Updated At:</span>
+                    <strong style={{ color: '#334155', display: 'block' }}>{selectedMfgForDetail.updated_at || '—'}</strong>
                   </div>
                   {selectedMfgForDetail.description && (
                     <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>

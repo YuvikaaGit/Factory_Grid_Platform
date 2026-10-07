@@ -101,6 +101,10 @@ export const ProductCatalogModule: React.FC = () => {
     return legacyParts.length > 0 ? legacyParts.join(' › ') : 'General / Uncategorized';
   };
 
+  const getCategoryId = (prd: Product): string => {
+    return prd.category_id || prd.categoryId || '—';
+  };
+
   const getProductTypeName = (prd: Product): string => {
     const ptId = prd.product_type_id || prd.productTypeId;
     if (ptId) {
@@ -115,6 +119,14 @@ export const ProductCatalogModule: React.FC = () => {
     return 'Pharmaceutical';
   };
 
+  const getProductTypeId = (prd: Product): string => {
+    const ptId = prd.product_type_id || prd.productTypeId;
+    if (ptId) return ptId;
+    const catRecord = resolveCategoryRecord(prd.category_id || prd.categoryId);
+    if (catRecord?.product_type_id) return catRecord.product_type_id;
+    return '—';
+  };
+
   const getBrandName = (prd: Product): string => {
     const bId = prd.brand_id || prd.brandId;
     if (bId) {
@@ -123,6 +135,16 @@ export const ProductCatalogModule: React.FC = () => {
     }
     if (prd.brandNames && prd.brandNames.length > 0) {
       return prd.brandNames[0];
+    }
+    return '';
+  };
+
+  const getBrandId = (prd: Product): string => {
+    const bId = prd.brand_id || prd.brandId;
+    if (bId) return bId;
+    if (prd.brandNames && prd.brandNames.length > 0) {
+      const matched = (brands || []).find(b => b.brand_name === prd.brandNames?.[0] || b.name === prd.brandNames?.[0]);
+      if (matched) return matched.brand_id || matched.id || '';
     }
     return '';
   };
@@ -1158,17 +1180,34 @@ export const ProductCatalogModule: React.FC = () => {
 
                       <div style={{ fontSize: 12, color: '#64748B', display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <div>
+                          <span style={{ color: '#475569', fontWeight: 600 }}>Product Type: </span>
+                          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
+                            {getProductTypeName(p)}
+                          </span>
+                          <span title="Product Type ID" style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 700, color: '#64748B', marginLeft: 6 }}>
+                            ({getProductTypeId(p)})
+                          </span>
+                        </div>
+                        <div>
                           <span style={{ color: '#475569', fontWeight: 600 }}>Category: </span>
                           <strong style={{ color: '#0F172A' }}>{getCategoryHierarchyDisplay(p)}</strong>
+                          <span title="Category ID" style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 700, color: '#0F766E', marginLeft: 6 }}>
+                            ({getCategoryId(p)})
+                          </span>
                         </div>
                         <div>
                           <span style={{ color: '#475569', fontWeight: 600 }}>Brand: </span>
                           {brandStr ? (
-                            <span style={{ padding: '1px 6px', background: '#FEF3C7', color: '#B45309', borderRadius: 4, fontSize: 11, fontWeight: 700, border: '1px solid #FDE68A' }}>
-                              🏷 {brandStr}
-                            </span>
+                            <>
+                              <span style={{ padding: '1px 6px', background: '#FEF3C7', color: '#B45309', borderRadius: 4, fontSize: 11, fontWeight: 700, border: '1px solid #FDE68A' }}>
+                                🏷 {brandStr}
+                              </span>
+                              <span title="Brand ID" style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 700, color: '#B45309', marginLeft: 6 }}>
+                                ({getBrandId(p) || '—'})
+                              </span>
+                            </>
                           ) : (
-                            <span style={{ color: '#94A3B8', fontStyle: 'italic' }}>Unbranded</span>
+                            <span style={{ color: '#94A3B8', fontStyle: 'italic' }}>Unbranded (—)</span>
                           )}
                         </div>
                         <div>
@@ -1257,15 +1296,15 @@ export const ProductCatalogModule: React.FC = () => {
             )}
           </div>
         ) : (
-          <table style={{ width: '100%', minWidth: 1350, borderCollapse: 'collapse', textAlign: 'left' }}>
+          <table style={{ width: '100%', minWidth: 1380, borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                 <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 110 }}>PRODUCT CODE</th>
                 <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569' }}>PRODUCT NAME</th>
                 <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 120 }}>SHORT NAME</th>
-                <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 115 }}>PRODUCT TYPE</th>
-                <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 220 }}>CATEGORY</th>
-                <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 110 }}>BRAND</th>
+                <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 125 }}>PRODUCT TYPE</th>
+                <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 230 }}>CATEGORY</th>
+                <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 120 }}>BRAND</th>
                 <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0F766E', width: 170 }}>MANUFACTURER</th>
                 <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 85 }}>BASE UOM</th>
                 <th style={{ padding: '12px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#475569', width: 95 }}>PACK SIZE</th>
@@ -1335,9 +1374,14 @@ export const ProductCatalogModule: React.FC = () => {
 
                       {/* 4. PRODUCT TYPE */}
                       <td style={{ padding: '12px 10px', whiteSpace: 'nowrap' }}>
-                        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
-                          {getProductTypeName(prd)}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+                          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
+                            {getProductTypeName(prd)}
+                          </span>
+                          <span title="Product Type ID" style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 700, color: '#64748B' }}>
+                            {getProductTypeId(prd)}
+                          </span>
+                        </div>
                       </td>
 
                       {/* 5. CATEGORY (Derived hierarchy) */}
@@ -1345,17 +1389,28 @@ export const ProductCatalogModule: React.FC = () => {
                         <div style={{ fontWeight: 600, color: '#0F172A', lineHeight: 1.3 }}>
                           {getCategoryHierarchyDisplay(prd)}
                         </div>
+                        <div title="Category ID" style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 700, color: '#0F766E', marginTop: 3 }}>
+                          {getCategoryId(prd)}
+                        </div>
                       </td>
 
                       {/* 6. BRAND */}
                       <td style={{ padding: '12px 10px', fontSize: 12 }}>
                         {brandStr ? (
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 4, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A', fontWeight: 700, fontSize: 11 }}>
-                            <span>🏷</span>
-                            <span>{brandStr}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 4, background: '#FEF3C7', color: '#B45309', border: '1px solid #FDE68A', fontWeight: 700, fontSize: 11 }}>
+                              <span>🏷</span>
+                              <span>{brandStr}</span>
+                            </div>
+                            <span title="Brand ID" style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 700, color: '#B45309' }}>
+                              {getBrandId(prd) || '—'}
+                            </span>
                           </div>
                         ) : (
-                          <span style={{ color: '#94A3B8', fontStyle: 'italic', fontSize: 11.5 }}>Unbranded</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ color: '#94A3B8', fontStyle: 'italic', fontSize: 11.5 }}>Unbranded</span>
+                            <span title="Brand ID (None)" style={{ fontSize: 10, fontFamily: 'monospace', color: '#94A3B8' }}>—</span>
+                          </div>
                         )}
                       </td>
 
@@ -1560,44 +1615,85 @@ export const ProductCatalogModule: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12.5 }}>
+                  {/* 1. Product ID */}
                   <div>
                     <span style={{ color: '#64748B' }}>Product ID:</span>
                     <strong style={{ color: '#0F172A', fontFamily: 'monospace', display: 'block' }}>{selectedProduct.product_id || selectedProduct.id}</strong>
                   </div>
+
+                  {/* 2. Product Code */}
                   <div>
                     <span style={{ color: '#64748B' }}>Product Code:</span>
                     <strong style={{ color: '#0F766E', fontFamily: 'monospace', display: 'block' }}>{selectedProduct.product_code || selectedProduct.code}</strong>
                   </div>
+
+                  {/* 3. Product Type */}
                   <div>
                     <span style={{ color: '#64748B' }}>Product Type:</span>
                     <strong style={{ color: '#1D4ED8', display: 'block' }}>{getProductTypeName(selectedProduct)}</strong>
                   </div>
+
+                  {/* 4. Product Type ID */}
+                  <div>
+                    <span style={{ color: '#64748B' }}>Product Type ID:</span>
+                    <strong style={{ color: '#1D4ED8', fontFamily: 'monospace', display: 'block' }}>{getProductTypeId(selectedProduct)}</strong>
+                  </div>
+
+                  {/* 5. Brand */}
                   <div>
                     <span style={{ color: '#64748B' }}>Brand:</span>
                     <strong style={{ color: '#D97706', display: 'block' }}>{getBrandName(selectedProduct) || 'Unbranded / Generic'}</strong>
                   </div>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <span style={{ color: '#64748B' }}>Category (Hierarchy):</span>
+
+                  {/* 6. Brand ID */}
+                  <div>
+                    <span style={{ color: '#64748B' }}>Brand ID:</span>
+                    <strong style={{ color: '#D97706', fontFamily: 'monospace', display: 'block' }}>{getBrandId(selectedProduct) || '—'}</strong>
+                  </div>
+
+                  {/* 7. Category */}
+                  <div>
+                    <span style={{ color: '#64748B' }}>Category:</span>
                     <strong style={{ color: '#0F172A', display: 'block' }}>{getCategoryHierarchyDisplay(selectedProduct)}</strong>
                   </div>
+
+                  {/* 8. Category ID */}
+                  <div>
+                    <span style={{ color: '#64748B' }}>Category ID:</span>
+                    <strong style={{ color: '#0F766E', fontFamily: 'monospace', display: 'block' }}>{getCategoryId(selectedProduct)}</strong>
+                  </div>
+
+                  {/* 9. Product Name */}
                   <div>
                     <span style={{ color: '#64748B' }}>Product Name:</span>
                     <strong style={{ color: '#0F172A', display: 'block' }}>{selectedProduct.product_name || selectedProduct.name}</strong>
                   </div>
+
+                  {/* 10. Product Short Name */}
                   <div>
-                    <span style={{ color: '#64748B' }}>Short Name:</span>
+                    <span style={{ color: '#64748B' }}>Product Short Name:</span>
                     <strong style={{ color: '#0F766E', display: 'block' }}>{selectedProduct.product_short_name || '—'}</strong>
                   </div>
+
+                  {/* 11. Base UOM */}
                   <div>
                     <span style={{ color: '#64748B' }}>Base UOM:</span>
                     <strong style={{ color: '#0F172A', display: 'block' }}>{selectedProduct.base_uom || selectedProduct.uom || 'Unit'}</strong>
                   </div>
+
+                  {/* 12. Pack Size */}
                   <div>
-                    <span style={{ color: '#64748B' }}>Pack Size &amp; Pack UOM:</span>
-                    <strong style={{ color: '#334155', display: 'block' }}>
-                      {selectedProduct.pack_size || selectedProduct.packSize || '—'} {selectedProduct.pack_uom ? `(${selectedProduct.pack_uom})` : ''}
-                    </strong>
+                    <span style={{ color: '#64748B' }}>Pack Size:</span>
+                    <strong style={{ color: '#334155', display: 'block' }}>{selectedProduct.pack_size || selectedProduct.packSize || '—'}</strong>
                   </div>
+
+                  {/* 13. Pack UOM */}
+                  <div>
+                    <span style={{ color: '#64748B' }}>Pack UOM:</span>
+                    <strong style={{ color: '#334155', display: 'block' }}>{selectedProduct.pack_uom || '—'}</strong>
+                  </div>
+
+                  {/* 14. Lifecycle Status */}
                   <div>
                     <span style={{ color: '#64748B' }}>Lifecycle Status:</span>
                     {(() => {
@@ -1611,39 +1707,84 @@ export const ProductCatalogModule: React.FC = () => {
                       );
                     })()}
                   </div>
-                  <div>
-                    <span style={{ color: '#64748B' }}>Is Sellable:</span>
-                    <div style={{ marginTop: 2 }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 4, background: selectedProduct.is_sellable !== false ? '#DCFCE7' : '#FEE2E2', color: selectedProduct.is_sellable !== false ? '#15803D' : '#B91C1C' }}>
-                        {selectedProduct.is_sellable !== false ? 'YES' : 'NO'}
-                      </span>
-                    </div>
-                  </div>
+
+                  {/* 15. Available From */}
                   <div>
                     <span style={{ color: '#64748B' }}>Available From:</span>
                     <strong style={{ color: '#334155', display: 'block' }}>{selectedProduct.available_from || '—'}</strong>
                   </div>
+
+                  {/* 16. Discontinued On */}
                   <div>
                     <span style={{ color: '#64748B' }}>Discontinued On:</span>
                     <strong style={{ color: '#334155', display: 'block' }}>{selectedProduct.discontinued_on || '—'}</strong>
                   </div>
-                  {selectedProduct.replacement_product_id && (
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <span style={{ color: '#64748B' }}>Replacement Product:</span>
-                      {(() => {
-                        const rep = (products || []).find(p => p.id === selectedProduct.replacement_product_id || p.product_id === selectedProduct.replacement_product_id);
-                        return <strong style={{ color: '#B45309', display: 'block' }}>{rep ? `${rep.product_name || rep.name} (${rep.product_code || rep.code})` : selectedProduct.replacement_product_id}</strong>;
-                      })()}
+
+                  {/* 17. Replacement Product ID */}
+                  <div>
+                    <span style={{ color: '#64748B' }}>Replacement Product ID:</span>
+                    {selectedProduct.replacement_product_id ? (
+                      <div>
+                        <strong style={{ color: '#0F172A', fontFamily: 'monospace', display: 'block' }}>
+                          {selectedProduct.replacement_product_id}
+                        </strong>
+                        {(() => {
+                          const rep = (products || []).find(p => p.id === selectedProduct.replacement_product_id || p.product_id === selectedProduct.replacement_product_id);
+                          return rep ? (
+                            <span style={{ fontSize: 11, color: '#64748B' }}>
+                              ({rep.product_name || rep.name})
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                    ) : (
+                      <strong style={{ color: '#94A3B8', display: 'block' }}>—</strong>
+                    )}
+                  </div>
+
+                  {/* 18. Sellable */}
+                  <div>
+                    <span style={{ color: '#64748B' }}>Sellable:</span>
+                    <div style={{ marginTop: 2 }}>
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        background: selectedProduct.is_sellable !== false ? '#DCFCE7' : '#FEE2E2',
+                        color: selectedProduct.is_sellable !== false ? '#15803D' : '#B91C1C',
+                        border: selectedProduct.is_sellable !== false ? '1px solid #86EFAC' : '1px solid #FCA5A5'
+                      }}>
+                        {selectedProduct.is_sellable !== false ? 'YES' : 'NO'}
+                      </span>
                     </div>
-                  )}
-                  {selectedProduct.product_description && (
-                    <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
-                      <span style={{ color: '#64748B' }}>Product Description:</span>
-                      <p style={{ margin: '3px 0 0', fontSize: 12.5, color: '#334155', lineHeight: 1.5 }}>
-                        {selectedProduct.product_description}
-                      </p>
-                    </div>
-                  )}
+                  </div>
+
+                  {/* 19. Created At */}
+                  <div>
+                    <span style={{ color: '#64748B' }}>Created At:</span>
+                    <strong style={{ color: '#334155', display: 'block' }}>{selectedProduct.created_at || '—'}</strong>
+                  </div>
+
+                  {/* 20. Updated At */}
+                  <div>
+                    <span style={{ color: '#64748B' }}>Updated At:</span>
+                    <strong style={{ color: '#334155', display: 'block' }}>{selectedProduct.updated_at || '—'}</strong>
+                  </div>
+
+                  {/* 21. Product Description */}
+                  <div style={{ gridColumn: '1 / -1', marginTop: 4 }}>
+                    <span style={{ color: '#64748B' }}>Product Description:</span>
+                    <p style={{
+                      margin: '3px 0 0',
+                      fontSize: 12.5,
+                      color: (selectedProduct.product_description || selectedProduct.description) ? '#334155' : '#94A3B8',
+                      fontStyle: (selectedProduct.product_description || selectedProduct.description) ? 'normal' : 'italic',
+                      lineHeight: 1.5
+                    }}>
+                      {selectedProduct.product_description || selectedProduct.description || 'No description provided'}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -2629,9 +2770,16 @@ export const ProductCatalogModule: React.FC = () => {
 
                 {/* Step 1: Product Type * */}
                 <div>
-                  <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Step 1: Product Type *
-                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                      Step 1: Product Type *
+                    </label>
+                    {formData.productTypeId && (
+                      <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#0F766E' }}>
+                        ID: {formData.productTypeId}
+                      </span>
+                    )}
+                  </div>
                   <select
                     required
                     value={formData.productTypeId}
@@ -2649,7 +2797,7 @@ export const ProductCatalogModule: React.FC = () => {
                     <option value="" disabled>-- Select Product Type * --</option>
                     {(productTypes || []).filter(t => (t.lifecycle_status || t.status) === 'ACTIVE').map(t => (
                       <option key={t.product_type_id || t.id} value={t.product_type_id || t.id}>
-                        {t.product_type_name || t.name} ({t.product_type_code || t.code})
+                        {t.product_type_name || t.name} ({t.product_type_id || t.id})
                       </option>
                     ))}
                   </select>
@@ -2658,9 +2806,16 @@ export const ProductCatalogModule: React.FC = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   {/* Step 2: Category * */}
                   <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Step 2: Product Category *
-                    </label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                        Step 2: Product Category *
+                      </label>
+                      {formData.categoryId && (
+                        <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#0F766E' }}>
+                          ID: {formData.categoryId}
+                        </span>
+                      )}
+                    </div>
                     <select
                       required
                       value={formData.categoryId}
@@ -2670,7 +2825,7 @@ export const ProductCatalogModule: React.FC = () => {
                       <option value="">-- Select Category from Master * --</option>
                       {modalAvailableCategories.map(c => (
                         <option key={c.category_id} value={c.category_id}>
-                          {c.category} › {c.sub_category || 'General'} {c.sub_sub_category ? `› ${c.sub_sub_category}` : ''} ({c.category_code})
+                          {c.category} › {c.sub_category || 'General'} {c.sub_sub_category ? `› ${c.sub_sub_category}` : ''} ({c.category_id})
                         </option>
                       ))}
                     </select>
@@ -2678,9 +2833,20 @@ export const ProductCatalogModule: React.FC = () => {
 
                   {/* Step 3: Brand */}
                   <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Step 3: Product Brand <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
-                    </label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                        Step 3: Product Brand <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
+                      </label>
+                      {formData.brandId ? (
+                        <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#D97706' }}>
+                          ID: {formData.brandId}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#94A3B8' }}>
+                          ID: —
+                        </span>
+                      )}
+                    </div>
                     <select
                       value={formData.brandId}
                       onChange={e => setFormData({ ...formData, brandId: e.target.value })}
@@ -2689,7 +2855,7 @@ export const ProductCatalogModule: React.FC = () => {
                       <option value="">-- No Brand / Unbranded (Generic) --</option>
                       {(brands || []).filter(b => (b.lifecycle_status || b.status || 'ACTIVE').toUpperCase() === 'ACTIVE').map(b => (
                         <option key={b.brand_id || b.id} value={b.brand_id || b.id}>
-                          {b.brand_name || b.name} ({b.brand_code || b.code})
+                          {b.brand_name || b.name} ({b.brand_id || b.id})
                         </option>
                       ))}
                     </select>
@@ -2699,8 +2865,13 @@ export const ProductCatalogModule: React.FC = () => {
                 {/* Read-only Derived Category Hierarchy Display */}
                 {selectedModalCategoryRecord && (
                   <div style={{ background: '#F0FDFA', border: '1px solid #99F6E4', borderRadius: 8, padding: 12, fontSize: 12 }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.05em', marginBottom: 6 }}>
-                      Derived Category Hierarchy:
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', color: '#0F766E', letterSpacing: '0.05em' }}>
+                        Derived Category Hierarchy:
+                      </div>
+                      <div style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#0F766E' }}>
+                        Category ID: {selectedModalCategoryRecord.category_id}
+                      </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                       <div>
@@ -3027,20 +3198,31 @@ export const ProductCatalogModule: React.FC = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
                   <div>
-                    <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Replacement Product <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
-                    </label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                        Replacement Product <span style={{ fontWeight: 400, color: '#94A3B8' }}>(Optional)</span>
+                      </label>
+                      {formData.replacementProductId ? (
+                        <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#0F766E' }}>
+                          ID: {formData.replacementProductId}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#94A3B8' }}>
+                          ID: —
+                        </span>
+                      )}
+                    </div>
                     <select
                       value={formData.replacementProductId}
                       onChange={e => setFormData({ ...formData, replacementProductId: e.target.value })}
                       style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 13, fontWeight: 600, background: '#FFFFFF' }}
                     >
-                      <option value="">-- None --</option>
+                      <option value="">-- None (—) --</option>
                       {(products || [])
                         .filter(p => p.id !== editingProductId)
                         .map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.product_name || p.name} ({p.product_code || p.code})
+                          <option key={p.id} value={p.product_id || p.id}>
+                            {p.product_name || p.name} ({p.product_id || p.id})
                           </option>
                         ))}
                     </select>
